@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>手提小菜园</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <div id="coin-bar">💰 <span id="coin-count">0</span></div>
+    <div id="clock-badge"></div>
+    <div id="water-badge"></div>
+  </div>
+
+  <div id="toast-wrap"></div>
+
+  <div id="seed-picker" class="hidden"></div>
+
+  <div id="quick-menu" class="hidden"></div>
+
+  <div id="toolbar">
+    <button class="tool-btn active" data-tool="hand" title="点击成熟作物收获">🖐<span>收获</span></button>
+    <button class="tool-btn" data-tool="plant" title="选择种子后点击空地种植">🌱<span>种植</span></button>
+    <button class="tool-btn" data-tool="water" title="点击土地浇水">💧<span>浇水</span></button>
+    <button class="tool-btn" data-tool="shovel" title="铲除作物或装饰">🧹<span>铲除</span></button>
+    <button class="tool-btn" id="save-layout-btn" title="保存当前种植布局">💾<span>保存</span></button>
+    <button class="tool-btn" id="quick-btn" title="快捷操作">⚡<span>快捷</span></button>
+    <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span>挂机</span></button>
+    <button class="tool-btn" id="bag-btn" title="背包">🎒<span>背包</span><i id="bag-badge" class="hidden"></i></button>
+    <button class="tool-btn" id="items-btn" title="道具背包">🧰<span>道具</span><i id="items-badge" class="hidden"></i></button>
+    <button class="tool-btn" id="shop-btn" title="商店">🏪<span>商店</span></button>
+  </div>
+
+  <div id="bag" class="hidden">
+    <div id="bag-head"><b>🎒 背包</b><button id="bag-close">✕</button></div>
+    <div id="bag-body"></div>
+  </div>
+
+  <div id="ws" class="hidden">
+    <div id="ws-head"><b>🏭 工坊</b><button id="ws-close">✕</button></div>
+    <div id="ws-body"></div>
+  </div>
+
+  <div id="disp" class="hidden">
+    <div id="disp-head"><b>🏆 作物展示区</b><button id="disp-close">✕</button></div>
+    <div id="disp-body"></div>
+  </div>
+
+  <div id="mall" class="hidden">
+    <div id="mall-head"><b>🛒 商场</b><button id="mall-close">✕</button></div>
+    <div id="mall-body"></div>
+  </div>
+
+  <div id="items" class="hidden">
+    <div id="items-head"><b>🧰 道具背包</b><button id="items-close">✕</button></div>
+    <div id="items-body"></div>
+  </div>
+
+  <div id="house" class="hidden">
+    <div id="house-head"><b>🏠 我的小屋</b><button id="house-close">✕</button></div>
+    <div id="house-room"></div>
+    <div id="house-body"></div>
+  </div>
+
+  <div id="shop" class="hidden">
+    <div id="shop-head">
+      <div id="shop-tabs">
+        <button class="shop-tab active" data-tab="seeds">种子</button>
+        <button class="shop-tab" data-tab="soil">土壤</button>
+        <button class="shop-tab" data-tab="water">水源</button>
+        <button class="shop-tab" data-tab="decor">装饰</button>
+        <button class="shop-tab" data-tab="interior">内饰</button>
+      </div>
+      <button id="shop-close">✕</button>
+    </div>
+    <div id="shop-body"></div>
+  </div>
+
+  <div id="hint">🌱 选择种子种下 → 💧 浇水 → 等待成熟 → 🖐 点击收获卖钱</div>
+
+  <div id="afk-overlay" class="hidden">
+    <div id="afk-card">
+      <div id="afk-emoji">😴</div>
+      <b>挂机中 · 世界已暂停</b>
+      <p>作物、时钟、工坊全部冻结<br>休息一下眼睛吧</p>
+      <button id="afk-resume">☀️ 点击解冻</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
