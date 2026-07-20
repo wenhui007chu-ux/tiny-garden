@@ -19,6 +19,7 @@ try {
 const { renderer, scene, camera, controls, ensureSize, lights } = createScene(document.getElementById('app'));
 const game = new Game(scene);
 const ui = new UI(game);
+ui.attachCamera(camera, controls);
 
 /* ---------- 拾取与交互 ---------- */
 
@@ -32,7 +33,7 @@ function pickTile(e) {
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
-     ...game.displayMeshes(), ...game.mallMeshes, ...game.houseMeshes], false);
+     ...game.displayMeshes(), ...game.mallMeshes, ...game.houseMeshes, ...game.pondMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -52,6 +53,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   downPos = null;
   if (moved > 6) return; // 拖动视角，不算点击
   if (game.paused) return; // 挂机中一切操作无效
+  if (ui.inHouse) return; // 屋里点不到菜园
   const hit = pickTile(e);
   if (!hit) return;
 
@@ -70,6 +72,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 自己的房子：点击进屋
   if (hit.userData.house) {
     ui.openHouse();
+    return;
+  }
+
+  // 水滩：点击打开抓鱼面板
+  if (hit.userData.pond) {
+    ui.openFishing();
     return;
   }
 
@@ -128,6 +136,23 @@ const clock = new THREE.Clock();
 const DAY_BG = new THREE.Color(0xfdf3e3);
 const NIGHT_BG = new THREE.Color(0x2b3050);
 const DROUGHT_BG = new THREE.Color(0xf6ddb0); // 旱天泛黄的天色
+const RAIN_BG = new THREE.Color(0x97a5b8);    // 暴雨的灰蓝天色
+
+// 暴雨的雨点粒子
+const RAIN_COUNT = 1200;
+const rainPos = new Float32Array(RAIN_COUNT * 3);
+for (let k = 0; k < RAIN_COUNT; k++) {
+  rainPos[k * 3] = (Math.random() - 0.5) * 64;
+  rainPos[k * 3 + 1] = Math.random() * 26;
+  rainPos[k * 3 + 2] = (Math.random() - 0.5) * 64;
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainDrops = new THREE.Points(rainGeo, new THREE.PointsMaterial({
+  color: 0xaec8e8, size: 0.16, transparent: true, opacity: 0.75,
+}));
+rainDrops.visible = false;
+scene.add(rainDrops);
 
 // 大旱天的三个太阳
 const suns = new THREE.Group();
@@ -154,7 +179,7 @@ function animate() {
   game.group.traverse(obj => {
     if (obj.userData.bob) {
       const s = (1 + Math.sin(t * 5 + obj.position.x * 3) * 0.05)
-        * (game.drought && obj.userData.plantRoot ? 0.85 : 1); // 旱天作物缩水一圈
+        * (game.badWeather() && obj.userData.plantRoot ? 0.85 : 1); // 恶劣天气作物缩水一圈
       obj.scale.set(s, s, s);
     }
     if (obj.userData.spin) obj.rotation.y = t * 1.2;
@@ -165,17 +190,33 @@ function animate() {
       obj.material.emissive.setHex(0xffc94a);
       obj.material.emissiveIntensity = (1 - f) * 0.85;
     }
+    if (obj.userData.flame) {                                                // 炉火/烛火摇曳
+      obj.scale.set(1 + Math.sin(t * 11) * 0.12, 1 + Math.sin(t * 14 + 1) * 0.2, 1 + Math.cos(t * 9) * 0.12);
+      obj.material.emissiveIntensity = 1 + Math.sin(t * 13) * 0.3;
+    }
     if (obj.userData.lampBulb) obj.material.emissiveIntensity = 0.3 + (1 - f) * 1.2;
   });
 
-  // 昼夜光照渐变
-  lights.sun.intensity = 0.25 + 1.35 * f;
-  lights.ambient.intensity = 0.35 + 0.4 * f;
+  // 昼夜光照渐变（暴雨时天光压暗）
+  const gloom = game.rain ? 0.55 : 1;
+  lights.sun.intensity = (0.25 + 1.35 * f) * gloom;
+  lights.ambient.intensity = (0.35 + 0.4 * f) * (game.rain ? 0.8 : 1);
   lights.fill.intensity = 0.15 + 0.25 * f;
-  const bg = NIGHT_BG.clone().lerp(game.drought ? DROUGHT_BG : DAY_BG, f);
+  const bg = NIGHT_BG.clone().lerp(game.drought ? DROUGHT_BG : game.rain ? RAIN_BG : DAY_BG, f);
   scene.background.copy(bg);
   scene.fog.color.copy(bg);
   suns.visible = game.drought && f > 0.05; // 三个太阳只在旱天的白昼高挂
+
+  // 暴雨：雨点下落
+  rainDrops.visible = game.rain;
+  if (game.rain) {
+    const p = rainGeo.attributes.position.array;
+    for (let k = 0; k < RAIN_COUNT; k++) {
+      p[k * 3 + 1] -= dt * 24;
+      if (p[k * 3 + 1] < -0.5) p[k * 3 + 1] = 24 + Math.random() * 3;
+    }
+    rainGeo.attributes.position.needsUpdate = true;
+  }
 
   renderer.render(scene, camera);
 }

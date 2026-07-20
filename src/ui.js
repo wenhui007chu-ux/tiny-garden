@@ -1,4 +1,7 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING } from './config.js';
+
+// 秒数显示成「X分X秒」
+const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -41,16 +44,18 @@ export class UI {
     $('#disp-close').addEventListener('click', () => $('#disp').classList.add('hidden'));
     $('#mall-close').addEventListener('click', () => $('#mall').classList.add('hidden'));
     $('#items-close').addEventListener('click', () => $('#items').classList.add('hidden'));
-    $('#house-close').addEventListener('click', () => $('#house').classList.add('hidden'));
+    $('#house-close').addEventListener('click', () => this.exitHouse());
+    $('#fish-close').addEventListener('click', () => $('#fish').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
       this.closePanels();
       if (wasHidden) { panel.classList.remove('hidden'); this.renderItems(); }
     });
-    // 工坊倒计时刷新
+    // 工坊/鱼网倒计时刷新
     setInterval(() => {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
+      if (!$('#fish').classList.contains('hidden')) this.renderFishing();
     }, 500);
     // 左上角时钟
     this.updateClock();
@@ -71,11 +76,12 @@ export class UI {
     window.addEventListener('keydown', (e) => {
       if (e.repeat || this.game.paused) return; // 挂机中快捷键也冻结
       const k = e.key.toLowerCase();
+      if (k === 'escape') { $('#quick-menu').classList.add('hidden'); this.exitHouse(); return; }
+      if (this.inHouse) return; // 屋里不干农活
       if (k === 'r') this.openQuickMenu('layouts'); // R 直接打开布局列表
       if (k === 'w') this.game.waterAll();
       if (k === 'h') this.game.harvestAll();
       if (k === 's') this.game.sellAll();
-      if (k === 'escape') $('#quick-menu').classList.add('hidden');
     });
   }
 
@@ -143,7 +149,7 @@ export class UI {
       SEEDS.forEach(s => {
         const owned = g.unlockedSeeds.includes(s.id);
         item(s.emoji, s.name,
-          `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${s.growTime}秒`,
+          `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${fmtTime(s.growTime)}`,
           owned ? '已解锁' : `解锁 ${s.unlock}💰`,
           owned ? null : () => { g.unlockSeed(s.id); this.renderShop(); },
           owned ? 'owned' : '');
@@ -249,57 +255,134 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#shop', '#bag', '#ws', '#disp', '#mall', '#items', '#house', '#quick-menu']
+    ['#shop', '#bag', '#ws', '#disp', '#mall', '#items', '#fish', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
+    this.exitHouse(); // 打开别的面板时顺便走出房间
   }
 
-  /* ---------- 我的小屋 ---------- */
+  /* ---------- 抓鱼水滩 ---------- */
+
+  openFishing() {
+    this.closePanels();
+    $('#fish').classList.remove('hidden');
+    this.renderFishing();
+  }
+
+  renderFishing() {
+    const body = $('#fish-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const nets = g.items.net ?? 0;
+    const note = document.createElement('p');
+    note.className = 'shop-note';
+    note.textContent = `摆网 ${FISHING.time / 60} 分钟，随机捞 ${FISHING.rewardMin}~${FISHING.rewardMax}💰，是亏是赚全看脸。持有抓鱼网 ×${nets}（商场有售 100💰）。`;
+    body.appendChild(note);
+    g.fishNets.forEach((n, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!n) {
+        el.innerHTML = `<div class="icon">🌊</div><div class="info"><b>${k + 1} 号网位</b><p>空着</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '摆网';
+        if (nets <= 0) { btn.disabled = true; btn.style.opacity = 0.5; }
+        btn.addEventListener('click', () => { g.placeNet(k); this.renderFishing(); });
+        el.appendChild(btn);
+      } else {
+        const remain = Math.max(0, n.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / FISHING.time) * 100);
+          el.innerHTML = `<div class="icon">🕸️</div>
+            <div class="info"><b>${k + 1} 号网 捕捞中</b>
+            <p>还剩 ${fmtTime(remain)}</p>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.classList.add('done');
+          el.innerHTML = `<div class="icon">🐟</div>
+            <div class="info"><b>${k + 1} 号网 有动静了！</b><p>快收网看看捞到多少</p></div>`;
+          const btn = document.createElement('button');
+          btn.className = 'collect';
+          btn.textContent = '收网';
+          btn.addEventListener('click', () => { g.collectNet(k); this.renderFishing(); });
+          el.appendChild(btn);
+        }
+      }
+      body.appendChild(el);
+    });
+  }
+
+  /* ---------- 我的小屋（进屋 = 镜头切进 3D 房间） ---------- */
+
+  attachCamera(camera, controls) {
+    this.camera = camera;
+    this.controls = controls;
+  }
 
   openHouse() {
     this.closePanels();
+    if (!this.inHouse && this.camera) {
+      // 记住外面的镜头，进屋
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = INTERIOR_POS;
+      this.controls.target.set(p.x + 0.2, p.y + 1, p.z - 0.4);
+      this.camera.position.set(p.x + 5.2, p.y + 4.6, p.z + 6);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inHouse = true;
+    }
     $('#house').classList.remove('hidden');
     this.renderHouse();
   }
 
+  exitHouse() {
+    $('#house').classList.add('hidden');
+    if (!this.inHouse) return;
+    this.inHouse = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+    }
+  }
+
   renderHouse() {
     const g = this.game;
-    const room = $('#house-room');
     const body = $('#house-body');
-    room.innerHTML = '';
     body.innerHTML = '';
-
-    // 屋内俯视图：等级越高家具越大
-    const owned = FURNITURE.filter(f => g.furniture[f.id]);
-    owned.forEach(f => {
-      const lv = g.furniture[f.id];
-      const el = document.createElement('div');
-      el.className = 'fur';
-      el.textContent = f.emoji;
-      el.style.left = f.spot.left;
-      el.style.bottom = f.spot.bottom;
-      el.style.fontSize = `${20 + lv * 9}px`;
-      el.title = `${f.levelNames[lv - 1]}（Lv.${lv}）`;
-      room.appendChild(el);
-    });
-    if (owned.length <= 1) {
-      room.insertAdjacentHTML('beforeend',
-        '<div class="empty-tip">屋里只有一张床<br>去商店「内饰」页添点家具吧</div>');
-    }
 
     const comfort = document.createElement('div');
     comfort.id = 'house-comfort';
-    comfort.textContent = `🛋 舒适度 ${g.comfort()} · 家具 ${owned.length}/${FURNITURE.length}`;
+    const ownedCount = FURNITURE.filter(f => g.furniture[f.id]).length;
+    comfort.textContent = `🛋 舒适度 ${g.comfort()} · 家具 ${ownedCount}/${FURNITURE.length} · 拖动可以环视房间`;
     body.appendChild(comfort);
 
     FURNITURE.forEach(f => {
       const lv = g.furniture[f.id] ?? 0;
+      const shown = lv ? Math.min(g.furnitureStyle[f.id] ?? lv, lv) : 0;
       const el = document.createElement('div');
       el.className = 'fur-row' + (lv ? '' : ' locked');
       const desc = lv
-        ? `${f.levelNames[lv - 1]} · Lv.${lv}/3`
+        ? `已解锁 Lv.${lv}/3 · 正在展示「${f.levelNames[shown - 1]}」`
         : `未拥有 · 商店「内饰」页 ${f.cost}💰`;
       el.innerHTML = `<div class="icon">${f.emoji}</div>
         <div class="info"><b>${f.name}</b><p>${desc}</p></div>`;
+      // 已解锁的外观随便换
+      if (lv >= 2) {
+        const chips = document.createElement('div');
+        chips.className = 'style-chips';
+        for (let k = 1; k <= lv; k++) {
+          const chip = document.createElement('button');
+          chip.textContent = f.levelNames[k - 1];
+          chip.className = k === shown ? 'active' : '';
+          chip.addEventListener('click', () => { g.setFurnitureStyle(f.id, k); this.renderHouse(); });
+          chips.appendChild(chip);
+        }
+        el.querySelector('.info').appendChild(chips);
+      }
       if (f.id === 'bed') {
         const btn = document.createElement('button');
         btn.className = 'sleep';

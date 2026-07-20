@@ -3,14 +3,15 @@ import {
   GRID, LEVELS, WET_DURATION, START_COINS,
   SEEDS, SOILS, WATER_LEVELS, seedById, decorById,
   QUALITIES, GOLD_CHANCE, SILVER_CHANCE, WORKSHOP, keyInfo,
-  DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, itemById, furnitureById,
-  UNLOCK_COST,
+  DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
+  UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
   createDecorSlotMesh, decorSlotPos, DECOR_SLOTS, applyPlating, createWorkshop,
   createDisplaySlotMesh, displaySlotPos, DISPLAY_SLOTS, createMall,
   createUpperDeck, createLadder, createHouse, createLockEdge,
+  createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -34,8 +35,10 @@ export class Game {
     this.paused = false;    // 挂机模式：整个世界暂停
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
+    this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
     this.items = {};        // 道具背包，和作物背包分开：itemId -> 数量
-    this.furniture = { bed: 1 }; // 房子内饰：id -> 等级(1~3)，床是白送的
+    this.furniture = { bed: 1 }; // 房子内饰：id -> 已解锁的最高等级(1~3)，床是白送的
+    this.furnitureStyle = {};    // 当前展示的外观等级（可在已解锁范围内随意切换）
     this.onToast = () => {};
     this.onState = () => {};
 
@@ -99,6 +102,21 @@ export class Game {
     this.houseMeshes = [];
     house.traverse(o => { if (o.isMesh) this.houseMeshes.push(o); });
 
+    // 房子内部的 3D 房间：藏在岛屿下方，进屋时镜头切过去
+    this.interior = createInteriorRoom();
+    this.interior.position.set(INTERIOR_POS.x, INTERIOR_POS.y, INTERIOR_POS.z);
+    this.group.add(this.interior);
+    this.interiorFurniture = {};
+
+    // 抓鱼水滩：左前方空地
+    this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
+    this.pond = createPond();
+    this.pond.position.set(-14, -0.51, 10);
+    this.group.add(this.pond);
+    this.pondMeshes = [];
+    this.pond.traverse(o => { if (o.isMesh) this.pondMeshes.push(o); });
+    this.netMeshes = Array(FISHING.slots).fill(null);
+
     // 商场：菜园后方的小楼
     const mall = createMall();
     mall.position.set(-9.2, -0.51, -6.6); // 让开二层农田的位置
@@ -127,32 +145,38 @@ export class Game {
   displayMeshes() { return this.displaySlots.map(s => s.mesh); }
   isWet(t) { return this.waterLevel === 2 || t.wetUntil > this.time; }
 
-  /* ---------- 大旱天 ---------- */
+  /* ---------- 天气（大旱 / 暴雨） ---------- */
 
-  rollDrought() {
-    this.setDrought(Math.random() < DROUGHT.chance);
+  rollWeather() {
+    const r = Math.random();
+    this.setWeather(r < DROUGHT.chance, r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance);
     this.onToast(this.drought
       ? '☀️☀️☀️ 大旱天！生长缓慢，今天的收成会生长不良'
-      : (this._wasDrought ? '🌧 旱情结束，菜园恢复生机！' : '🌅 新的一天开始了'));
-    this._wasDrought = this.drought;
+      : this.rain
+        ? '⛈ 暴雨天！作物疯长三倍，但收成会生长不良'
+        : '🌅 新的一天，风调雨顺');
   }
 
-  setDrought(on) {
-    this.drought = on;
+  setWeather(drought, rain) {
+    this.drought = drought;
+    this.rain = rain;
     for (const t of this.tiles) {
-      if (t.plant?.mesh) this.applyDroughtTint(t.plant.mesh, on);
+      if (t.plant?.mesh) this.applyWeatherTint(t.plant.mesh);
     }
   }
 
-  // 旱天作物发黄缩水；恢复时还原本色（origColor 在首次调用时记录）
-  applyDroughtTint(root, on) {
+  badWeather() { return this.drought || this.rain; }
+
+  // 恶劣天气下作物变色缩水：大旱发黄、暴雨灰蓝；恢复时还原本色
+  applyWeatherTint(root) {
+    const tint = this.drought ? 0xd8c26a : this.rain ? 0x7a8a99 : null;
     root.traverse(o => {
       if (!o.isMesh) return;
       if (o.userData.origColor === undefined) o.userData.origColor = o.material.color.getHex();
       o.material.color.setHex(o.userData.origColor);
-      if (on) o.material.color.lerp(new THREE.Color(0xd8c26a), 0.4);
+      if (tint !== null) o.material.color.lerp(new THREE.Color(tint), 0.4);
     });
-    if (!root.userData.bob) root.scale.setScalar(on ? 0.85 : 1);
+    if (!root.userData.bob) root.scale.setScalar(tint !== null ? 0.85 : 1);
   }
 
   /* ---------- 昼夜时钟 ---------- */
@@ -239,7 +263,7 @@ export class Game {
       if (!t.plant || t.plant.stage < 3) continue;
       const seed = seedById(t.plant.seedId);
       const n = SOILS[t.soil].yield;
-      const key = (this.drought ? 'x:' : '') + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
+      const key = (this.badWeather() ? 'x:' : '') + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
       this.inventory[key] = (this.inventory[key] ?? 0) + n;
       this.removePlant(t);
       count += n;
@@ -340,7 +364,7 @@ export class Game {
     if (t.plant.stage < 3) { this.onToast(`${seed.name}还没成熟`); return false; }
     const count = SOILS[t.soil].yield;
     const quality = t.plant.quality;
-    const key = (this.drought ? 'x:' : '') + (quality ? `${seed.id}:${quality}` : seed.id);
+    const key = (this.badWeather() ? 'x:' : '') + (quality ? `${seed.id}:${quality}` : seed.id);
     this.removePlant(t);
     this.inventory[key] = (this.inventory[key] ?? 0) + count;
     this.onState();
@@ -377,6 +401,7 @@ export class Game {
 
   useItem(id) {
     if ((this.items[id] ?? 0) <= 0) return;
+    if (id === 'net') { this.onToast('🕸️ 抓鱼网要拿到水滩去摆（点击左前方的水塘）'); return; }
     const ok = id === 'fertilizer' ? this.useFertilizer() : this.useLuck();
     if (!ok) return;
     this.items[id] -= 1;
@@ -416,6 +441,48 @@ export class Game {
     return true;
   }
 
+  /* ---------- 抓鱼水滩 ---------- */
+
+  placeNet(k) {
+    if (this.fishNets[k]) return;
+    if ((this.items.net ?? 0) <= 0) { this.onToast('没有抓鱼网了，商场有售 100💰'); return; }
+    this.items.net -= 1;
+    if (this.items.net === 0) delete this.items.net;
+    this.fishNets[k] = { readyAt: this.time + FISHING.time };
+    this.refreshNets();
+    this.onToast(`🕸️ 网摆好了，${FISHING.time / 60} 分钟后来收`);
+    this.onState();
+    this.save();
+  }
+
+  collectNet(k) {
+    const n = this.fishNets[k];
+    if (!n || this.time < n.readyAt) return;
+    const reward = FISHING.rewardMin + Math.floor(Math.random() * (FISHING.rewardMax - FISHING.rewardMin + 1));
+    this.fishNets[k] = null;
+    this.refreshNets();
+    this.gain(reward);
+    this.onToast(`🎣 收网！捞上来 ${reward}💰 ${reward >= 100 ? '，血赚' : '，亏了…'}`);
+    this.save();
+  }
+
+  refreshNets() {
+    this.fishNets.forEach((n, k) => {
+      const has = !!n;
+      if (has && !this.netMeshes[k]) {
+        const m = createNetMesh();
+        m.position.set(this.pond.position.x + NET_SPOTS[k][0], -0.2, this.pond.position.z + NET_SPOTS[k][1]);
+        m.rotation.y = k * 1.2;
+        this.group.add(m);
+        this.netMeshes[k] = m;
+      }
+      if (!has && this.netMeshes[k]) {
+        this.group.remove(this.netMeshes[k]);
+        this.netMeshes[k] = null;
+      }
+    });
+  }
+
   /* ---------- 房子 ---------- */
 
   buyFurniture(id) {
@@ -423,6 +490,7 @@ export class Game {
     if (!f || this.furniture[id]) return;
     if (!this.spend(f.cost)) return;
     this.furniture[id] = 1;
+    this.refreshInterior();
     this.onToast(`${f.emoji} ${f.name}搬进屋啦！`);
     this.onState();
     this.save();
@@ -436,9 +504,42 @@ export class Game {
     const cost = f.up[lv - 1];
     if (!this.spend(cost)) return;
     this.furniture[id] = lv + 1;
+    this.furnitureStyle[id] = lv + 1; // 刚买的新外观先亮出来
+    this.refreshInterior();
     this.onToast(`${f.emoji} ${f.name}升级成「${f.levelNames[lv]}」！`);
     this.onState();
     this.save();
+  }
+
+  // 在已解锁的等级里切换展示外观，不花钱
+  setFurnitureStyle(id, lv) {
+    const f = furnitureById(id);
+    const max = this.furniture[id] ?? 0;
+    if (!f || lv < 1 || lv > max) return;
+    this.furnitureStyle[id] = lv;
+    this.refreshInterior();
+    this.onToast(`${f.emoji} 换成了「${f.levelNames[lv - 1]}」`);
+    this.onState();
+    this.save();
+  }
+
+  // 按当前展示外观重建房间里的 3D 模型
+  refreshInterior() {
+    for (const f of FURNITURE) {
+      const max = this.furniture[f.id] ?? 0;
+      const lv = max > 0 ? Math.min(this.furnitureStyle[f.id] ?? max, max) : 0;
+      const cur = this.interiorFurniture[f.id];
+      if (cur && cur.userData.lv === lv) continue;
+      if (cur) { this.interior.remove(cur); delete this.interiorFurniture[f.id]; }
+      if (lv > 0) {
+        const m = createFurnitureMesh(f.id, lv);
+        m.userData.lv = lv;
+        m.position.set(f.pos[0], 0, f.pos[1]);
+        m.rotation.y = f.rotY ?? 0;
+        this.interior.add(m);
+        this.interiorFurniture[f.id] = m;
+      }
+    }
   }
 
   comfort() {
@@ -639,7 +740,7 @@ export class Game {
     const mesh = createPlantMesh(seed.id, stage);
     applyPlating(mesh, t.plant.quality);
     mesh.userData.plantRoot = true;
-    if (this.drought) this.applyDroughtTint(mesh, true);
+    if (this.badWeather()) this.applyWeatherTint(mesh);
     t.plant.mesh = this.attachMesh(mesh, t);
   }
 
@@ -655,6 +756,7 @@ export class Game {
     for (const s of this.displaySlots) {
       if (s.item && !s.item.mesh) s.item.mesh = this.buildDisplayMesh(s.item.key, s);
     }
+    this.refreshInterior();
   }
 
   /* ---------- 主循环 ---------- */
@@ -664,7 +766,7 @@ export class Game {
     this.time += dt;
     const wrapped = this.clock + dt >= DAY_CYCLE;
     this.clock = (this.clock + dt) % DAY_CYCLE;
-    if (wrapped) this.rollDrought(); // 每天早上 6 点掷天气骰子
+    if (wrapped) this.rollWeather(); // 每天早上 6 点掷天气骰子
 
     // 昼夜切换提示
     const night = this.isNight();
@@ -686,7 +788,9 @@ export class Game {
       }
     }
 
-    const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
+    const growMult = (night ? NIGHT_SLOW : 1)
+      * (this.drought ? DROUGHT.growSlow : 1)
+      * (this.rain ? RAIN.growFast : 1);
     for (const t of this.tiles) {
       const wet = this.isWet(t);
       if (t.plant) {
@@ -721,6 +825,7 @@ export class Game {
       savedAt: Date.now(),
       items: this.items,
       furniture: this.furniture,
+      furnitureStyle: this.furnitureStyle,
       tiles: this.tiles.map(t => ({
         soil: t.soil,
         lucky: t.lucky,
@@ -731,9 +836,11 @@ export class Game {
       decorSlots: this.decorSlots.map(s => s.decor?.id ?? null),
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
       workshop: this.workshop.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
+      fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       clock: this.clock,
       windTimer: this.windTimer,
       drought: this.drought,
+      rain: this.rain,
       savedLayouts: this.savedLayouts,
       layoutSeq: this.layoutSeq,
       paused: this.paused,
@@ -757,6 +864,7 @@ export class Game {
     this.items = data.items ?? {};
     this.furniture = data.furniture ?? { bed: 1 };
     if (!this.furniture.bed) this.furniture.bed = 1; // 床永远都在
+    this.furnitureStyle = data.furnitureStyle ?? {};
     // 旧存档只有 lastLayout 的话，迁移成第一个已保存布局
     this.savedLayouts = data.savedLayouts
       ?? (data.lastLayout?.some(Boolean) ? [{ name: '上次布局', layout: data.lastLayout }] : []);
@@ -765,11 +873,12 @@ export class Game {
     // 挂机状态下关的游戏，离线时间不生效
     const elapsed = this.paused ? 0 : Math.max(0, (Date.now() - (data.savedAt ?? Date.now())) / 1000);
     this.drought = data.drought ?? false;
-    this._wasDrought = this.drought;
+    this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气
     if (Math.floor(((data.clock ?? 0) + elapsed) / DAY_CYCLE) > 0) {
-      this.drought = Math.random() < DROUGHT.chance;
-      this._wasDrought = this.drought;
+      const r = Math.random();
+      this.drought = r < DROUGHT.chance;
+      this.rain = r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance;
     }
     this.clock = ((data.clock ?? DAY_CYCLE / 4) + elapsed) % DAY_CYCLE; // 离线时时间照样流逝
     data.tiles?.forEach((s, idx) => {
@@ -816,5 +925,12 @@ export class Game {
         this.workshop[k] = { key: s.key, readyAt: this.time + Math.max(0, s.remain - elapsed) };
       }
     });
+    // 鱼网：离线也照常捕鱼
+    (data.fishNets ?? []).forEach((n, k) => {
+      if (n && k < this.fishNets.length) {
+        this.fishNets[k] = { readyAt: this.time + Math.max(0, n.remain - elapsed) };
+      }
+    });
+    this.refreshNets();
   }
 }

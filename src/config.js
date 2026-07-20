@@ -8,21 +8,22 @@ export const UNLOCK_COST = 1000; // 二层每块地的解锁价
 export const WET_DURATION = 45; // 浇一次水保持湿润的秒数
 export const START_COINS = 20;
 
+// 慢动作田园：生长时间统一放慢 5 倍，削一削经济
 export const SEEDS = [
-  { id: 'sweetpot',   name: '红薯',   emoji: '🍠', cost: 0,   sell: 1,    growTime: 10,  unlock: 0 },
-  { id: 'radish',     name: '萝卜',   emoji: '🥕', cost: 5,   sell: 12,   growTime: 20,  unlock: 0 },
-  { id: 'potato',     name: '土豆',   emoji: '🥔', cost: 8,   sell: 22,   growTime: 28,  unlock: 30 },
-  { id: 'cabbage',    name: '白菜',   emoji: '🥬', cost: 15,  sell: 40,   growTime: 40,  unlock: 60 },
-  { id: 'tomato',     name: '番茄',   emoji: '🍅', cost: 20,  sell: 55,   growTime: 45,  unlock: 100 },
-  { id: 'corn',       name: '玉米',   emoji: '🌽', cost: 35,  sell: 105,  growTime: 60,  unlock: 200 },
-  { id: 'strawberry', name: '草莓',   emoji: '🍓', cost: 55,  sell: 170,  growTime: 75,  unlock: 320 },
-  { id: 'pumpkin',    name: '南瓜',   emoji: '🎃', cost: 80,  sell: 240,  growTime: 90,  unlock: 400 },
-  { id: 'eggplant',   name: '茄子',   emoji: '🍆', cost: 120, sell: 380,  growTime: 110, unlock: 650 },
-  { id: 'watermelon', name: '西瓜',   emoji: '🍉', cost: 170, sell: 560,  growTime: 130, unlock: 900 },
-  { id: 'pineapple',  name: '菠萝',   emoji: '🍍', cost: 230, sell: 780,  growTime: 150, unlock: 1200 },
-  { id: 'crystal',    name: '水晶果', emoji: '🔮', cost: 300, sell: 1000, growTime: 180, unlock: 1500 },
-  { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 240, unlock: 2200 },
-  { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 300, unlock: 3000 },
+  { id: 'sweetpot',   name: '红薯',   emoji: '🍠', cost: 0,   sell: 1,    growTime: 50,   unlock: 0 },
+  { id: 'radish',     name: '萝卜',   emoji: '🥕', cost: 5,   sell: 12,   growTime: 100,  unlock: 0 },
+  { id: 'potato',     name: '土豆',   emoji: '🥔', cost: 8,   sell: 22,   growTime: 140,  unlock: 30 },
+  { id: 'cabbage',    name: '白菜',   emoji: '🥬', cost: 15,  sell: 40,   growTime: 200,  unlock: 60 },
+  { id: 'tomato',     name: '番茄',   emoji: '🍅', cost: 20,  sell: 55,   growTime: 225,  unlock: 100 },
+  { id: 'corn',       name: '玉米',   emoji: '🌽', cost: 35,  sell: 105,  growTime: 300,  unlock: 200 },
+  { id: 'strawberry', name: '草莓',   emoji: '🍓', cost: 55,  sell: 170,  growTime: 375,  unlock: 320 },
+  { id: 'pumpkin',    name: '南瓜',   emoji: '🎃', cost: 80,  sell: 240,  growTime: 450,  unlock: 400 },
+  { id: 'eggplant',   name: '茄子',   emoji: '🍆', cost: 120, sell: 380,  growTime: 550,  unlock: 650 },
+  { id: 'watermelon', name: '西瓜',   emoji: '🍉', cost: 170, sell: 560,  growTime: 650,  unlock: 900 },
+  { id: 'pineapple',  name: '菠萝',   emoji: '🍍', cost: 230, sell: 780,  growTime: 750,  unlock: 1200 },
+  { id: 'crystal',    name: '水晶果', emoji: '🔮', cost: 300, sell: 1000, growTime: 900,  unlock: 1500 },
+  { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 1200, unlock: 2200 },
+  { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 1500, unlock: 3000 },
 ];
 
 export const SOILS = [
@@ -66,8 +67,11 @@ export const QUICK_WATER_COST = 10; // 一键浇水价格
 // 恐龙虾卵：泥土加水的小惊喜，浇水时每块被浇的地 5% 概率出现，自动入背包
 export const EGG = { key: 'egg', name: '恐龙虾卵', emoji: '🦐', sell: 10, chance: 0.05 };
 
-// 大旱天：每个游戏日 20% 概率，三个太阳，生长 ×1/3，旱天收获的作物"生长不良"只卖半价
-export const DROUGHT = { chance: 0.2, growSlow: 1 / 3, sellMult: 0.5 };
+// 恶劣天气：每天掷一次，大旱和暴雨各 15%
+// 大旱：三个太阳，生长 ×1/3；暴雨：持续降雨，生长 ×3
+// 两种天气下收获的作物都是"生长不良"，只卖半价
+export const DROUGHT = { chance: 0.15, growSlow: 1 / 3, sellMult: 0.5 };
+export const RAIN = { chance: 0.15, growFast: 3 };
 
 // 商场道具：存在独立的道具背包里，和作物背包分开
 export const ITEMS = [
@@ -79,41 +83,49 @@ export const ITEMS = [
     id: 'luck', name: '幸运药剂', emoji: '🧪', cost: 100,
     desc: '随机挑 2 块地施法，下次在这里播种时白银/黄金概率翻倍',
   },
+  {
+    id: 'net', name: '抓鱼网', emoji: '🕸️', cost: 100,
+    desc: '拿到水滩摆放，20 分钟后收网，随机捞到 50~150💰',
+  },
 ];
+
+// 抓鱼水滩：最多同时摆 5 张网，是亏是赚全看脸
+export const FISHING = { slots: 5, time: 1200, rewardMin: 50, rewardMax: 150 };
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
 // 房子内饰：床是白送的，其余去商店「内饰」页买，每件最多升到 3 级
-// cost = 购入价（1级），up[n] = 升到 n+1 级的花费
+// cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
+export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
 export const FURNITURE = [
   {
     id: 'bed', name: '床', emoji: '🛏️', free: true, cost: 0, up: [400, 1200],
     levelNames: ['稻草床', '木架床', '柔软大床'],
-    spot: { left: '8%', bottom: '10%' },
+    pos: [-2.3, -2], rotY: 0,
   },
   {
     id: 'rug', name: '地毯', emoji: '🧶', cost: 120, up: [250, 600],
     levelNames: ['草垫', '花纹地毯', '华丽波斯毯'],
-    spot: { left: '40%', bottom: '6%' },
+    pos: [0.4, 0.6], rotY: 0,
   },
   {
     id: 'table', name: '餐桌', emoji: '🪑', cost: 180, up: [360, 900],
     levelNames: ['小木桌', '实木餐桌', '橡木长桌'],
-    spot: { left: '58%', bottom: '14%' },
+    pos: [2.2, 0.2], rotY: 0.3,
   },
   {
     id: 'shelf', name: '书架', emoji: '📚', cost: 200, up: [400, 1000],
     levelNames: ['木板架', '书柜', '顶天立地书墙'],
-    spot: { left: '76%', bottom: '30%' },
+    pos: [2.6, -3], rotY: 0,
   },
   {
     id: 'plant', name: '盆栽', emoji: '🪴', cost: 90, up: [180, 450],
     levelNames: ['小多肉', '绿萝', '室内大树'],
-    spot: { left: '26%', bottom: '30%' },
+    pos: [-3, 1.8], rotY: 0,
   },
   {
     id: 'fire', name: '壁炉', emoji: '🔥', cost: 350, up: [700, 1600],
     levelNames: ['小火盆', '砖砌壁炉', '大理石壁炉'],
-    spot: { left: '50%', bottom: '46%' },
+    pos: [0, -3.2], rotY: 0,
   },
 ];
 export const furnitureById = (id) => FURNITURE.find(f => f.id === id);
