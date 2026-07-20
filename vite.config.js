@@ -19,6 +19,26 @@ const debugShot = {
   },
 };
 
+// 存档落盘：浏览器 localStorage 可能被清空，硬盘上的 save-backup.json 才是保险箱
+const saveBackup = {
+  name: 'save-backup',
+  configureServer(server) {
+    const file = path.resolve('save-backup.json');
+    server.middlewares.use('/__save', (req, res) => {
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', (c) => { body += c; });
+        req.on('end', () => { fs.writeFileSync(file, body); res.end('ok'); });
+      } else if (req.method === 'GET') {
+        if (fs.existsSync(file)) {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(fs.readFileSync(file));
+        } else { res.statusCode = 404; res.end(); }
+      } else { res.statusCode = 405; res.end(); }
+    });
+  },
+};
+
 export default defineConfig({
-  plugins: [debugShot],
+  plugins: [debugShot, saveBackup],
 });

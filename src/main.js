@@ -1,7 +1,20 @@
 import * as THREE from 'three';
 import { createScene } from './scene.js';
-import { Game } from './game.js';
+import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
+
+// 启动前先看硬盘备份：浏览器存档丢了或更旧时，用备份顶上
+try {
+  const r = await fetch('/__save');
+  if (r.ok) {
+    const backup = await r.json();
+    const local = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null');
+    if (backup?.savedAt && (!local || backup.savedAt > (local.savedAt ?? 0))) {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(backup));
+      console.info('[存档] 已从硬盘备份恢复');
+    }
+  }
+} catch { /* 没有备份或非开发环境，用 localStorage 就好 */ }
 
 const { renderer, scene, camera, controls, ensureSize, lights } = createScene(document.getElementById('app'));
 const game = new Game(scene);

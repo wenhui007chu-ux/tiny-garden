@@ -13,7 +13,7 @@ import {
   createUpperDeck, createLadder, createHouse, createLockEdge,
 } from './meshes.js';
 
-const SAVE_KEY = 'farming-mini-game-save-v1';
+export const SAVE_KEY = 'farming-mini-game-save-v1';
 
 const stageOf = (plant, seed) => {
   const p = plant.progress / seed.growTime;
@@ -738,7 +738,10 @@ export class Game {
       layoutSeq: this.layoutSeq,
       paused: this.paused,
     };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    const json = JSON.stringify(data);
+    localStorage.setItem(SAVE_KEY, json);
+    // 同步落盘备份（开发服务器提供 /__save；失败也不影响游戏）
+    fetch('/__save', { method: 'POST', body: json }).catch(() => {});
   }
 
   load() {
