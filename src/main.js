@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createScene } from './scene.js';
 import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
+import { INTERIOR_POS } from './config.js';
 
 // 启动前先看硬盘备份：浏览器存档丢了或更旧时，用备份顶上
 try {
@@ -27,17 +28,49 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let hovered = null;
 let downPos = null;
+let dragging = null; // 布置模式下正在拖动的家具
+
+// 屋内地面（家具就在这个平面上滑动）
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -INTERIOR_POS.y);
+
+function setPointer(e) {
+  pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+}
+
+function pickFurniture(e) {
+  setPointer(e);
+  const hits = raycaster.intersectObjects(game.furnitureMeshes(), false);
+  return hits.length ? hits[0].object.userData.furnitureId : null;
+}
+
+function floorPoint(e) {
+  setPointer(e);
+  const out = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(floorPlane, out) ? out : null;
+}
 
 function pickTile(e) {
   pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
-     ...game.displayMeshes(), ...game.mallMeshes, ...game.houseMeshes, ...game.pondMeshes], false);
+     ...game.displayMeshes(), ...game.mallMeshes, ...game.houseMeshes,
+     ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
 renderer.domElement.addEventListener('pointermove', (e) => {
+  // 布置模式：拖着家具在地板上滑
+  if (dragging) {
+    const p = floorPoint(e);
+    if (p) game.setFurniturePos(dragging.id, p.x - INTERIOR_POS.x + dragging.dx, p.z - INTERIOR_POS.z + dragging.dz);
+    return;
+  }
+  if (ui.inHouse && ui.editMode) {
+    renderer.domElement.style.cursor = pickFurniture(e) ? 'grab' : 'default';
+    return;
+  }
   const hit = pickTile(e);
   if (hovered && hovered !== hit) hovered.material.emissive.setHex(0x000000);
   hovered = hit;
@@ -45,15 +78,36 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   renderer.domElement.style.cursor = hovered ? 'pointer' : 'default';
 });
 
-renderer.domElement.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  // 布置模式下按住家具就开始拖
+  if (ui.inHouse && ui.editMode) {
+    const id = pickFurniture(e);
+    const p = id ? floorPoint(e) : null;
+    if (id && p) {
+      const m = game.interiorFurniture[id];
+      dragging = { id, dx: m.position.x - (p.x - INTERIOR_POS.x), dz: m.position.z - (p.z - INTERIOR_POS.z) };
+      controls.enabled = false;
+      renderer.domElement.style.cursor = 'grabbing';
+      return;
+    }
+  }
+  downPos = { x: e.clientX, y: e.clientY };
+});
 
 renderer.domElement.addEventListener('pointerup', (e) => {
+  if (dragging) {
+    game.save();
+    dragging = null;
+    controls.enabled = true;
+    renderer.domElement.style.cursor = 'grab';
+    return;
+  }
   if (!downPos) return;
   const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
   downPos = null;
   if (moved > 6) return; // 拖动视角，不算点击
   if (game.paused) return; // 挂机中一切操作无效
-  if (ui.inHouse) return; // 屋里点不到菜园
+  if (ui.inside()) return; // 屋里/馆里点不到菜园
   const hit = pickTile(e);
   if (!hit) return;
 
@@ -78,6 +132,18 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 水滩：点击打开抓鱼面板
   if (hit.userData.pond) {
     ui.openFishing();
+    return;
+  }
+
+  // 黑房子银行：点击存取钱
+  if (hit.userData.bank) {
+    ui.openBank();
+    return;
+  }
+
+  // 图鉴大楼：点击进馆
+  if (hit.userData.codex) {
+    ui.openCodex();
     return;
   }
 
@@ -189,6 +255,10 @@ function animate() {
     if (obj.userData.houseWindow) {                                          // 夜里窗户透暖光
       obj.material.emissive.setHex(0xffc94a);
       obj.material.emissiveIntensity = (1 - f) * 0.85;
+    }
+    if (obj.userData.pestBug) {                                              // 虫子绕着作物打转
+      obj.rotation.y = t * 1.6;
+      obj.position.y = 0.75 + Math.sin(t * 3 + obj.id) * 0.06;
     }
     if (obj.userData.flame) {                                                // 炉火/烛火摇曳
       obj.scale.set(1 + Math.sin(t * 11) * 0.12, 1 + Math.sin(t * 14 + 1) * 0.2, 1 + Math.cos(t * 9) * 0.12);

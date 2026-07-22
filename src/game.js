@@ -4,7 +4,8 @@ import {
   SEEDS, SOILS, WATER_LEVELS, seedById, decorById,
   QUALITIES, GOLD_CHANCE, SILVER_CHANCE, WORKSHOP, keyInfo,
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
-  UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING,
+  UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
+  CODEX_POS, CODEX_QUALITIES, PEST,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -12,6 +13,9 @@ import {
   createDisplaySlotMesh, displaySlotPos, DISPLAY_SLOTS, createMall,
   createUpperDeck, createLadder, createHouse, createLockEdge,
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
+  createCrackMesh, createWetLayer, createBank,
+  createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
+  createPestBug,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -39,6 +43,7 @@ export class Game {
     this.items = {};        // 道具背包，和作物背包分开：itemId -> 数量
     this.furniture = { bed: 1 }; // 房子内饰：id -> 已解锁的最高等级(1~3)，床是白送的
     this.furnitureStyle = {};    // 当前展示的外观等级（可在已解锁范围内随意切换）
+    this.furniturePos = {};      // 玩家自己摆的位置：id -> { x, z, rotY }
     this.onToast = () => {};
     this.onState = () => {};
 
@@ -66,6 +71,7 @@ export class Game {
           wetUntil: 0,       // 游戏时钟秒
           plant: null,        // { seedId, progress, stage, mesh }
           lucky: false,       // 幸运药剂加持：下次播种稀有概率翻倍
+          damaged: null,      // 天灾毁地：'cracked' 晒裂 / 'wet' 水泡，修复前不能种
           _lastColor: null,
         });
       }
@@ -108,6 +114,29 @@ export class Game {
     this.group.add(this.interior);
     this.interiorFurniture = {};
 
+    // 图鉴大楼：左侧空地 + 藏在岛下的展馆
+    this.codex = {}; // 已收录：'tomato:gold' -> true
+    const codexBuilding = createCodexBuilding();
+    codexBuilding.position.set(-20, -0.51, -5);
+    codexBuilding.rotation.y = 0.7;
+    this.group.add(codexBuilding);
+    this.codexMeshes = [];
+    codexBuilding.traverse(o => { if (o.isMesh) this.codexMeshes.push(o); });
+
+    this.codexHall = createCodexInterior();
+    this.codexHall.position.set(CODEX_POS.x, CODEX_POS.y, CODEX_POS.z);
+    this.group.add(this.codexHall);
+    this.codexPedestals = {};
+
+    // 黑房子银行：右前方空地
+    this.bank = 0; // 存款
+    const bank = createBank();
+    bank.position.set(14.5, -0.51, 2.5);
+    bank.rotation.y = -1;
+    this.group.add(bank);
+    this.bankMeshes = [];
+    bank.traverse(o => { if (o.isMesh) this.bankMeshes.push(o); });
+
     // 抓鱼水滩：左前方空地
     this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
     this.pond = createPond();
@@ -134,8 +163,10 @@ export class Game {
     this.workshopMeshes = [];
     ws.traverse(o => { if (o.isMesh) this.workshopMeshes.push(o); });
 
+    this._booting = true; // 读档期间不弹虫害提示
     this.load();
     this.refreshAllVisuals();
+    this._booting = false;
   }
 
   /* ---------- 查询 ---------- */
@@ -147,14 +178,97 @@ export class Game {
 
   /* ---------- 天气（大旱 / 暴雨） ---------- */
 
+  // 天灾随着那天的天气一起结束，土地自然恢复
+  healAllTiles() {
+    let n = 0;
+    for (const t of this.tiles) {
+      if (!t.damaged) continue;
+      t.damaged = null;
+      this.refreshDamageMesh(t);
+      t._lastColor = null;
+      n += 1;
+    }
+    return n;
+  }
+
   rollWeather() {
+    const healed = this.healAllTiles();
+    if (healed && !this._booting) this.onToast(`🌿 天气转好，${healed} 块受灾的地恢复了`);
     const r = Math.random();
     this.setWeather(r < DROUGHT.chance, r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance);
     this.onToast(this.drought
       ? '☀️☀️☀️ 大旱天！生长缓慢，今天的收成会生长不良'
       : this.rain
-        ? '⛈ 暴雨天！作物疯长三倍，但收成会生长不良'
+        ? '⛈ 暴雨天！今天的收成会生长不良'
         : '🌅 新的一天，风调雨顺');
+    if (this.badWeather()) this.damageTiles(this.drought ? 'cracked' : 'wet');
+  }
+
+  // 天灾毁地：随机抽 5~10 块好地，晒裂或泡水
+  // 地上的作物同时清场：熟了的抢收进背包，没熟的铲掉退种子钱
+  damageTiles(kind) {
+    const count = DAMAGE.min + Math.floor(Math.random() * (DAMAGE.max - DAMAGE.min + 1));
+    const victims = this.pickRandomTiles(t => !t.locked && !t.damaged, count);
+    if (!victims.length) return;
+    let harvested = 0, refund = 0;
+    victims.forEach(t => {
+      t.damaged = kind;
+      this.refreshDamageMesh(t);
+      if (t.plant) {
+        const seed = seedById(t.plant.seedId);
+        if (t.plant.stage === 3) {
+          const n = SOILS[t.soil].yield;
+          const key = (this.badWeather() || t.plant.pest ? 'x:' : '')
+            + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
+          this.inventory[key] = (this.inventory[key] ?? 0) + n;
+          harvested += n;
+        } else {
+          refund += seed.cost;
+        }
+        this.removePlant(t);
+      }
+    });
+    if (refund) this.coins += refund;
+    this.onState();
+    const head = kind === 'cracked' ? `🌵 烈日晒裂了 ${victims.length} 块地！` : `🌊 暴雨泡坏了 ${victims.length} 块地！`;
+    const parts = [];
+    if (harvested) parts.push(`抢收 ${harvested} 个成熟作物进背包`);
+    if (refund) parts.push(`退还种子钱 ${refund}💰`);
+    parts.push('用 🔧 恢复器修复');
+    this.onToast(head + parts.join('，'));
+    this.save();
+  }
+
+  refreshDamageMesh(t) {
+    const old = t.mesh.children.find(c => c.userData.damage);
+    if (old) t.mesh.remove(old);
+    if (t.damaged === 'cracked') t.mesh.add(createCrackMesh());
+    if (t.damaged === 'wet') t.mesh.add(createWetLayer());
+  }
+
+  // 杀虫剂：随机灭掉一处虫害
+  usePesticide() {
+    const infested = this.tiles.filter(t => t.plant?.pest);
+    if (!infested.length) { this.onToast('地里没有虫害，杀虫剂先收着吧'); return false; }
+    const t = infested[Math.floor(Math.random() * infested.length)];
+    t.plant.pest = false;
+    const bug = t.plant.mesh?.children.find(c => c.userData.pestBug);
+    if (bug) t.plant.mesh.remove(bug);
+    const seed = seedById(t.plant.seedId);
+    this.onToast(`🧴 灭掉了${seed.emoji}${seed.name}上的虫子，还剩 ${infested.length - 1} 处虫害`);
+    return true;
+  }
+
+  // 恢复器：随机修一块受灾的地（在道具背包里点「使用」）
+  useRestorer() {
+    const damaged = this.tiles.filter(t => t.damaged);
+    if (!damaged.length) { this.onToast('没有受灾的土地，恢复器先留着吧'); return false; }
+    const t = damaged[Math.floor(Math.random() * damaged.length)];
+    const wasCracked = t.damaged === 'cracked';
+    t.damaged = null;
+    this.refreshDamageMesh(t);
+    this.onToast(`🔧 修好了一块${wasCracked ? '晒裂' : '泡水'}的地，还剩 ${damaged.length - 1} 块受灾`);
+    return true;
   }
 
   setWeather(drought, rain) {
@@ -225,6 +339,7 @@ export class Game {
     const seed = seedById(seedId);
     if (!seed || !this.unlockedSeeds.includes(seedId)) return;
     if (t.locked) { this.onToast(`这块地还没解锁，点它花 ${UNLOCK_COST}💰 开垦`); return; }
+    if (t.damaged) { this.onToast(`这块地${t.damaged === 'cracked' ? '晒裂' : '被水泡'}了，去道具背包用 🔧 恢复器修复`); return; }
     if (t.plant) { this.onToast('这块地已经种上啦'); return; }
     if (!this.spend(seed.cost)) return;
     t.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(t.lucky) };
@@ -263,7 +378,8 @@ export class Game {
       if (!t.plant || t.plant.stage < 3) continue;
       const seed = seedById(t.plant.seedId);
       const n = SOILS[t.soil].yield;
-      const key = (this.badWeather() ? 'x:' : '') + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
+      const key = (this.badWeather() || t.plant.pest ? 'x:' : '')
+        + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
       this.inventory[key] = (this.inventory[key] ?? 0) + n;
       this.removePlant(t);
       count += n;
@@ -313,7 +429,7 @@ export class Game {
     entry.layout.forEach((seedId, idx) => {
       if (!seedId || !this.unlockedSeeds.includes(seedId)) return;
       const t = this.tiles[idx];
-      if (!t || t.plant || t.locked) return;
+      if (!t || t.plant || t.locked || t.damaged) return;
       const seed = seedById(seedId);
       if (this.coins < seed.cost) { lackMoney = true; return; }
       this.coins -= seed.cost;
@@ -364,14 +480,17 @@ export class Game {
     if (t.plant.stage < 3) { this.onToast(`${seed.name}还没成熟`); return false; }
     const count = SOILS[t.soil].yield;
     const quality = t.plant.quality;
-    const key = (this.badWeather() ? 'x:' : '') + (quality ? `${seed.id}:${quality}` : seed.id);
+    const key = (this.badWeather() || t.plant.pest ? 'x:' : '') + (quality ? `${seed.id}:${quality}` : seed.id);
+    const wasPest = t.plant.pest;
     this.removePlant(t);
     this.inventory[key] = (this.inventory[key] ?? 0) + count;
     this.onState();
     const q = QUALITIES[quality];
-    this.onToast(q
-      ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
-      : `${seed.emoji}${seed.name} ×${count} 放入背包`);
+    this.onToast(wasPest
+      ? `🐛 被虫啃过的${seed.name} ×${count} 放入背包（生长不良）`
+      : q
+        ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
+        : `${seed.emoji}${seed.name} ×${count} 放入背包`);
     this.save();
     return true;
   }
@@ -390,11 +509,12 @@ export class Game {
 
   /* ---------- 商场道具 ---------- */
 
-  buyItem(id) {
+  buyItem(id, count = 1) {
     const item = itemById(id);
-    if (!item || !this.spend(item.cost)) return;
-    this.items[id] = (this.items[id] ?? 0) + 1;
-    this.onToast(`${item.emoji} 买了 1 个${item.name}，放进道具背包`);
+    const n = Math.max(1, Math.floor(count));
+    if (!item || !this.spend(item.cost * n)) return;
+    this.items[id] = (this.items[id] ?? 0) + n;
+    this.onToast(`${item.emoji} 买了 ${n} 个${item.name}，放进道具背包`);
     this.onState();
     this.save();
   }
@@ -402,7 +522,10 @@ export class Game {
   useItem(id) {
     if ((this.items[id] ?? 0) <= 0) return;
     if (id === 'net') { this.onToast('🕸️ 抓鱼网要拿到水滩去摆（点击左前方的水塘）'); return; }
-    const ok = id === 'fertilizer' ? this.useFertilizer() : this.useLuck();
+    const ok = id === 'fertilizer' ? this.useFertilizer()
+      : id === 'restorer' ? this.useRestorer()
+      : id === 'pesticide' ? this.usePesticide()
+      : this.useLuck();
     if (!ok) return;
     this.items[id] -= 1;
     if (this.items[id] === 0) delete this.items[id];
@@ -439,6 +562,112 @@ export class Game {
     targets.forEach(t => { t.lucky = true; });
     this.onToast(`🧪 幸运药剂洒在 ${targets.length} 块空地上，下次播种稀有翻倍！`);
     return true;
+  }
+
+  /* ---------- 图鉴大楼 ---------- */
+
+  codexKeys() {
+    // 42 个展位：14 作物 × 3 品质
+    const keys = [];
+    SEEDS.forEach(s => CODEX_QUALITIES.forEach(q => keys.push(q ? `${s.id}:${q}` : s.id)));
+    return keys;
+  }
+
+  codexCount() { return Object.keys(this.codex).length; }
+
+  codexSlotPos(idx) {
+    const col = idx % 6, row = Math.floor(idx / 6);
+    return { x: (col - 2.5) * 2.5, z: (row - 3) * 2.7 };
+  }
+
+  buildCodexPedestal(key) {
+    const old = this.codexPedestals[key];
+    if (old) this.codexHall.remove(old);
+    const idx = this.codexKeys().indexOf(key);
+    if (idx < 0) return;
+    const info = keyInfo(key);
+    const filled = !!this.codex[key];
+    const g = new THREE.Group();
+    g.add(createPedestalBase(filled));
+    // 说明牌：收录后写明数据，没收录只显示名字
+    const fmt = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${s % 60}秒` : ''}` : `${s}秒`;
+    const qName = info.quality ? QUALITIES[info.quality].name : '普通';
+    const lines = filled
+      ? [`${info.icon} ${info.label}`, `品质：${qName}`,
+         `生长：${fmt(info.seed.growTime)} · 种子：${info.seed.cost}💰`, `售价：${info.price}💰`]
+      : [`${qName}${info.seed.name}`, '—— 未收录 ——'];
+    g.add(createPlaque(lines, !filled));
+    // 收录了就把作物摆上台
+    if (filled) {
+      const crop = createPlantMesh(info.seed.id, 3);
+      applyPlating(crop, info.quality);
+      crop.position.y = 1.47;
+      crop.scale.setScalar(2.1);
+      g.add(crop);
+    }
+    const { x, z } = this.codexSlotPos(idx);
+    g.position.set(x, 0, z);
+    this.codexHall.add(g);
+    this.codexPedestals[key] = g;
+  }
+
+  refreshCodex() {
+    this.codexKeys().forEach(key => this.buildCodexPedestal(key));
+  }
+
+  donateCodex(key) {
+    if (key.startsWith('p:') || key.startsWith('x:') || key === EGG.key) {
+      this.onToast('图鉴只收录新鲜的作物本体');
+      return false;
+    }
+    if (this.codex[key]) { this.onToast('这个品质的作物已经收录过啦'); return false; }
+    if ((this.inventory[key] ?? 0) <= 0) return false;
+    this.inventory[key] -= 1;
+    if (this.inventory[key] === 0) delete this.inventory[key];
+    this.codex[key] = true;
+    this.buildCodexPedestal(key);
+    const info = keyInfo(key);
+    this.onToast(`📖 ${info.icon}${info.label} 收录成功！图鉴进度 ${this.codexCount()}/42`);
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  /* ---------- 黑房子银行 ---------- */
+
+  bankDeposit(amount) {
+    const n = Math.min(amount, this.coins);
+    if (n <= 0) { this.onToast('没钱可存了'); return; }
+    this.coins -= n;
+    this.bank += n;
+    this.onToast(`🏦 存入 ${n}💰，银行余额 ${this.bank}`);
+    this.onState();
+    this.save();
+  }
+
+  bankWithdraw(amount) {
+    const n = Math.min(amount, this.bank);
+    if (n <= 0) { this.onToast('银行里没钱可取'); return; }
+    this.bank -= n;
+    this.coins += n;
+    this.onToast(`🏦 取出 ${n}💰，银行余额 ${this.bank}`);
+    this.onState();
+    this.save();
+  }
+
+  // 每天结束结算：85% 赚 1~3，15% 亏 1~3
+  bankDelta() {
+    const mag = BANK.magMin + Math.floor(Math.random() * (BANK.magMax - BANK.magMin + 1));
+    return Math.random() < BANK.gainChance ? mag : -mag;
+  }
+
+  settleBank() {
+    if (this.bank <= 0) return;
+    const delta = this.bankDelta();
+    this.bank = Math.max(0, this.bank + delta);
+    this.onState();
+    if (delta > 0) this.onToast(`🏦 银行日结：赚了 +${delta}💰`);
+    else this.onToast(`🏦 银行日结：亏了 ${delta}💰…`);
   }
 
   /* ---------- 抓鱼水滩 ---------- */
@@ -529,17 +758,62 @@ export class Game {
       const max = this.furniture[f.id] ?? 0;
       const lv = max > 0 ? Math.min(this.furnitureStyle[f.id] ?? max, max) : 0;
       const cur = this.interiorFurniture[f.id];
-      if (cur && cur.userData.lv === lv) continue;
+      const place = (m) => {
+        const p = this.furniturePos[f.id];
+        m.position.set(p ? p.x : f.pos[0], 0, p ? p.z : f.pos[1]);
+        m.rotation.y = p ? p.rotY : (f.rotY ?? 0);
+      };
+      if (cur && cur.userData.lv === lv) { place(cur); continue; } // 外观没变，只同步位置
       if (cur) { this.interior.remove(cur); delete this.interiorFurniture[f.id]; }
       if (lv > 0) {
         const m = createFurnitureMesh(f.id, lv);
         m.userData.lv = lv;
-        m.position.set(f.pos[0], 0, f.pos[1]);
-        m.rotation.y = f.rotY ?? 0;
+        place(m);
+        m.traverse(o => { if (o.isMesh) o.userData.furnitureId = f.id; });
         this.interior.add(m);
         this.interiorFurniture[f.id] = m;
       }
     }
+  }
+
+  /* ---------- 自由布置 ---------- */
+
+  furnitureMeshes() {
+    const out = [];
+    Object.values(this.interiorFurniture).forEach(g =>
+      g.traverse(o => { if (o.isMesh) out.push(o); }));
+    return out;
+  }
+
+  // 拖动落点：限制在墙内
+  setFurniturePos(id, x, z) {
+    const m = this.interiorFurniture[id];
+    if (!m) return;
+    const lim = 11.4;
+    const nx = Math.max(-lim, Math.min(lim, x));
+    const nz = Math.max(-lim, Math.min(lim, z));
+    m.position.x = nx;
+    m.position.z = nz;
+    this.furniturePos[id] = { x: nx, z: nz, rotY: m.rotation.y };
+  }
+
+  rotateFurniture(id) {
+    const m = this.interiorFurniture[id];
+    if (!m) return;
+    m.rotation.y = (m.rotation.y + Math.PI / 4) % (Math.PI * 2);
+    this.furniturePos[id] = { x: m.position.x, z: m.position.z, rotY: m.rotation.y };
+    this.save();
+  }
+
+  resetFurnitureLayout() {
+    this.furniturePos = {};
+    Object.entries(this.interiorFurniture).forEach(([id, m]) => {
+      const f = furnitureById(id);
+      m.position.set(f.pos[0], 0, f.pos[1]);
+      m.rotation.y = f.rotY ?? 0;
+    });
+    this.onToast('🏠 家具已恢复默认布局');
+    this.save();
   }
 
   comfort() {
@@ -547,13 +821,15 @@ export class Game {
       .reduce((sum, [, lv]) => sum + lv * 5, 0);
   }
 
-  // 睡觉：直接跳到早上 6 点，这段时间的生长和加工照常结算
+  // 睡觉：晚上睡到第二天早上 6 点，白天午睡到傍晚 6 点天黑
+  // 这段时间的生长和加工照常结算
   sleep() {
-    if (!this.isNight()) { this.onToast('大白天的，睡不着啊'); return false; }
-    const remain = DAY_CYCLE - this.clock;
+    const wasNight = this.isNight();
+    const target = wasNight ? DAY_CYCLE : DAY_CYCLE / 2; // 时钟 0=早6点，600=晚6点
+    const remain = target - this.clock;
     const step = 1.5;
     for (let t = 0; t < remain; t += step) this.tick(Math.min(step, remain - t));
-    this.onToast('😴 一觉睡到大天亮！');
+    this.onToast(wasNight ? '😴 一觉睡到大天亮！' : '😴 午觉睡醒，天都黑了');
     this.save();
     return true;
   }
@@ -737,10 +1013,19 @@ export class Game {
     if (stage === t.plant.stage) return;
     if (t.plant.mesh) this.group.remove(t.plant.mesh);
     t.plant.stage = stage;
+    // 成熟那一刻掷虫害骰子，每株只掷一次
+    if (stage === 3 && !t.plant.pestRolled) {
+      t.plant.pestRolled = true;
+      if (Math.random() < PEST.chance) {
+        t.plant.pest = true;
+        if (!this._booting) this.onToast(`🐛 ${seed.emoji}${seed.name}生虫了！不打药收上来就是生长不良`);
+      }
+    }
     const mesh = createPlantMesh(seed.id, stage);
     applyPlating(mesh, t.plant.quality);
     mesh.userData.plantRoot = true;
     if (this.badWeather()) this.applyWeatherTint(mesh);
+    if (t.plant.pest) mesh.add(createPestBug());
     t.plant.mesh = this.attachMesh(mesh, t);
   }
 
@@ -748,6 +1033,7 @@ export class Game {
     for (const t of this.tiles) {
       if (t.plant) { t.plant.stage = -1; this.updatePlantMesh(t); }
       this.refreshLockEdge(t);
+      this.refreshDamageMesh(t);
       t._lastColor = null;
     }
     for (const s of this.decorSlots) {
@@ -757,6 +1043,7 @@ export class Game {
       if (s.item && !s.item.mesh) s.item.mesh = this.buildDisplayMesh(s.item.key, s);
     }
     this.refreshInterior();
+    this.refreshCodex();
   }
 
   /* ---------- 主循环 ---------- */
@@ -766,7 +1053,10 @@ export class Game {
     this.time += dt;
     const wrapped = this.clock + dt >= DAY_CYCLE;
     this.clock = (this.clock + dt) % DAY_CYCLE;
-    if (wrapped) this.rollWeather(); // 每天早上 6 点掷天气骰子
+    if (wrapped) {
+      this.rollWeather(); // 每天早上 6 点掷天气骰子
+      this.settleBank();  // 银行日结
+    }
 
     // 昼夜切换提示
     const night = this.isNight();
@@ -788,9 +1078,7 @@ export class Game {
       }
     }
 
-    const growMult = (night ? NIGHT_SLOW : 1)
-      * (this.drought ? DROUGHT.growSlow : 1)
-      * (this.rain ? RAIN.growFast : 1);
+    const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
     for (const t of this.tiles) {
       const wet = this.isWet(t);
       if (t.plant) {
@@ -802,13 +1090,14 @@ export class Game {
       }
       // 土壤颜色：湿润加深，幸运药剂加持的空地泛紫光
       const base = SOILS[t.soil].color;
-      const key = `${base}-${wet}-${t.lucky}-${t.locked}`;
+      const key = `${base}-${wet}-${t.lucky}-${t.locked}-${t.damaged}`;
       if (t._lastColor !== key) {
         t._lastColor = key;
         const c = new THREE.Color(base);
         if (wet) c.multiplyScalar(0.6).add(new THREE.Color(0x0a1420));
         if (t.lucky) c.lerp(new THREE.Color(0xb35de0), 0.35);
         if (t.locked) c.lerp(new THREE.Color(0x5c6b52), 0.55); // 未解锁的荒地
+        if (t.damaged === 'cracked') c.lerp(new THREE.Color(0xd4b98a), 0.65); // 晒到发白干裂
         t.mesh.material.color.copy(c);
       }
     }
@@ -826,12 +1115,17 @@ export class Game {
       items: this.items,
       furniture: this.furniture,
       furnitureStyle: this.furnitureStyle,
+      furniturePos: this.furniturePos,
       tiles: this.tiles.map(t => ({
         soil: t.soil,
         lucky: t.lucky,
         locked: t.locked,
+        damaged: t.damaged,
         wetRemain: Math.max(0, t.wetUntil - this.time),
-        plant: t.plant ? { seedId: t.plant.seedId, progress: t.plant.progress, quality: t.plant.quality ?? null } : null,
+        plant: t.plant ? {
+          seedId: t.plant.seedId, progress: t.plant.progress, quality: t.plant.quality ?? null,
+          pest: !!t.plant.pest, pestRolled: !!t.plant.pestRolled,
+        } : null,
       })),
       decorSlots: this.decorSlots.map(s => s.decor?.id ?? null),
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
@@ -844,6 +1138,8 @@ export class Game {
       savedLayouts: this.savedLayouts,
       layoutSeq: this.layoutSeq,
       paused: this.paused,
+      bank: this.bank,
+      codex: this.codex,
     };
     const json = JSON.stringify(data);
     localStorage.setItem(SAVE_KEY, json);
@@ -862,9 +1158,11 @@ export class Game {
     if (!this.unlockedSeeds.includes('sweetpot')) this.unlockedSeeds.unshift('sweetpot');
     this.inventory = data.inventory ?? {};
     this.items = data.items ?? {};
+    this.codex = data.codex ?? {};
     this.furniture = data.furniture ?? { bed: 1 };
     if (!this.furniture.bed) this.furniture.bed = 1; // 床永远都在
     this.furnitureStyle = data.furnitureStyle ?? {};
+    this.furniturePos = data.furniturePos ?? {};
     // 旧存档只有 lastLayout 的话，迁移成第一个已保存布局
     this.savedLayouts = data.savedLayouts
       ?? (data.lastLayout?.some(Boolean) ? [{ name: '上次布局', layout: data.lastLayout }] : []);
@@ -875,10 +1173,18 @@ export class Game {
     this.drought = data.drought ?? false;
     this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气
-    if (Math.floor(((data.clock ?? 0) + elapsed) / DAY_CYCLE) > 0) {
+    const offlineDays = Math.floor(((data.clock ?? 0) + elapsed) / DAY_CYCLE);
+    if (offlineDays > 0) {
       const r = Math.random();
       this.drought = r < DROUGHT.chance;
       this.rain = r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance;
+      this._pendingHeal = true; // 隔了一天，之前的天灾都该消退了
+      if (this.badWeather()) this._pendingDamage = true; // 地块数据还没读完，稍后再毁地
+    }
+    // 银行离线也每天日结
+    this.bank = data.bank ?? 0;
+    for (let d = 0; d < offlineDays && this.bank > 0; d++) {
+      this.bank = Math.max(0, this.bank + this.bankDelta());
     }
     this.clock = ((data.clock ?? DAY_CYCLE / 4) + elapsed) % DAY_CYCLE; // 离线时时间照样流逝
     data.tiles?.forEach((s, idx) => {
@@ -888,13 +1194,17 @@ export class Game {
       t.lucky = s.lucky ?? false;
       // 老存档没有 locked 字段：二层默认上锁，但已经种着东西的地放行
       t.locked = s.locked ?? (t.level === 1 && !s.plant);
+      t.damaged = s.damaged ?? null;
       const wetRemain = s.wetRemain ?? 0;
       // 离线生长：自动灌溉全程生效，否则只按剩余湿润时间生长
       if (s.plant) {
         const seed = seedById(s.plant.seedId);
         const wetTime = this.waterLevel === 2 ? elapsed : Math.min(elapsed, wetRemain);
         const progress = Math.min(seed.growTime, s.plant.progress + wetTime * SOILS[t.soil].speed);
-        t.plant = { seedId: s.plant.seedId, progress, stage: -1, quality: s.plant.quality ?? null };
+        t.plant = {
+          seedId: s.plant.seedId, progress, stage: -1, quality: s.plant.quality ?? null,
+          pest: !!s.plant.pest, pestRolled: !!s.plant.pestRolled,
+        };
       }
       t.wetUntil = this.time + Math.max(0, wetRemain - elapsed);
     });
@@ -932,5 +1242,14 @@ export class Game {
       }
     });
     this.refreshNets();
+    // 离线跨天：旧的天灾先消退，再按新天气重新受灾
+    if (this._pendingHeal) {
+      this._pendingHeal = false;
+      this.healAllTiles();
+    }
+    if (this._pendingDamage) {
+      this._pendingDamage = false;
+      this.damageTiles(this.drought ? 'cracked' : 'wet');
+    }
   }
 }

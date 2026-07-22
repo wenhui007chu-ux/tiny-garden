@@ -67,11 +67,11 @@ export const QUICK_WATER_COST = 10; // 一键浇水价格
 // 恐龙虾卵：泥土加水的小惊喜，浇水时每块被浇的地 5% 概率出现，自动入背包
 export const EGG = { key: 'egg', name: '恐龙虾卵', emoji: '🦐', sell: 10, chance: 0.05 };
 
-// 恶劣天气：每天掷一次，大旱和暴雨各 15%
-// 大旱：三个太阳，生长 ×1/3；暴雨：持续降雨，生长 ×3
-// 两种天气下收获的作物都是"生长不良"，只卖半价
+// 恶劣天气：每天掷一次，大旱 15%、暴雨 20%
+// 大旱：三个太阳，生长 ×1/3；暴雨：持续降雨，生长速度正常
+// 两种天气下收获的作物都是"生长不良"，只卖半价——纯削经济，没有福利
 export const DROUGHT = { chance: 0.15, growSlow: 1 / 3, sellMult: 0.5 };
-export const RAIN = { chance: 0.15, growFast: 3 };
+export const RAIN = { chance: 0.2 };
 
 // 商场道具：存在独立的道具背包里，和作物背包分开
 export const ITEMS = [
@@ -87,45 +87,172 @@ export const ITEMS = [
     id: 'net', name: '抓鱼网', emoji: '🕸️', cost: 100,
     desc: '拿到水滩摆放，20 分钟后收网，随机捞到 50~150💰',
   },
+  {
+    id: 'restorer', name: '恢复器', emoji: '🔧', cost: 250,
+    desc: '当场修好一块受灾的地（不修的话，天气转好后也会自然恢复）',
+  },
+  {
+    id: 'pesticide', name: '杀虫剂', emoji: '🧴', cost: 70,
+    desc: '使用后随机清除一处虫害（生虫的作物收上来会是生长不良）',
+  },
 ];
+
+// 天灾毁地：旱天晒裂、雨天水泡，随机 5~10 块，修复前不能种田
+export const DAMAGE = { min: 5, max: 10 };
+
+// 虫害：作物成熟那一刻 15% 概率生虫，不打药收上来就是生长不良
+export const PEST = { chance: 0.15 };
 
 // 抓鱼水滩：最多同时摆 5 张网，是亏是赚全看脸
 export const FISHING = { slots: 5, time: 1200, rewardMin: 50, rewardMax: 150 };
+
+// 黑房子银行：每天结束结算存款，85% 赚 1~3，15% 亏 1~3
+export const BANK = { gainChance: 0.85, magMin: 1, magMax: 3 };
+
+// 图鉴大楼：14 作物 × 3 品质 = 42 个说明台，同作物同品质只能收录一次
+export const CODEX_POS = { x: 60, y: -60, z: 0 };
+export const CODEX_QUALITIES = [undefined, 'silver', 'gold'];
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
 // 房子内饰：床是白送的，其余去商店「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
 export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
 export const FURNITURE = [
+  // —— 卧室区（左后角）——
   {
     id: 'bed', name: '床', emoji: '🛏️', free: true, cost: 0, up: [400, 1200],
     levelNames: ['稻草床', '木架床', '柔软大床'],
-    pos: [-2.3, -2], rotY: 0,
+    pos: [-10.4, -9.6], rotY: 0,
+  },
+  {
+    id: 'wardrobe', name: '衣柜', emoji: '👕', cost: 300, up: [600, 1500],
+    levelNames: ['挂衣杆', '双门衣柜', '衣帽间大柜'],
+    pos: [-11.7, -5.6], rotY: Math.PI / 2,
+  },
+  {
+    id: 'mirror', name: '镜子', emoji: '🪞', cost: 180, up: [360, 900],
+    levelNames: ['桌上小镜', '立式穿衣镜', '鎏金全身镜'],
+    pos: [-7.6, -12], rotY: 0,
+  },
+  {
+    id: 'teddy', name: '熊玩偶', emoji: '🧸', cost: 150, up: [300, 750],
+    levelNames: ['小布偶', '大熊玩偶', '巨型抱抱熊'],
+    pos: [-8.4, -8.2], rotY: 0.6,
+  },
+  // —— 客厅区（中后）——
+  {
+    id: 'fire', name: '壁炉', emoji: '🔥', cost: 350, up: [700, 1600],
+    levelNames: ['小火盆', '砖砌壁炉', '大理石壁炉'],
+    pos: [0, -12.15], rotY: 0,
+  },
+  {
+    id: 'art', name: '挂画', emoji: '🖼️', cost: 220, up: [450, 1100],
+    levelNames: ['随手涂鸦', '风景画', '名画金框'],
+    pos: [2.9, -12.4], rotY: 0,
+  },
+  {
+    id: 'sofa', name: '沙发', emoji: '🛋️', cost: 250, up: [500, 1250],
+    levelNames: ['小板凳', '双人布沙发', '豪华转角沙发'],
+    pos: [-0.2, -8], rotY: Math.PI,
   },
   {
     id: 'rug', name: '地毯', emoji: '🧶', cost: 120, up: [250, 600],
     levelNames: ['草垫', '花纹地毯', '华丽波斯毯'],
-    pos: [0.4, 0.6], rotY: 0,
+    pos: [0, -10.2], rotY: 0,
   },
   {
-    id: 'table', name: '餐桌', emoji: '🪑', cost: 180, up: [360, 900],
-    levelNames: ['小木桌', '实木餐桌', '橡木长桌'],
-    pos: [2.2, 0.2], rotY: 0.3,
+    id: 'teatable', name: '茶几', emoji: '🫖', cost: 150, up: [300, 750],
+    levelNames: ['老树墩', '圆木茶几', '玻璃茶几'],
+    pos: [0.3, -10.1], rotY: 0,
   },
+  {
+    id: 'tv', name: '电视', emoji: '📺', cost: 400, up: [800, 2000],
+    levelNames: ['老收音机', '大屁股电视', '巨幕影院'],
+    pos: [5.6, -12.1], rotY: 0,
+  },
+  {
+    id: 'floorlamp', name: '落地灯', emoji: '💡', cost: 150, up: [300, 750],
+    levelNames: ['蜡烛台', '小台灯', '华丽落地灯'],
+    pos: [-3.8, -8.4], rotY: 0,
+  },
+  {
+    id: 'aquarium', name: '鱼缸', emoji: '🐠', cost: 300, up: [600, 1500],
+    levelNames: ['金鱼碗', '小鱼缸', '大水族箱'],
+    pos: [8.8, -12.1], rotY: 0,
+  },
+  // —— 书房区（右侧）——
   {
     id: 'shelf', name: '书架', emoji: '📚', cost: 200, up: [400, 1000],
     levelNames: ['木板架', '书柜', '顶天立地书墙'],
-    pos: [2.6, -3], rotY: 0,
+    pos: [11.7, -9.6], rotY: -Math.PI / 2,
+  },
+  {
+    id: 'clock', name: '时钟', emoji: '🕰️', cost: 200, up: [400, 1000],
+    levelNames: ['小闹钟', '座钟', '落地大摆钟'],
+    pos: [11.8, -6.6], rotY: -Math.PI / 2,
+  },
+  {
+    id: 'statue', name: '雕像', emoji: '🗿', cost: 500, up: [1000, 2500],
+    levelNames: ['小石人', '石膏半身像', '黄金全身像'],
+    pos: [11.6, -3.6], rotY: -Math.PI / 2,
+  },
+  {
+    id: 'safe', name: '保险箱', emoji: '🔐', cost: 600, up: [1200, 3000],
+    levelNames: ['小猪存钱罐', '密码保险箱', '黄金金库门'],
+    pos: [11.8, -0.6], rotY: -Math.PI / 2,
+  },
+  // —— 音乐角（左侧）——
+  {
+    id: 'piano', name: '钢琴', emoji: '🎹', cost: 500, up: [1000, 2500],
+    levelNames: ['小木琴', '立式钢琴', '三角钢琴'],
+    pos: [-11.3, 0.4], rotY: Math.PI / 2,
+  },
+  {
+    id: 'harp', name: '竖琴', emoji: '🪕', cost: 350, up: [700, 1750],
+    levelNames: ['小铃铛', '木竖琴', '鎏金大竖琴'],
+    pos: [-11.5, 4.2], rotY: Math.PI / 2,
+  },
+  // —— 餐厨区（右中）——
+  {
+    id: 'table', name: '餐桌', emoji: '🪑', cost: 180, up: [360, 900],
+    levelNames: ['小木桌', '实木餐桌', '橡木长桌'],
+    pos: [5.4, 2.6], rotY: 0.3,
+  },
+  {
+    id: 'kitchen', name: '灶台', emoji: '🍳', cost: 400, up: [800, 2000],
+    levelNames: ['小炉灶', '瓷砖灶台', '全套厨房岛台'],
+    pos: [9.6, 4.4], rotY: -0.5,
+  },
+  {
+    id: 'cabinet', name: '餐边柜', emoji: '🍷', cost: 350, up: [700, 1750],
+    levelNames: ['小木柜', '餐边柜', '玻璃展示酒柜'],
+    pos: [11.7, 7.4], rotY: -Math.PI / 2,
+  },
+  // —— 休闲区（前方）——
+  {
+    id: 'rocker', name: '摇椅', emoji: '🪑', cost: 250, up: [500, 1250],
+    levelNames: ['蒲团', '木摇椅', '吊篮秋千椅'],
+    pos: [-6.6, -2.8], rotY: 0.8,
   },
   {
     id: 'plant', name: '盆栽', emoji: '🪴', cost: 90, up: [180, 450],
     levelNames: ['小多肉', '绿萝', '室内大树'],
-    pos: [-3, 1.8], rotY: 0,
+    pos: [-7, 10.8], rotY: 0,
   },
   {
-    id: 'fire', name: '壁炉', emoji: '🔥', cost: 350, up: [700, 1600],
-    levelNames: ['小火盆', '砖砌壁炉', '大理石壁炉'],
-    pos: [0, -3.2], rotY: 0,
+    id: 'bath', name: '浴缸', emoji: '🛁', cost: 300, up: [600, 1500],
+    levelNames: ['木澡盆', '白瓷浴缸', '豪华圆浴池'],
+    pos: [-11.2, 8.8], rotY: Math.PI / 2,
+  },
+  {
+    id: 'arcade', name: '游戏角', emoji: '🕹️', cost: 300, up: [600, 1500],
+    levelNames: ['棋盘', '弹珠游戏桌', '复古街机'],
+    pos: [6.2, 10.4], rotY: Math.PI,
+  },
+  {
+    id: 'telescope', name: '望远镜', emoji: '🔭', cost: 280, up: [560, 1400],
+    levelNames: ['小双筒镜', '三脚架望远镜', '天文观星镜'],
+    pos: [10.2, 10.6], rotY: -2.4,
   },
 ];
 export const furnitureById = (id) => FURNITURE.find(f => f.id === id);

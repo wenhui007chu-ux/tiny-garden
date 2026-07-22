@@ -1,4 +1,4 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS } from './config.js';
 
 // 秒数显示成「X分X秒」
 const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
@@ -46,6 +46,8 @@ export class UI {
     $('#items-close').addEventListener('click', () => $('#items').classList.add('hidden'));
     $('#house-close').addEventListener('click', () => this.exitHouse());
     $('#fish-close').addEventListener('click', () => $('#fish').classList.add('hidden'));
+    $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
+    $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
@@ -74,10 +76,16 @@ export class UI {
       $('#seed-picker').classList.add('hidden');
     });
     window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return; // 正在输入金额时快捷键不抢戏
       if (e.repeat || this.game.paused) return; // 挂机中快捷键也冻结
       const k = e.key.toLowerCase();
-      if (k === 'escape') { $('#quick-menu').classList.add('hidden'); this.exitHouse(); return; }
-      if (this.inHouse) return; // 屋里不干农活
+      if (k === 'escape') {
+        $('#quick-menu').classList.add('hidden');
+        this.exitHouse();
+        this.exitCodex();
+        return;
+      }
+      if (this.inside()) return; // 屋里/馆里不干农活
       if (k === 'r') this.openQuickMenu('layouts'); // R 直接打开布局列表
       if (k === 'w') this.game.waterAll();
       if (k === 'h') this.game.harvestAll();
@@ -255,9 +263,136 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#shop', '#bag', '#ws', '#disp', '#mall', '#items', '#fish', '#quick-menu']
+    ['#shop', '#bag', '#ws', '#disp', '#mall', '#items', '#fish', '#bank', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
+    this.exitCodex();
+  }
+
+  inside() { return this.inHouse || this.inCodex; }
+
+  /* ---------- 图鉴大楼 ---------- */
+
+  openCodex() {
+    this.closePanels();
+    if (!this.inCodex && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = CODEX_POS;
+      this.controls.target.set(p.x, p.y + 0.8, p.z);
+      this.camera.position.set(p.x + 11, p.y + 11, p.z + 16);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inCodex = true;
+    }
+    $('#codex').classList.remove('hidden');
+    this.renderCodex();
+  }
+
+  exitCodex() {
+    $('#codex').classList.add('hidden');
+    if (!this.inCodex) return;
+    this.inCodex = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderCodex() {
+    const body = $('#codex-body');
+    const g = this.game;
+    body.innerHTML = '';
+    body.insertAdjacentHTML('beforeend',
+      `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42<small>每种作物的每个品质各收录一次，拖动可以环视展馆</small></div>`);
+    const note = document.createElement('p');
+    note.className = 'shop-note';
+    note.textContent = '从背包里挑作物捐进展馆（罐头、生长不良和恐龙虾卵不收）：';
+    body.appendChild(note);
+    const donatable = Object.entries(g.inventory)
+      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && k !== 'egg');
+    if (!donatable.length) {
+      body.insertAdjacentHTML('beforeend',
+        '<div class="bag-empty">背包里没有可收录的作物<br>去地里收点新鲜的来 🌱</div>');
+      return;
+    }
+    donatable.sort(([a], [b]) => {
+      const ia = keyInfo(a), ib = keyInfo(b);
+      const rank = { undefined: 0, silver: 1, gold: 2 };
+      return SEEDS.indexOf(ia.seed) - SEEDS.indexOf(ib.seed) || rank[ia.quality] - rank[ib.quality];
+    });
+    donatable.forEach(([key, n]) => {
+      const info = keyInfo(key);
+      const done = !!g.codex[key];
+      const el = document.createElement('div');
+      el.className = 'ws-slot' + (info.quality ? ` quality-${info.quality}` : '');
+      el.innerHTML = `<div class="icon">${info.icon}</div>
+        <div class="info"><b>${info.label} ×${n}</b><p>${done ? '✓ 已收录过' : `售价 ${info.price}💰 · 尚未收录`}</p></div>`;
+      const btn = document.createElement('button');
+      if (done) {
+        btn.textContent = '已收录';
+        btn.className = 'owned';
+        btn.disabled = true;
+        btn.style.cssText = 'border-color:#b8b8b8;background:#f3f3f3;color:#888;cursor:default;';
+      } else {
+        btn.textContent = '收录';
+        btn.addEventListener('click', () => { g.donateCodex(key); this.renderCodex(); });
+      }
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
+  }
+
+  /* ---------- 黑房子银行 ---------- */
+
+  openBank() {
+    this.closePanels();
+    $('#bank').classList.remove('hidden');
+    this.renderBank();
+  }
+
+  renderBank() {
+    const body = $('#bank-body');
+    const g = this.game;
+    body.innerHTML = '';
+    body.insertAdjacentHTML('beforeend',
+      `<div id="bank-balance">🏦 ${g.bank}💰<small>每天日结：85% 赚 1~3💰，15% 亏 1~3💰</small></div>`);
+    const note = document.createElement('p');
+    note.className = 'shop-note';
+    note.textContent = `身上现金 ${g.coins}💰`;
+    body.appendChild(note);
+    // 自选金额
+    const input = document.createElement('input');
+    input.id = 'bank-amount';
+    input.type = 'number';
+    input.min = '1';
+    input.placeholder = '输入金额…';
+    body.appendChild(input);
+    const getAmt = () => Math.max(0, Math.floor(Number(input.value) || 0));
+    const row = (defs, out) => {
+      const div = document.createElement('div');
+      div.className = 'bank-row' + (out ? ' out' : '');
+      defs.forEach(([label, fn]) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+          const amt = fn();
+          if (amt <= 0) { this.toast('先输入一个金额'); return; }
+          out ? g.bankWithdraw(amt) : g.bankDeposit(amt);
+          this.renderBank();
+        });
+        div.appendChild(btn);
+      });
+      body.appendChild(div);
+    };
+    row([['存入', getAmt], ['全部存入', () => g.coins]], false);
+    row([['取出', getAmt], ['全部取出', () => g.bank]], true);
   }
 
   /* ---------- 抓鱼水滩 ---------- */
@@ -327,8 +462,8 @@ export class UI {
         minD: this.controls.minDistance,
       };
       const p = INTERIOR_POS;
-      this.controls.target.set(p.x + 0.2, p.y + 1, p.z - 0.4);
-      this.camera.position.set(p.x + 5.2, p.y + 4.6, p.z + 6);
+      this.controls.target.set(p.x + 0.2, p.y + 1.4, p.z - 1);
+      this.camera.position.set(p.x + 14, p.y + 11.5, p.z + 15.5);
       this.controls.minDistance = 3;
       this.controls.update();
       this.inHouse = true;
@@ -341,11 +476,13 @@ export class UI {
     $('#house').classList.add('hidden');
     if (!this.inHouse) return;
     this.inHouse = false;
+    this.editMode = false;
     if (this._camBackup) {
       this.camera.position.copy(this._camBackup.pos);
       this.controls.target.copy(this._camBackup.target);
       this.controls.minDistance = this._camBackup.minD;
       this.controls.update();
+      this._camBackup = null;
     }
   }
 
@@ -357,8 +494,32 @@ export class UI {
     const comfort = document.createElement('div');
     comfort.id = 'house-comfort';
     const ownedCount = FURNITURE.filter(f => g.furniture[f.id]).length;
-    comfort.textContent = `🛋 舒适度 ${g.comfort()} · 家具 ${ownedCount}/${FURNITURE.length} · 拖动可以环视房间`;
+    comfort.textContent = `🛋 舒适度 ${g.comfort()} · 家具 ${ownedCount}/${FURNITURE.length}`;
     body.appendChild(comfort);
+
+    // 布置模式：可以直接在 3D 房间里拖家具
+    const editBtn = document.createElement('button');
+    editBtn.id = 'house-edit';
+    editBtn.className = this.editMode ? 'on' : '';
+    editBtn.textContent = this.editMode ? '✓ 完成布置' : '🔧 布置模式（自由摆放家具）';
+    editBtn.addEventListener('click', () => {
+      this.editMode = !this.editMode;
+      this.toast(this.editMode ? '🔧 按住家具拖到想放的位置' : '✓ 布置完成');
+      this.renderHouse();
+    });
+    body.appendChild(editBtn);
+
+    if (this.editMode) {
+      const tip = document.createElement('p');
+      tip.className = 'shop-note';
+      tip.textContent = '按住家具拖动摆放，点每行的 ↻ 转方向。布置模式下无法旋转视角。';
+      body.appendChild(tip);
+      const reset = document.createElement('button');
+      reset.id = 'house-reset';
+      reset.textContent = '↺ 恢复默认布局';
+      reset.addEventListener('click', () => { g.resetFurnitureLayout(); this.renderHouse(); });
+      body.appendChild(reset);
+    }
 
     FURNITURE.forEach(f => {
       const lv = g.furniture[f.id] ?? 0;
@@ -383,7 +544,14 @@ export class UI {
         }
         el.querySelector('.info').appendChild(chips);
       }
-      if (f.id === 'bed') {
+      if (this.editMode && lv) {
+        const btn = document.createElement('button');
+        btn.textContent = '↻';
+        btn.title = '旋转 45°';
+        btn.addEventListener('click', () => g.rotateFurniture(f.id));
+        el.appendChild(btn);
+      }
+      if (f.id === 'bed' && !this.editMode) {
         const btn = document.createElement('button');
         btn.className = 'sleep';
         btn.textContent = '😴 睡觉';
@@ -421,6 +589,27 @@ export class UI {
     note.className = 'shop-note';
     note.textContent = '买来的道具放在 🧰 道具背包里，和作物背包分开。';
     body.appendChild(note);
+
+    // 一次买几个，想买多少填多少
+    const qtyBox = document.createElement('div');
+    qtyBox.id = 'mall-qty-box';
+    qtyBox.innerHTML = '<span>一次买</span>';
+    const input = document.createElement('input');
+    input.id = 'mall-qty';
+    input.type = 'number';
+    input.min = '1';
+    input.value = this.mallQty ?? 1;
+    input.addEventListener('input', () => {
+      this.mallQty = Math.max(1, Math.floor(Number(input.value) || 1));
+      body.querySelectorAll('[data-price]').forEach(b => {
+        b.textContent = `买 ${this.mallQty} 个 · ${Number(b.dataset.price) * this.mallQty}💰`;
+      });
+    });
+    qtyBox.appendChild(input);
+    qtyBox.insertAdjacentHTML('beforeend', '<span>个</span>');
+    body.appendChild(qtyBox);
+
+    const qty = () => Math.max(1, Math.floor(Number(input.value) || 1));
     ITEMS.forEach(item => {
       const owned = g.items[item.id] ?? 0;
       const el = document.createElement('div');
@@ -428,8 +617,9 @@ export class UI {
       el.innerHTML = `<div class="icon">${item.emoji}</div>
         <div class="info"><b>${item.name}${owned ? `（持有 ${owned}）` : ''}</b><p>${item.desc}</p></div>`;
       const btn = document.createElement('button');
-      btn.textContent = `${item.cost}💰`;
-      btn.addEventListener('click', () => { g.buyItem(item.id); this.renderMall(); });
+      btn.dataset.price = item.cost;
+      btn.textContent = `买 ${qty()} 个 · ${item.cost * qty()}💰`;
+      btn.addEventListener('click', () => { g.buyItem(item.id, qty()); this.renderMall(); });
       el.appendChild(btn);
       body.appendChild(el);
     });
@@ -676,6 +866,9 @@ export class UI {
 
   refresh() {
     $('#coin-count').textContent = this.game.coins;
+    $('#bank-count').textContent = this.game.bank;
+    if (!$('#bank').classList.contains('hidden')) this.renderBank();
+    if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);
     const badge = $('#bag-badge');
