@@ -792,7 +792,7 @@ export class UI {
     if (this.wsChoosing !== null) {
       const note = document.createElement('p');
       note.className = 'shop-note';
-      note.textContent = `选择放入 ${this.wsChoosing + 1} 号加工位的作物（加工 ${WORKSHOP.time} 秒，卖价 ×${WORKSHOP.mult}）：`;
+      note.textContent = `选 ${WORKSHOP.ingredients} 个同种作物加工成 1 个罐头（${WORKSHOP.time} 秒，卖价比原料多 50%）：`;
       body.appendChild(note);
       const raw = Object.entries(g.inventory)
         .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg' && n > 0);
@@ -801,13 +801,17 @@ export class UI {
       }
       raw.forEach(([key, n]) => {
         const info = keyInfo(key);
+        const canPrice = keyInfo('p:' + key).price;
+        const enough = n >= WORKSHOP.ingredients;
         const el = document.createElement('div');
         el.className = 'ws-slot';
         el.innerHTML = `<div class="icon">${info.icon}</div>
-          <div class="info"><b>${info.label} ×${n}</b><p>加工后可卖 ${info.price * WORKSHOP.mult}💰</p></div>`;
+          <div class="info"><b>${info.label} ×${n}</b><p>${WORKSHOP.ingredients} 个 → 罐头卖 ${canPrice}💰</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = '放入';
-        btn.addEventListener('click', () => {
+        btn.textContent = enough ? '放入' : `缺${WORKSHOP.ingredients - n}个`;
+        btn.disabled = !enough;
+        if (!enough) btn.style.cssText = 'border-color:#ccc;background:#f0f0f0;color:#aaa;cursor:default;';
+        else btn.addEventListener('click', () => {
           g.processStart(this.wsChoosing, key);
           this.wsChoosing = null;
           this.renderWorkshop();
@@ -826,7 +830,7 @@ export class UI {
     // 加工位列表
     const note = document.createElement('p');
     note.className = 'shop-note';
-    note.textContent = `放入作物加工 ${WORKSHOP.time} 秒变罐头，卖价是原来的 ${WORKSHOP.mult} 倍。`;
+    note.textContent = `${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒变 1 个罐头，卖价比原料多 50%。想赚更多就去 🍳 料理工坊凑配方（×3）。`;
     body.appendChild(note);
     g.workshop.forEach((s, k) => {
       const el = document.createElement('div');
@@ -849,7 +853,7 @@ export class UI {
         } else {
           el.classList.add('done');
           el.innerHTML = `<div class="icon">🥫</div>
-            <div class="info"><b>${info.label}罐头 完成！</b><p>可卖 ${info.price * WORKSHOP.mult}💰</p></div>`;
+            <div class="info"><b>${info.label}罐头 完成！</b><p>可卖 ${keyInfo('p:' + s.key).price}💰</p></div>`;
           const btn = document.createElement('button');
           btn.className = 'collect';
           btn.textContent = '取出';

@@ -55,7 +55,9 @@ export const GOLD_CHANCE = 0.05;
 export const SILVER_CHANCE = 0.15;
 
 // 工坊：作物加工成罐头，卖价 ×3
-export const WORKSHOP = { slots: 3, time: 20, mult: 2 };
+// 工坊：2 个同种作物加工成 1 个罐头，罐头卖价 = 2 个原料总价 × 1.5（向下取整）
+// 即每个作物做成罐头只增值 50%，远不如凑配方做料理（×3）划算
+export const WORKSHOP = { slots: 3, time: 20, ingredients: 2, bonus: 1.5 };
 
 // 昼夜循环：现实 20 分钟 = 游戏一天（白天/夜晚各 10 分钟），夜晚生长减半
 export const DAY_CYCLE = 1200;      // 秒
@@ -342,8 +344,10 @@ export function keyInfo(key) {
   const [id, quality] = raw.split(':');
   const seed = seedById(id);
   const q = QUALITIES[quality];
+  // 罐头 = 2 个原料总价 × 1.5，向下取整
+  const base = seed.sell * (q?.mult ?? 1);
   const price = Math.max(1, Math.floor(
-    seed.sell * (q?.mult ?? 1) * (processed ? WORKSHOP.mult : 1) * (stunted ? DROUGHT.sellMult : 1)));
+    (processed ? base * WORKSHOP.ingredients * WORKSHOP.bonus : base) * (stunted ? DROUGHT.sellMult : 1)));
   return {
     seed, quality, processed, stunted, price,
     label: `${stunted ? '生长不良的' : ''}${q ? q.name : ''}${seed.name}${processed ? '罐头' : ''}`,

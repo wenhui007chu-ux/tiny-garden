@@ -935,12 +935,16 @@ export class Game {
     if (key.startsWith('k:')) { this.onToast('料理不能做成罐头'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
-    if ((this.inventory[key] ?? 0) <= 0) return;
-    this.inventory[key] -= 1;
-    if (this.inventory[key] === 0) delete this.inventory[key];
+    const need = WORKSHOP.ingredients;
+    if ((this.inventory[key] ?? 0) < need) {
+      this.onToast(`${need} 个才能加工成 1 个罐头，数量不够`);
+      return;
+    }
+    this.inventory[key] -= need;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
     this.workshop[slot] = { key, readyAt: this.time + WORKSHOP.time };
     const info = keyInfo(key);
-    this.onToast(`${info.icon}${info.label}开始加工 ⏳${WORKSHOP.time}秒`);
+    this.onToast(`${info.icon}${info.label} ×${need} 开始加工 ⏳${WORKSHOP.time}秒`);
     this.onState();
     this.save();
   }
