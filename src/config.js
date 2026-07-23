@@ -55,7 +55,7 @@ export const GOLD_CHANCE = 0.05;
 export const SILVER_CHANCE = 0.15;
 
 // 工坊：作物加工成罐头，卖价 ×3
-export const WORKSHOP = { slots: 3, time: 20, mult: 3 };
+export const WORKSHOP = { slots: 3, time: 20, mult: 2 };
 
 // 昼夜循环：现实 20 分钟 = 游戏一天（白天/夜晚各 10 分钟），夜晚生长减半
 export const DAY_CYCLE = 1200;      // 秒
