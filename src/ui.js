@@ -10,15 +10,15 @@ export class UI {
     this.game = game;
     this.tool = 'hand';        // hand | plant | water | shovel | soil | decor
     this.selectedSeed = 'sweetpot';
-    this.selectedSoil = 1;   // 土壤商店里选好目标土壤，再进升级模式
+    this.selectedSoil = 1;   // 商场土壤页里选好目标土壤，再进升级模式
     this.selectedDecor = null;
-    this.shopTab = 'seeds';
+    this.mallTab = 'items';   // 商场大楼里包揽了原来商店的全部页签
+    this.codexTab = 'donate'; // 图鉴大楼：donate 基础图鉴 / gallery 个人图鉴
 
     game.onToast = (msg) => this.toast(msg);
     game.onState = () => this.refresh();
 
     this.bindToolbar();
-    this.bindShop();
     this.refresh();
   }
 
@@ -28,12 +28,6 @@ export class UI {
     document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
       btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
     });
-    $('#shop-btn').addEventListener('click', () => {
-      const wasHidden = $('#shop').classList.contains('hidden');
-      this.closePanels();
-      if (wasHidden) { $('#shop').classList.remove('hidden'); this.renderShop(); }
-    });
-    $('#shop-close').addEventListener('click', () => $('#shop').classList.add('hidden'));
     $('#bag-btn').addEventListener('click', () => {
       const wasHidden = $('#bag').classList.contains('hidden');
       this.closePanels();
@@ -41,7 +35,6 @@ export class UI {
     });
     $('#bag-close').addEventListener('click', () => $('#bag').classList.add('hidden'));
     $('#ws-close').addEventListener('click', () => $('#ws').classList.add('hidden'));
-    $('#disp-close').addEventListener('click', () => $('#disp').classList.add('hidden'));
     $('#mall-close').addEventListener('click', () => $('#mall').classList.add('hidden'));
     $('#items-close').addEventListener('click', () => $('#items').classList.add('hidden'));
     $('#house-close').addEventListener('click', () => this.exitHouse());
@@ -123,105 +116,6 @@ export class UI {
     });
   }
 
-  /* ---------- 商店 ---------- */
-
-  bindShop() {
-    document.querySelectorAll('.shop-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        this.shopTab = tab.dataset.tab;
-        document.querySelectorAll('.shop-tab').forEach(t =>
-          t.classList.toggle('active', t === tab));
-        this.renderShop();
-      });
-    });
-  }
-
-  renderShop() {
-    const body = $('#shop-body');
-    const g = this.game;
-    body.innerHTML = '';
-    const item = (icon, title, desc, btnText, onClick, btnClass = '') => {
-      const el = document.createElement('div');
-      el.className = 'shop-item';
-      el.innerHTML = `<div class="icon">${icon}</div>
-        <div class="info"><b>${title}</b><p>${desc}</p></div>`;
-      const btn = document.createElement('button');
-      btn.textContent = btnText;
-      if (btnClass) btn.className = btnClass;
-      if (onClick) btn.addEventListener('click', onClick); else btn.disabled = true;
-      el.appendChild(btn);
-      body.appendChild(el);
-    };
-
-    if (this.shopTab === 'seeds') {
-      SEEDS.forEach(s => {
-        const owned = g.unlockedSeeds.includes(s.id);
-        item(s.emoji, s.name,
-          `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${fmtTime(s.growTime)}`,
-          owned ? '已解锁' : `解锁 ${s.unlock}💰`,
-          owned ? null : () => { g.unlockSeed(s.id); this.renderShop(); },
-          owned ? 'owned' : '');
-      });
-    }
-
-    if (this.shopTab === 'soil') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '先「选择」想要的土壤，再点下方按钮进入升级模式，点击地块直接升到所选土壤（可以跳级）。';
-      body.appendChild(note);
-      SOILS.forEach((s, i) => {
-        const desc = `生长速度 ×${s.speed}${s.yield > 1 ? ` · 收成 ×${s.yield}` : ''}${i > 0 ? ` · 每格 ${s.cost}💰` : ' · 初始土壤'}`;
-        if (i === 0) { item('🟫', s.name, desc, '默认', null, 'owned'); return; }
-        const selected = this.selectedSoil === i;
-        item('🟫', s.name, desc,
-          selected ? '✓ 已选择' : '选择',
-          () => { this.selectedSoil = i; this.renderShop(); },
-          selected ? '' : 'owned');
-      });
-      const btn = document.createElement('button');
-      btn.textContent = `🛠 进入土壤升级模式（${SOILS[this.selectedSoil].name}）`;
-      btn.style.cssText = 'width:100%;padding:10px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
-      btn.addEventListener('click', () => { this.setTool('soil'); $('#shop').classList.add('hidden'); });
-      body.appendChild(btn);
-    }
-
-    if (this.shopTab === 'water') {
-      WATER_LEVELS.forEach((w, i) => {
-        const state = i < g.waterLevel ? '已拥有' : i === g.waterLevel ? '当前' : null;
-        item('💧', w.name, w.desc,
-          state ?? `升级 ${w.cost}💰`,
-          state || i !== g.waterLevel + 1 ? null : () => { g.buyWaterLevel(); this.renderShop(); },
-          state ? 'owned' : '');
-      });
-    }
-
-    if (this.shopTab === 'interior') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '买回来的家具直接摆进 🏠 小屋，进屋后还能花钱升级到 3 级。';
-      body.appendChild(note);
-      FURNITURE.filter(f => !f.free).forEach(f => {
-        const lv = g.furniture[f.id] ?? 0;
-        item(f.emoji, f.name,
-          lv ? `已拥有 · Lv.${lv}（去小屋里升级）` : `${f.levelNames[0]} · 之后可升到 3 级`,
-          lv ? '已购买' : `${f.cost}💰`,
-          lv ? null : () => { g.buyFurniture(f.id); this.renderShop(); },
-          lv ? 'owned' : '');
-      });
-    }
-
-    if (this.shopTab === 'decor') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '点「摆放」后，点击盒子四周的装饰台放置（放置时扣钱）。共 10 个装饰台。';
-      body.appendChild(note);
-      DECORS.forEach(d => {
-        item(d.emoji, d.name, `${d.cost}💰`,
-          '摆放', () => { this.setTool('decor', { decorId: d.id }); $('#shop').classList.add('hidden'); });
-      });
-    }
-  }
-
   /* ---------- 背包 ---------- */
 
   renderBag() {
@@ -263,7 +157,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#shop', '#bag', '#ws', '#disp', '#mall', '#items', '#fish', '#bank', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -309,6 +203,26 @@ export class UI {
     const body = $('#codex-body');
     const g = this.game;
     body.innerHTML = '';
+
+    // 两个展区页签
+    const tabs = document.createElement('div');
+    tabs.id = 'codex-tabs';
+    [['donate', '📖 基础图鉴'], ['gallery', '🏆 个人图鉴']].forEach(([id, label]) => {
+      const tab = document.createElement('button');
+      tab.className = 'shop-tab' + (this.codexTab === id ? ' active' : '');
+      tab.textContent = label;
+      tab.addEventListener('click', () => { this.codexTab = id; this.codexChoosing = null; this.renderCodex(); });
+      tabs.appendChild(tab);
+    });
+    body.appendChild(tabs);
+
+    if (this.codexTab === 'donate') this.renderCodexDonate(body);
+    else this.renderCodexGallery(body);
+  }
+
+  // 基础图鉴：42 台收录
+  renderCodexDonate(body) {
+    const g = this.game;
     body.insertAdjacentHTML('beforeend',
       `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42<small>每种作物的每个品质各收录一次，拖动可以环视展馆</small></div>`);
     const note = document.createElement('p');
@@ -345,6 +259,75 @@ export class UI {
         btn.addEventListener('click', () => { g.donateCodex(key); this.renderCodex(); });
       }
       el.appendChild(btn);
+      body.appendChild(el);
+    });
+  }
+
+  // 个人图鉴：贵宾区 10 座金台，随摆随收
+  renderCodexGallery(body) {
+    const g = this.game;
+    const used = g.displaySlots.filter(s => s.item).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="codex-progress">🏆 个人珍藏 ${used} / 10<small>红毯贵宾区的金台，摆你最得意的作物，随时可收回</small></div>`);
+
+    // 正在给某个台子挑作物
+    if (this.codexChoosing != null) {
+      const k = this.codexChoosing;
+      const note = document.createElement('p');
+      note.className = 'shop-note';
+      note.textContent = `选一个作物摆上 ${k + 1} 号金台：`;
+      body.appendChild(note);
+      const crops = Object.entries(g.inventory)
+        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && key !== 'egg');
+      if (!crops.length) {
+        body.insertAdjacentHTML('beforeend',
+          '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来吧 🌱</div>');
+      }
+      crops.forEach(([key, n]) => {
+        const info = keyInfo(key);
+        const el = document.createElement('div');
+        el.className = 'ws-slot' + (info.quality ? ` quality-${info.quality}` : '');
+        el.innerHTML = `<div class="icon">${info.icon}</div>
+          <div class="info"><b>${info.label} ×${n}</b><p>价值 ${info.price}💰</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '摆上';
+        btn.addEventListener('click', () => {
+          g.placeDisplay(k, key);
+          this.codexChoosing = null;
+          this.renderCodex();
+        });
+        el.appendChild(btn);
+        body.appendChild(el);
+      });
+      const back = document.createElement('button');
+      back.textContent = '← 返回';
+      back.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;';
+      back.addEventListener('click', () => { this.codexChoosing = null; this.renderCodex(); });
+      body.appendChild(back);
+      return;
+    }
+
+    g.displaySlots.forEach((s, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (s.item) {
+        const info = keyInfo(s.item.key);
+        el.className += info.quality ? ` quality-${info.quality}` : '';
+        el.innerHTML = `<div class="icon">${info.icon}</div>
+          <div class="info"><b>${k + 1} 号金台 · ${info.label}</b><p>价值 ${info.price}💰</p></div>`;
+        const btn = document.createElement('button');
+        btn.className = 'collect';
+        btn.textContent = '收回';
+        btn.addEventListener('click', () => { g.takeDisplay(k); this.renderCodex(); });
+        el.appendChild(btn);
+      } else {
+        el.innerHTML = `<div class="icon">🏆</div>
+          <div class="info"><b>${k + 1} 号金台</b><p>空着</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '摆放';
+        btn.addEventListener('click', () => { this.codexChoosing = k; this.renderCodex(); });
+        el.appendChild(btn);
+      }
       body.appendChild(el);
     });
   }
@@ -528,7 +511,7 @@ export class UI {
       el.className = 'fur-row' + (lv ? '' : ' locked');
       const desc = lv
         ? `已解锁 Lv.${lv}/3 · 正在展示「${f.levelNames[shown - 1]}」`
-        : `未拥有 · 商店「内饰」页 ${f.cost}💰`;
+        : `未拥有 · 商场「内饰」页 ${f.cost}💰`;
       el.innerHTML = `<div class="icon">${f.emoji}</div>
         <div class="info"><b>${f.name}</b><p>${desc}</p></div>`;
       // 已解锁的外观随便换
@@ -582,47 +565,135 @@ export class UI {
   }
 
   renderMall() {
-    const body = $('#mall-body');
     const g = this.game;
-    body.innerHTML = '';
-    const note = document.createElement('p');
-    note.className = 'shop-note';
-    note.textContent = '买来的道具放在 🧰 道具背包里，和作物背包分开。';
-    body.appendChild(note);
-
-    // 一次买几个，想买多少填多少
-    const qtyBox = document.createElement('div');
-    qtyBox.id = 'mall-qty-box';
-    qtyBox.innerHTML = '<span>一次买</span>';
-    const input = document.createElement('input');
-    input.id = 'mall-qty';
-    input.type = 'number';
-    input.min = '1';
-    input.value = this.mallQty ?? 1;
-    input.addEventListener('input', () => {
-      this.mallQty = Math.max(1, Math.floor(Number(input.value) || 1));
-      body.querySelectorAll('[data-price]').forEach(b => {
-        b.textContent = `买 ${this.mallQty} 个 · ${Number(b.dataset.price) * this.mallQty}💰`;
+    // 页签栏：原商店的全部分类都搬进商场大楼
+    const tabsBar = $('#mall-tabs');
+    tabsBar.innerHTML = '';
+    [['items', '道具'], ['seeds', '种子'], ['soil', '土壤'], ['water', '水源'], ['decor', '装饰'], ['interior', '内饰']]
+      .forEach(([id, label]) => {
+        const tab = document.createElement('button');
+        tab.className = 'shop-tab' + (this.mallTab === id ? ' active' : '');
+        tab.textContent = label;
+        tab.addEventListener('click', () => { this.mallTab = id; this.renderMall(); });
+        tabsBar.appendChild(tab);
       });
-    });
-    qtyBox.appendChild(input);
-    qtyBox.insertAdjacentHTML('beforeend', '<span>个</span>');
-    body.appendChild(qtyBox);
 
-    const qty = () => Math.max(1, Math.floor(Number(input.value) || 1));
-    ITEMS.forEach(item => {
-      const owned = g.items[item.id] ?? 0;
+    const body = $('#mall-body');
+    body.innerHTML = '';
+    const item = (icon, title, desc, btnText, onClick, btnClass = '') => {
       const el = document.createElement('div');
       el.className = 'shop-item';
-      el.innerHTML = `<div class="icon">${item.emoji}</div>
-        <div class="info"><b>${item.name}${owned ? `（持有 ${owned}）` : ''}</b><p>${item.desc}</p></div>`;
+      el.innerHTML = `<div class="icon">${icon}</div>
+        <div class="info"><b>${title}</b><p>${desc}</p></div>`;
       const btn = document.createElement('button');
-      btn.dataset.price = item.cost;
-      btn.textContent = `买 ${qty()} 个 · ${item.cost * qty()}💰`;
-      btn.addEventListener('click', () => { g.buyItem(item.id, qty()); this.renderMall(); });
+      btn.textContent = btnText;
+      if (btnClass) btn.className = btnClass;
+      if (onClick) btn.addEventListener('click', onClick); else btn.disabled = true;
       el.appendChild(btn);
       body.appendChild(el);
-    });
+      return btn;
+    };
+
+    if (this.mallTab === 'items') {
+      const note = document.createElement('p');
+      note.className = 'shop-note';
+      note.textContent = '买来的道具放在 🧰 道具背包里，和作物背包分开。';
+      body.appendChild(note);
+      // 一次买几个，想买多少填多少
+      const qtyBox = document.createElement('div');
+      qtyBox.id = 'mall-qty-box';
+      qtyBox.innerHTML = '<span>一次买</span>';
+      const input = document.createElement('input');
+      input.id = 'mall-qty';
+      input.type = 'number';
+      input.min = '1';
+      input.value = this.mallQty ?? 1;
+      input.addEventListener('input', () => {
+        this.mallQty = Math.max(1, Math.floor(Number(input.value) || 1));
+        body.querySelectorAll('[data-price]').forEach(b => {
+          b.textContent = `买 ${this.mallQty} 个 · ${Number(b.dataset.price) * this.mallQty}💰`;
+        });
+      });
+      qtyBox.appendChild(input);
+      qtyBox.insertAdjacentHTML('beforeend', '<span>个</span>');
+      body.appendChild(qtyBox);
+      const qty = () => Math.max(1, Math.floor(Number(input.value) || 1));
+      ITEMS.forEach(it => {
+        const owned = g.items[it.id] ?? 0;
+        const btn = item(it.emoji, `${it.name}${owned ? `（持有 ${owned}）` : ''}`, it.desc,
+          `买 ${qty()} 个 · ${it.cost * qty()}💰`,
+          () => { g.buyItem(it.id, qty()); this.renderMall(); });
+        btn.dataset.price = it.cost;
+      });
+    }
+
+    if (this.mallTab === 'seeds') {
+      SEEDS.forEach(s => {
+        const owned = g.unlockedSeeds.includes(s.id);
+        item(s.emoji, s.name,
+          `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${fmtTime(s.growTime)}`,
+          owned ? '已解锁' : `解锁 ${s.unlock}💰`,
+          owned ? null : () => { g.unlockSeed(s.id); this.renderMall(); },
+          owned ? 'owned' : '');
+      });
+    }
+
+    if (this.mallTab === 'soil') {
+      const note = document.createElement('p');
+      note.className = 'shop-note';
+      note.textContent = '先「选择」想要的土壤，再点下方按钮进入升级模式，点击地块直接升到所选土壤（可以跳级）。';
+      body.appendChild(note);
+      SOILS.forEach((s, i) => {
+        const desc = `生长速度 ×${s.speed}${s.yield > 1 ? ` · 收成 ×${s.yield}` : ''}${i > 0 ? ` · 每格 ${s.cost}💰` : ' · 初始土壤'}`;
+        if (i === 0) { item('🟫', s.name, desc, '默认', null, 'owned'); return; }
+        const selected = this.selectedSoil === i;
+        item('🟫', s.name, desc,
+          selected ? '✓ 已选择' : '选择',
+          () => { this.selectedSoil = i; this.renderMall(); },
+          selected ? '' : 'owned');
+      });
+      const btn = document.createElement('button');
+      btn.textContent = `🛠 进入土壤升级模式（${SOILS[this.selectedSoil].name}）`;
+      btn.style.cssText = 'width:100%;padding:10px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
+      btn.addEventListener('click', () => { this.setTool('soil'); $('#mall').classList.add('hidden'); });
+      body.appendChild(btn);
+    }
+
+    if (this.mallTab === 'water') {
+      WATER_LEVELS.forEach((w, i) => {
+        const state = i < g.waterLevel ? '已拥有' : i === g.waterLevel ? '当前' : null;
+        item('💧', w.name, w.desc,
+          state ?? `升级 ${w.cost}💰`,
+          state || i !== g.waterLevel + 1 ? null : () => { g.buyWaterLevel(); this.renderMall(); },
+          state ? 'owned' : '');
+      });
+    }
+
+    if (this.mallTab === 'decor') {
+      const note = document.createElement('p');
+      note.className = 'shop-note';
+      note.textContent = '点「摆放」后，点击盒子四周的装饰台放置（放置时扣钱）。共 10 个装饰台。';
+      body.appendChild(note);
+      DECORS.forEach(d => {
+        item(d.emoji, d.name, `${d.cost}💰`,
+          '摆放', () => { this.setTool('decor', { decorId: d.id }); $('#mall').classList.add('hidden'); });
+      });
+    }
+
+    if (this.mallTab === 'interior') {
+      const note = document.createElement('p');
+      note.className = 'shop-note';
+      note.textContent = '买回来的家具直接摆进 🏠 小屋，进屋后还能花钱升级到 3 级。';
+      body.appendChild(note);
+      FURNITURE.filter(f => !f.free).forEach(f => {
+        const lv = g.furniture[f.id] ?? 0;
+        item(f.emoji, f.name,
+          lv ? `已拥有 · Lv.${lv}（去小屋里升级）` : `${f.levelNames[0]} · 之后可升到 3 级`,
+          lv ? '已购买' : `${f.cost}💰`,
+          lv ? null : () => { g.buyFurniture(f.id); this.renderMall(); },
+          lv ? 'owned' : '');
+      });
+    }
   }
 
   /* ---------- 道具背包 ---------- */
@@ -645,42 +716,6 @@ export class UI {
       const btn = document.createElement('button');
       btn.textContent = '使用';
       btn.addEventListener('click', () => { g.useItem(item.id); this.renderItems(); });
-      el.appendChild(btn);
-      body.appendChild(el);
-    });
-  }
-
-  /* ---------- 作物展示区 ---------- */
-
-  openDisplayChooser(slotIdx) {
-    this.closePanels();
-    $('#disp').classList.remove('hidden');
-    const body = $('#disp-body');
-    const g = this.game;
-    body.innerHTML = '';
-    const note = document.createElement('p');
-    note.className = 'shop-note';
-    note.textContent = `选一个作物摆上 ${slotIdx + 1} 号展示台（点击展示台上的作物可随时收回背包）：`;
-    body.appendChild(note);
-    const crops = Object.entries(g.inventory)
-      .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && k !== 'egg' && n > 0);
-    if (!crops.length) {
-      body.insertAdjacentHTML('beforeend',
-        '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来展示吧 🌱</div>');
-      return;
-    }
-    crops.forEach(([key, n]) => {
-      const info = keyInfo(key);
-      const el = document.createElement('div');
-      el.className = 'ws-slot' + (info.quality ? ` quality-${info.quality}` : '');
-      el.innerHTML = `<div class="icon">${info.icon}</div>
-        <div class="info"><b>${info.label} ×${n}</b><p>价值 ${info.price}💰</p></div>`;
-      const btn = document.createElement('button');
-      btn.textContent = '展示';
-      btn.addEventListener('click', () => {
-        g.placeDisplay(slotIdx, key);
-        $('#disp').classList.add('hidden');
-      });
       el.appendChild(btn);
       body.appendChild(el);
     });
@@ -881,7 +916,6 @@ export class UI {
     if (!$('#bag').classList.contains('hidden')) this.renderBag();
     if (!$('#items').classList.contains('hidden')) this.renderItems();
     if (!$('#mall').classList.contains('hidden')) this.renderMall();
-    if (!$('#shop').classList.contains('hidden')) this.renderShop();
     if (this.tool === 'plant') this.renderSeedPicker();
   }
 

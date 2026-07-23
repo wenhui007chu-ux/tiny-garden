@@ -55,7 +55,7 @@ function pickTile(e) {
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
-     ...game.displayMeshes(), ...game.mallMeshes, ...game.houseMeshes,
+     ...game.mallMeshes, ...game.houseMeshes,
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes], false);
   return hits.length ? hits[0].object : null;
 }
@@ -147,20 +147,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
 
-  // 展示台：空台选作物摆上去，有东西点击收回
-  if (hit.userData.displayIndex !== undefined) {
-    const k = hit.userData.displayIndex;
-    if (game.displaySlots[k].item) game.takeDisplay(k);
-    else ui.openDisplayChooser(k);
-    return;
-  }
-
   // 装饰台：只认摆放和铲除
   if (hit.userData.slotIndex !== undefined) {
     const k = hit.userData.slotIndex;
     if (ui.tool === 'decor' && ui.selectedDecor) game.placeDecorAtSlot(k, ui.selectedDecor);
     else if (ui.tool === 'shovel') game.shovelSlot(k);
-    else if (game.decorSlots[k].decor === null) ui.toast('这是装饰台，去商店买装饰来摆吧');
+    else if (game.decorSlots[k].decor === null) ui.toast('这是装饰台，去商场买装饰来摆吧');
     return;
   }
 

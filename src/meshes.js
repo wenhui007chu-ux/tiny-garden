@@ -256,9 +256,10 @@ export function createCodexBuilding() {
 }
 
 // 馆内大厅（藏在岛下，进馆时镜头切过去）
+// 前区：42 台基础图鉴；后区（红毯贵宾厅）：10 台个人图鉴
 export function createCodexInterior() {
   const g = new THREE.Group();
-  const W = 17.5, D = 20.5;
+  const W = 17.5, D = 31;
   const wallMat = mat(0xf0ead9);
   // 大理石地面 + 分隔线
   g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xdcd3c2), 0, -0.15, 0));
@@ -272,8 +273,17 @@ export function createCodexInterior() {
   [-5, 0, 5].forEach(x =>
     g.add(mesh(new THREE.BoxGeometry(2, 1.6, 0.1),
       mat(0xbfe3f0, { emissive: 0x89b8d4, emissiveIntensity: 0.4 }), x, 3.4, -D / 2 + 0.25)));
-  // 顶灯
-  [[-4, -6], [4, -6], [-4, 2], [4, 2], [0, 8]].forEach(([x, z]) => {
+  // 贵宾区：红毯 + 金柱拱门分界
+  g.add(mesh(new THREE.BoxGeometry(14.4, 0.06, 8.8), mat(0xa8433a), 0, 0.04, 11));
+  g.add(mesh(new THREE.BoxGeometry(13.6, 0.02, 8), mat(0xc9584a), 0, 0.08, 11));
+  const gold = mat(0xf2c94c, { roughness: 0.35 });
+  [[-7], [7]].forEach(([x]) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 3.4, 10), gold, x, 1.7, 6.4));
+    g.add(mesh(new THREE.SphereGeometry(0.3, 8, 7), gold, x, 3.6, 6.4));
+  });
+  g.add(mesh(new THREE.BoxGeometry(14.8, 0.28, 0.5), gold, 0, 3.95, 6.4));
+  // 顶灯（两个展区各自照明）
+  [[-4, -10], [4, -10], [-4, -2], [4, -2], [0, 3], [-4, 11], [4, 11]].forEach(([x, z]) => {
     const l = new THREE.PointLight(0xfff2d8, 0.5, 20, 1.8);
     l.position.set(x, 4.2, z);
     g.add(l);
@@ -1192,21 +1202,29 @@ export function createHouse() {
   return g;
 }
 
-/* ================= 作物展示区（草地左侧，工坊对面） ================= */
+/* ================= 个人图鉴展台（住在图鉴大楼的贵宾区） ================= */
 
 export const DISPLAY_SLOTS = 10;
 
-export function createDisplaySlotMesh() {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.26, 0.72), mat(0xeae4d6));
-  m.castShadow = true;
-  m.receiveShadow = true;
-  return m;
+export function createGalleryPedestal(filled) {
+  const g = new THREE.Group();
+  const base = mat(filled ? 0x3c3c46 : 0x8f8a80);
+  g.add(mesh(new THREE.BoxGeometry(1.05, 0.16, 1.05), base, 0, 0.08, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.66, 1.3, 0.66), base, 0, 0.8, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.95, 0.12, 0.95),
+    mat(filled ? 0xf2c94c : 0xb8b2a4, filled ? { roughness: 0.35, emissive: 0x8a6a1a, emissiveIntensity: 0.25 } : {}),
+    0, 1.5, 0));
+  if (filled) {
+    const glow = new THREE.PointLight(0xffe0a8, 0.45, 3.2, 2);
+    glow.position.set(0, 2.2, 0);
+    g.add(glow);
+  }
+  return g;
 }
 
-export function displaySlotPos(k) {
-  // 再往左让开一点，免得跟最外侧的装饰台贴到一起
-  const row = Math.floor(k / 5), col = k % 5;
-  return { x: -8 - row * 1.3, z: (col - 2) * 1.3 };
+export function galleryPedestalPos(k) {
+  const col = k % 5, row = Math.floor(k / 5);
+  return { x: (col - 2) * 3, z: 9 + row * 3.6 };
 }
 
 /* ================= 作物（按阶段 0-3） ================= */

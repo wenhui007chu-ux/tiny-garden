@@ -114,7 +114,7 @@ export const CODEX_POS = { x: 60, y: -60, z: 0 };
 export const CODEX_QUALITIES = [undefined, 'silver', 'gold'];
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
-// 房子内饰：床是白送的，其余去商店「内饰」页买，每件最多升到 3 级
+// 房子内饰：床是白送的，其余去商场「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
 export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
 export const FURNITURE = [

@@ -10,7 +10,7 @@ import {
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
   createDecorSlotMesh, decorSlotPos, DECOR_SLOTS, applyPlating, createWorkshop,
-  createDisplaySlotMesh, displaySlotPos, DISPLAY_SLOTS, createMall,
+  createGalleryPedestal, galleryPedestalPos, DISPLAY_SLOTS, createMall,
   createUpperDeck, createLadder, createHouse, createLockEdge,
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
@@ -89,17 +89,6 @@ export class Game {
       this.decorSlots.push({ mesh, decor: null });
     }
 
-    // 作物展示区：左侧草地两排白石台，摆背包里满意的作物
-    this.displaySlots = [];
-    for (let k = 0; k < DISPLAY_SLOTS; k++) {
-      const mesh = createDisplaySlotMesh();
-      const { x, z } = displaySlotPos(k);
-      mesh.position.set(x, -0.42, z);
-      mesh.userData.displayIndex = k;
-      this.group.add(mesh);
-      this.displaySlots.push({ mesh, item: null });
-    }
-
     // 我们自己的房子：农田右前方
     const house = createHouse();
     house.position.set(10, -0.51, 4.6);
@@ -127,6 +116,8 @@ export class Game {
     this.codexHall.position.set(CODEX_POS.x, CODEX_POS.y, CODEX_POS.z);
     this.group.add(this.codexHall);
     this.codexPedestals = {};
+    // 个人图鉴：馆内贵宾区的 10 座金台
+    this.displaySlots = Array.from({ length: DISPLAY_SLOTS }, () => ({ item: null, mesh: null }));
 
     // 黑房子银行：右前方空地
     this.bank = 0; // 存款
@@ -173,7 +164,6 @@ export class Game {
 
   tileMeshes() { return this.tiles.map(t => t.mesh); }
   slotMeshes() { return this.decorSlots.map(s => s.mesh); }
-  displayMeshes() { return this.displaySlots.map(s => s.mesh); }
   isWet(t) { return this.waterLevel === 2 || t.wetUntil > this.time; }
 
   /* ---------- 天气（大旱 / 暴雨） ---------- */
@@ -577,7 +567,7 @@ export class Game {
 
   codexSlotPos(idx) {
     const col = idx % 6, row = Math.floor(idx / 6);
-    return { x: (col - 2.5) * 2.5, z: (row - 3) * 2.7 };
+    return { x: (col - 2.5) * 2.5, z: (row - 3) * 2.7 - 4.4 }; // 整体靠后，给贵宾区腾地方
   }
 
   buildCodexPedestal(key) {
@@ -834,27 +824,42 @@ export class Game {
     return true;
   }
 
-  /* ---------- 作物展示区 ---------- */
+  /* ---------- 个人图鉴（图鉴大楼贵宾区） ---------- */
 
-  buildDisplayMesh(key, s) {
-    const info = keyInfo(key);
-    const m = createPlantMesh(info.seed.id, 3);
-    applyPlating(m, info.quality);
-    m.position.set(s.mesh.position.x, s.mesh.position.y + 0.13, s.mesh.position.z);
-    this.group.add(m);
-    return m;
+  buildGallerySlot(k) {
+    const s = this.displaySlots[k];
+    if (s.mesh) this.codexHall.remove(s.mesh);
+    const g = new THREE.Group();
+    g.add(createGalleryPedestal(!!s.item));
+    if (s.item) {
+      const info = keyInfo(s.item.key);
+      const crop = createPlantMesh(info.seed.id, 3);
+      applyPlating(crop, info.quality);
+      crop.position.y = 1.56;
+      crop.scale.setScalar(1.9);
+      g.add(crop);
+    }
+    const { x, z } = galleryPedestalPos(k);
+    g.position.set(x, 0, z);
+    this.codexHall.add(g);
+    s.mesh = g;
+  }
+
+  refreshGallery() {
+    for (let k = 0; k < this.displaySlots.length; k++) this.buildGallerySlot(k);
   }
 
   placeDisplay(k, key) {
     const s = this.displaySlots[k];
-    if (s.item) { this.onToast('这个展示台已经摆着东西了'); return false; }
-    if (key.startsWith('p:') || key === EGG.key) { this.onToast('展示区只摆作物本物～'); return false; }
+    if (s.item) { this.onToast('这个展台已经摆着东西了'); return false; }
+    if (key.startsWith('p:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
     if (this.inventory[key] === 0) delete this.inventory[key];
-    s.item = { key, mesh: this.buildDisplayMesh(key, s) };
-    this.onToast(`🏆 ${keyInfo(key).icon}${keyInfo(key).label}摆上了展示台`);
+    s.item = { key };
+    this.buildGallerySlot(k);
+    this.onToast(`🏆 ${keyInfo(key).icon}${keyInfo(key).label}摆上了个人图鉴`);
     this.onState();
     this.save();
     return true;
@@ -864,8 +869,8 @@ export class Game {
     const s = this.displaySlots[k];
     if (!s.item) return;
     const key = s.item.key;
-    this.group.remove(s.item.mesh);
     s.item = null;
+    this.buildGallerySlot(k);
     this.inventory[key] = (this.inventory[key] ?? 0) + 1;
     this.onToast(`${keyInfo(key).label}收回了背包`);
     this.onState();
@@ -1039,11 +1044,9 @@ export class Game {
     for (const s of this.decorSlots) {
       if (s.decor && !s.decor.mesh) s.decor.mesh = this.attachDecorMesh(s.decor.id, s);
     }
-    for (const s of this.displaySlots) {
-      if (s.item && !s.item.mesh) s.item.mesh = this.buildDisplayMesh(s.item.key, s);
-    }
     this.refreshInterior();
     this.refreshCodex();
+    this.refreshGallery();
   }
 
   /* ---------- 主循环 ---------- */

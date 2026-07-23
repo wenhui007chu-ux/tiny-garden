@@ -32,7 +32,6 @@
     <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span>挂机</span></button>
     <button class="tool-btn" id="bag-btn" title="背包">🎒<span>背包</span><i id="bag-badge" class="hidden"></i></button>
     <button class="tool-btn" id="items-btn" title="道具背包">🧰<span>道具</span><i id="items-badge" class="hidden"></i></button>
-    <button class="tool-btn" id="shop-btn" title="商店">🏪<span>商店</span></button>
   </div>
 
   <div id="bag" class="hidden">
@@ -45,13 +44,9 @@
     <div id="ws-body"></div>
   </div>
 
-  <div id="disp" class="hidden">
-    <div id="disp-head"><b>🏆 作物展示区</b><button id="disp-close">✕</button></div>
-    <div id="disp-body"></div>
-  </div>
-
   <div id="mall" class="hidden">
     <div id="mall-head"><b>🛒 商场</b><button id="mall-close">✕</button></div>
+    <div id="mall-tabs"></div>
     <div id="mall-body"></div>
   </div>
 
@@ -80,19 +75,6 @@
     <div id="house-body"></div>
   </div>
 
-  <div id="shop" class="hidden">
-    <div id="shop-head">
-      <div id="shop-tabs">
-        <button class="shop-tab active" data-tab="seeds">种子</button>
-        <button class="shop-tab" data-tab="soil">土壤</button>
-        <button class="shop-tab" data-tab="water">水源</button>
-        <button class="shop-tab" data-tab="decor">装饰</button>
-        <button class="shop-tab" data-tab="interior">内饰</button>
-      </div>
-      <button id="shop-close">✕</button>
-    </div>
-    <div id="shop-body"></div>
-  </div>
 
   <div id="hint">🌱 选择种子种下 → 💧 浇水 → 等待成熟 → 🖐 点击收获卖钱</div>
 
