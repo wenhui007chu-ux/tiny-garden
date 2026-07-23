@@ -179,6 +179,12 @@ export function createPestBug() {
   // 背上的斑点
   [[0.05, 0.06], [0.16, -0.05]].forEach(([x, z]) =>
     g.add(mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(0xd94a3a), x, 0.08, z)));
+  // 隐形的大拾取热区，方便点中拍虫
+  const hit = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 6, 5),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  g.add(hit);
   g.position.y = 0.75;
   g.userData.pestBug = true;
   return g;

@@ -93,7 +93,7 @@ export const ITEMS = [
   },
   {
     id: 'pesticide', name: '杀虫剂', emoji: '🧴', cost: 70,
-    desc: '使用后随机清除一处虫害（生虫的作物收上来会是生长不良）',
+    desc: '一键清光全场虫害（也可以直接点作物上的虫子免费拍掉）',
   },
 ];
 

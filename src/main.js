@@ -60,6 +60,23 @@ function pickTile(e) {
   return hits.length ? hits[0].object : null;
 }
 
+// 赤手拍虫：射线打到哪只虫子，返回它所在的地块序号
+function pickPestTile(e) {
+  setPointer(e);
+  const bugs = [];
+  for (const t of game.tiles) {
+    if (!t.plant?.pest || !t.plant.mesh) continue;
+    const bug = t.plant.mesh.children.find(c => c.userData.pestBug);
+    if (bug) bugs.push({ idx: t.mesh.userData.tileIndex, bug });
+  }
+  if (!bugs.length) return null;
+  const hits = raycaster.intersectObjects(bugs.map(b => b.bug), true);
+  if (!hits.length) return null;
+  let obj = hits[0].object;
+  while (obj && !obj.userData.pestBug) obj = obj.parent;
+  return bugs.find(b => b.bug === obj)?.idx ?? null;
+}
+
 renderer.domElement.addEventListener('pointermove', (e) => {
   // 布置模式：拖着家具在地板上滑
   if (dragging) {
@@ -108,6 +125,11 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (moved > 6) return; // 拖动视角，不算点击
   if (game.paused) return; // 挂机中一切操作无效
   if (ui.inside()) return; // 屋里/馆里点不到菜园
+
+  // 赤手拍虫：点到虫子就免费拍掉，优先级最高
+  const pestIdx = pickPestTile(e);
+  if (pestIdx !== null) { game.swatPest(pestIdx); return; }
+
   const hit = pickTile(e);
   if (!hit) return;
 

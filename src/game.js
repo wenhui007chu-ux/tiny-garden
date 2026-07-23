@@ -236,16 +236,29 @@ export class Game {
     if (t.damaged === 'wet') t.mesh.add(createWetLayer());
   }
 
-  // 杀虫剂：随机灭掉一处虫害
-  usePesticide() {
-    const infested = this.tiles.filter(t => t.plant?.pest);
-    if (!infested.length) { this.onToast('地里没有虫害，杀虫剂先收着吧'); return false; }
-    const t = infested[Math.floor(Math.random() * infested.length)];
+  // 赤手拍虫：直接点掉某块地作物上的虫子，免费
+  swatPest(idx) {
+    const t = this.tiles[idx];
+    if (!t?.plant?.pest) return false;
     t.plant.pest = false;
     const bug = t.plant.mesh?.children.find(c => c.userData.pestBug);
     if (bug) t.plant.mesh.remove(bug);
     const seed = seedById(t.plant.seedId);
-    this.onToast(`🧴 灭掉了${seed.emoji}${seed.name}上的虫子，还剩 ${infested.length - 1} 处虫害`);
+    this.onToast(`👏 啪！拍掉了${seed.emoji}${seed.name}上的虫子`);
+    this.save();
+    return true;
+  }
+
+  // 杀虫剂：一键清光全场虫害
+  usePesticide() {
+    const infested = this.tiles.filter(t => t.plant?.pest);
+    if (!infested.length) { this.onToast('地里没有虫害，杀虫剂先收着吧'); return false; }
+    infested.forEach(t => {
+      t.plant.pest = false;
+      const bug = t.plant.mesh?.children.find(c => c.userData.pestBug);
+      if (bug) t.plant.mesh.remove(bug);
+    });
+    this.onToast(`🧴 杀虫剂喷洒全场，清光了 ${infested.length} 处虫害！`);
     return true;
   }
 
