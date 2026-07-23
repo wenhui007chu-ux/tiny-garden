@@ -6,6 +6,7 @@ import {
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST,
+  DISHES, dishById, ingredientKey,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -15,7 +16,7 @@ import {
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
-  createPestBug,
+  createPestBug, createKitchen,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -127,6 +128,14 @@ export class Game {
     this.group.add(bank);
     this.bankMeshes = [];
     bank.traverse(o => { if (o.isMesh) this.bankMeshes.push(o); });
+
+    // 料理工坊：右前方空地
+    const kitchen = createKitchen();
+    kitchen.position.set(16, -0.51, 11);
+    kitchen.rotation.y = -0.5;
+    this.group.add(kitchen);
+    this.kitchenMeshes = [];
+    kitchen.traverse(o => { if (o.isMesh) this.kitchenMeshes.push(o); });
 
     // 抓鱼水滩：左前方空地
     this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
@@ -619,7 +628,7 @@ export class Game {
   }
 
   donateCodex(key) {
-    if (key.startsWith('p:') || key.startsWith('x:') || key === EGG.key) {
+    if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key === EGG.key) {
       this.onToast('图鉴只收录新鲜的作物本体');
       return false;
     }
@@ -631,6 +640,30 @@ export class Game {
     this.buildCodexPedestal(key);
     const info = keyInfo(key);
     this.onToast(`📖 ${info.icon}${info.label} 收录成功！图鉴进度 ${this.codexCount()}/42`);
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  /* ---------- 料理工坊 ---------- */
+
+  // 某道料理的原料够不够
+  canCook(dishId) {
+    const dish = dishById(dishId);
+    return dish.recipe.every(([id, q, n]) => (this.inventory[ingredientKey(id, q)] ?? 0) >= n);
+  }
+
+  cookDish(dishId) {
+    const dish = dishById(dishId);
+    if (!this.canCook(dishId)) { this.onToast('原料不够，先凑齐配方吧'); return false; }
+    dish.recipe.forEach(([id, q, n]) => {
+      const key = ingredientKey(id, q);
+      this.inventory[key] -= n;
+      if (this.inventory[key] <= 0) delete this.inventory[key];
+    });
+    const dkey = 'k:' + dishId;
+    this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
+    this.onToast(`🍳 做好了${dish.emoji}${dish.name}！放入背包`);
     this.onState();
     this.save();
     return true;
@@ -865,7 +898,7 @@ export class Game {
   placeDisplay(k, key) {
     const s = this.displaySlots[k];
     if (s.item) { this.onToast('这个展台已经摆着东西了'); return false; }
-    if (key.startsWith('p:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
+    if (key.startsWith('p:') || key.startsWith('k:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
@@ -899,6 +932,7 @@ export class Game {
   processStart(slot, key) {
     if (this.workshop[slot]) return;
     if (key.startsWith('p:')) { this.onToast('罐头不能再加工啦'); return; }
+    if (key.startsWith('k:')) { this.onToast('料理不能做成罐头'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
     if ((this.inventory[key] ?? 0) <= 0) return;

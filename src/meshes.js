@@ -342,6 +342,44 @@ export function createPlaque(lines, dim) {
   return m;
 }
 
+/* ================= 料理工坊 ================= */
+
+export function createKitchen() {
+  const g = new THREE.Group();
+  const wall = mat(0xf6c98a);
+  const roof = mat(0xd9534f);
+  // 主楼
+  g.add(mesh(new THREE.BoxGeometry(3.2, 2, 2.6), wall, 0, 1, 0));
+  // 双坡屋顶
+  const r1 = mesh(new THREE.BoxGeometry(3.6, 0.16, 1.7), roof, 0, 2.35, 0.75);
+  r1.rotation.x = 0.5;
+  const r2 = mesh(new THREE.BoxGeometry(3.6, 0.16, 1.7), roof, 0, 2.35, -0.75);
+  r2.rotation.x = -0.5;
+  g.add(r1, r2);
+  g.add(mesh(new THREE.BoxGeometry(3.6, 0.16, 0.1), mat(0xb03f3a), 0, 2.72, 0));
+  // 大烟囱冒着"热气"
+  g.add(mesh(new THREE.BoxGeometry(0.5, 1, 0.5), mat(0xc47a4a), 1, 2.6, -0.5));
+  [[0.15, 3.3], [-0.1, 3.6], [0.1, 3.85]].forEach(([x, y], k) => {
+    const puff = mesh(new THREE.SphereGeometry(0.18 + k * 0.04, 6, 5),
+      mat(0xf0ece4, { transparent: true, opacity: 0.7 }), 1 + x, y, -0.5);
+    g.add(puff);
+  });
+  // 门和橱窗
+  g.add(mesh(new THREE.BoxGeometry(0.75, 1.3, 0.08), mat(0x8a5a2b), -0.7, 0.65, 1.32));
+  g.add(mesh(new THREE.BoxGeometry(0.9, 0.7, 0.06), mat(0xbfe3f0), 0.75, 1.1, 1.32));
+  // 招牌：一口金锅 + 铲子（会转）
+  const sign = new THREE.Group();
+  const pot = mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.32, 12), mat(0x4a4a52), 0, 0, 0);
+  const soup = mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 12), mat(0xe8843f, { emissive: 0xc95a1a, emissiveIntensity: 0.3 }), 0, 0.15, 0);
+  sign.add(pot, soup);
+  sign.add(mesh(new THREE.TorusGeometry(0.1, 0.03, 6, 10), mat(0xe0b64a), 0.4, 0.02, 0));
+  sign.position.set(0, 3.15, 0.4);
+  sign.userData.spin = true;
+  g.add(sign);
+  g.traverse(o => { if (o.isMesh) o.userData.kitchen = true; });
+  return g;
+}
+
 /* ================= 黑房子银行 ================= */
 
 export function createBank() {

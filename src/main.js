@@ -56,7 +56,7 @@ function pickTile(e) {
   const hits = raycaster.intersectObjects(
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
      ...game.mallMeshes, ...game.houseMeshes,
-     ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes], false);
+     ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes, ...game.kitchenMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -160,6 +160,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 黑房子银行：点击存取钱
   if (hit.userData.bank) {
     ui.openBank();
+    return;
+  }
+
+  // 料理工坊：点击打开料理面板
+  if (hit.userData.kitchen) {
+    ui.openKitchen();
     return;
   }
 

@@ -1,4 +1,4 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey } from './config.js';
 
 // 秒数显示成「X分X秒」
 const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
@@ -40,6 +40,7 @@ export class UI {
     $('#house-close').addEventListener('click', () => this.exitHouse());
     $('#fish-close').addEventListener('click', () => $('#fish').classList.add('hidden'));
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
+    $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -157,7 +158,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -230,7 +231,7 @@ export class UI {
     note.textContent = '从背包里挑作物捐进展馆（罐头、生长不良和恐龙虾卵不收）：';
     body.appendChild(note);
     const donatable = Object.entries(g.inventory)
-      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && k !== 'egg');
+      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg');
     if (!donatable.length) {
       body.insertAdjacentHTML('beforeend',
         '<div class="bag-empty">背包里没有可收录的作物<br>去地里收点新鲜的来 🌱</div>');
@@ -278,7 +279,7 @@ export class UI {
       note.textContent = `选一个作物摆上 ${k + 1} 号金台：`;
       body.appendChild(note);
       const crops = Object.entries(g.inventory)
-        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && key !== 'egg');
+        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && key !== 'egg');
       if (!crops.length) {
         body.insertAdjacentHTML('beforeend',
           '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来吧 🌱</div>');
@@ -338,6 +339,58 @@ export class UI {
     this.closePanels();
     $('#bank').classList.remove('hidden');
     this.renderBank();
+  }
+
+  /* ---------- 料理工坊 ---------- */
+
+  openKitchen() {
+    this.closePanels();
+    $('#kitchen').classList.remove('hidden');
+    this.renderKitchen();
+  }
+
+  renderKitchen() {
+    const body = $('#kitchen-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const madeCount = DISHES.filter(d => g.inventory['k:' + d.id]).length;
+    const cookableCount = DISHES.filter(d => g.canCook(d.id)).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="kitchen-progress">🍳 共 50 道料理 · 现在能做 ${cookableCount} 道<small>凑齐配方指定品质的作物即可制作，料理卖价是原料单卖的 3 倍</small></div>`);
+
+    // 只看现在能做的
+    const filterBtn = document.createElement('button');
+    filterBtn.id = 'kitchen-filter';
+    filterBtn.className = this.kitchenReadyOnly ? 'on' : '';
+    filterBtn.textContent = this.kitchenReadyOnly ? '✓ 只显示现在能做的' : `🔍 只看现在能做的（${cookableCount}）`;
+    filterBtn.addEventListener('click', () => { this.kitchenReadyOnly = !this.kitchenReadyOnly; this.renderKitchen(); });
+    body.appendChild(filterBtn);
+
+    const list = this.kitchenReadyOnly ? DISHES.filter(d => g.canCook(d.id)) : DISHES;
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend', '<div class="bag-empty">现在还凑不齐任何一道料理<br>多种点作物、攒攒品质吧 🌱</div>');
+      return;
+    }
+    list.forEach(dish => {
+      const ready = g.canCook(dish.id);
+      const el = document.createElement('div');
+      el.className = 'dish-row' + (ready ? ' ready' : '');
+      const ings = dish.recipe.map(([id, q, n]) => {
+        const key = ingredientKey(id, q);
+        const have = g.inventory[key] ?? 0;
+        const info = keyInfo(key);
+        return `<span class="ing ${have >= n ? 'ok' : 'no'}">${info.icon}${info.label} ${have}/${n}</span>`;
+      }).join('');
+      el.innerHTML = `<div class="icon">${dish.emoji}</div>
+        <div class="info"><b>${dish.name}</b> <span class="price">卖 ${dishPrice(dish)}💰</span>
+        <div class="recipe">${ings}</div></div>`;
+      const btn = document.createElement('button');
+      btn.textContent = '制作';
+      btn.disabled = !ready;
+      if (ready) btn.addEventListener('click', () => { g.cookDish(dish.id); this.renderKitchen(); });
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
   }
 
   renderBank() {
@@ -742,7 +795,7 @@ export class UI {
       note.textContent = `选择放入 ${this.wsChoosing + 1} 号加工位的作物（加工 ${WORKSHOP.time} 秒，卖价 ×${WORKSHOP.mult}）：`;
       body.appendChild(note);
       const raw = Object.entries(g.inventory)
-        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && k !== 'egg' && n > 0);
+        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg' && n > 0);
       if (!raw.length) {
         body.insertAdjacentHTML('beforeend', '<div class="bag-empty">背包里没有可加工的作物<br>先去收获一些吧 🌱</div>');
       }
@@ -903,6 +956,7 @@ export class UI {
     $('#coin-count').textContent = this.game.coins;
     $('#bank-count').textContent = this.game.bank;
     if (!$('#bank').classList.contains('hidden')) this.renderBank();
+    if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);

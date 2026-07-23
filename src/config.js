@@ -114,6 +114,73 @@ export const CODEX_POS = { x: 60, y: -60, z: 0 };
 export const CODEX_QUALITIES = [undefined, 'silver', 'gold'];
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
+// 料理工坊：50 种料理，凑齐指定品质的作物就能做，卖价是原料单卖的 3 倍
+// recipe 每项 [作物id, 品质档 0普通/1白银/2黄金, 数量]
+export const DISH_MULT = 3;
+export const DISHES = [
+  // —— 一档：家常小菜（便宜作物·普通品质）——
+  { id: 'd1',  name: '烤红薯',     emoji: '🍠', recipe: [['sweetpot', 0, 3]] },
+  { id: 'd2',  name: '蜜汁红薯',   emoji: '🍯', recipe: [['sweetpot', 0, 6]] },
+  { id: 'd3',  name: '凉拌萝卜',   emoji: '🥕', recipe: [['radish', 0, 3]] },
+  { id: 'd4',  name: '萝卜炖汤',   emoji: '🍲', recipe: [['radish', 0, 2], ['potato', 0, 1]] },
+  { id: 'd5',  name: '炸薯条',     emoji: '🍟', recipe: [['potato', 0, 3]] },
+  { id: 'd6',  name: '土豆泥',     emoji: '🥔', recipe: [['potato', 0, 2], ['cabbage', 0, 1]] },
+  { id: 'd7',  name: '醋溜白菜',   emoji: '🥬', recipe: [['cabbage', 0, 3]] },
+  { id: 'd8',  name: '白菜豆腐煲', emoji: '🍲', recipe: [['cabbage', 0, 2], ['potato', 0, 1]] },
+  { id: 'd9',  name: '番茄炒蛋',   emoji: '🍳', recipe: [['tomato', 0, 3]] },
+  { id: 'd10', name: '番茄浓汤',   emoji: '🥣', recipe: [['tomato', 0, 2], ['radish', 0, 1]] },
+  // —— 二档：农家菜（中档作物）——
+  { id: 'd11', name: '奶油玉米',   emoji: '🌽', recipe: [['corn', 0, 3]] },
+  { id: 'd12', name: '玉米排骨',   emoji: '🍖', recipe: [['corn', 0, 2], ['potato', 0, 2]] },
+  { id: 'd13', name: '田园沙拉',   emoji: '🥗', recipe: [['radish', 0, 1], ['cabbage', 0, 1], ['tomato', 0, 1]] },
+  { id: 'd14', name: '烤蔬菜串',   emoji: '🍢', recipe: [['potato', 0, 2], ['tomato', 0, 1], ['corn', 0, 1]] },
+  { id: 'd15', name: '草莓果酱',   emoji: '🍓', recipe: [['strawberry', 0, 2]] },
+  { id: 'd16', name: '草莓奶昔',   emoji: '🥤', recipe: [['strawberry', 0, 3]] },
+  { id: 'd17', name: '南瓜浓汤',   emoji: '🎃', recipe: [['pumpkin', 0, 2]] },
+  { id: 'd18', name: '南瓜派',     emoji: '🥧', recipe: [['pumpkin', 0, 2], ['corn', 0, 1]] },
+  { id: 'd19', name: '鱼香茄子',   emoji: '🍆', recipe: [['eggplant', 0, 2]] },
+  { id: 'd20', name: '红烧茄子煲', emoji: '🍲', recipe: [['eggplant', 0, 2], ['tomato', 0, 1]] },
+  // —— 三档：进阶料理（高档作物 + 白银）——
+  { id: 'd21', name: '草莓蛋糕',   emoji: '🍰', recipe: [['strawberry', 1, 2]] },
+  { id: 'd22', name: '水果拼盘',   emoji: '🍉', recipe: [['watermelon', 0, 1], ['strawberry', 0, 2]] },
+  { id: 'd23', name: '西瓜冰沙',   emoji: '🧊', recipe: [['watermelon', 0, 2]] },
+  { id: 'd24', name: '菠萝咕咾肉', emoji: '🍍', recipe: [['pineapple', 0, 1], ['potato', 0, 2]] },
+  { id: 'd25', name: '菠萝披萨',   emoji: '🍕', recipe: [['pineapple', 0, 1], ['tomato', 0, 1], ['cabbage', 0, 1]] },
+  { id: 'd26', name: '蔬菜大杂烩', emoji: '🍲', recipe: [['cabbage', 0, 1], ['eggplant', 0, 1], ['pumpkin', 0, 1], ['tomato', 0, 1]] },
+  { id: 'd27', name: '农家丰收宴', emoji: '🍱', recipe: [['potato', 1, 1], ['corn', 1, 1], ['pumpkin', 0, 1]] },
+  { id: 'd28', name: '银光南瓜盅', emoji: '🎃', recipe: [['pumpkin', 1, 2]] },
+  { id: 'd29', name: '白银茄子煲', emoji: '🍆', recipe: [['eggplant', 1, 2]] },
+  { id: 'd30', name: '草莓千层',   emoji: '🍰', recipe: [['strawberry', 1, 3]] },
+  // —— 四档：大餐（白银/黄金 + 顶级作物）——
+  { id: 'd31', name: '西瓜盛宴',   emoji: '🍉', recipe: [['watermelon', 1, 2]] },
+  { id: 'd32', name: '黄金薯球',   emoji: '🥔', recipe: [['potato', 2, 3]] },
+  { id: 'd33', name: '菠萝盛宴',   emoji: '🍍', recipe: [['pineapple', 1, 2]] },
+  { id: 'd34', name: '水晶羹',     emoji: '🔮', recipe: [['crystal', 0, 1]] },
+  { id: 'd35', name: '水晶果冻',   emoji: '🍮', recipe: [['crystal', 0, 2]] },
+  { id: 'd36', name: '星光沙拉',   emoji: '⭐', recipe: [['starfruit', 0, 1], ['strawberry', 1, 2]] },
+  { id: 'd37', name: '黄金南瓜宴', emoji: '🎃', recipe: [['pumpkin', 2, 2]] },
+  { id: 'd38', name: '白银水果塔', emoji: '🍰', recipe: [['strawberry', 1, 1], ['watermelon', 1, 1], ['pineapple', 1, 1]] },
+  { id: 'd39', name: '水晶炖盅',   emoji: '🔮', recipe: [['crystal', 0, 1], ['pumpkin', 1, 2]] },
+  { id: 'd40', name: '皇家蔬菜锅', emoji: '🍲', recipe: [['eggplant', 1, 2], ['pumpkin', 1, 1], ['crystal', 0, 1]] },
+  // —— 五档：顶级盛宴（黄金 + 星星果/彩虹果）——
+  { id: 'd41', name: '水晶盛宴',       emoji: '🔮', recipe: [['crystal', 1, 2]] },
+  { id: 'd42', name: '星星果派',       emoji: '⭐', recipe: [['starfruit', 0, 2]] },
+  { id: 'd43', name: '星光蛋糕',       emoji: '🌟', recipe: [['starfruit', 1, 2]] },
+  { id: 'd44', name: '黄金水晶羹',     emoji: '🔮', recipe: [['crystal', 2, 1], ['starfruit', 0, 1]] },
+  { id: 'd45', name: '彩虹果盘',       emoji: '🌈', recipe: [['rainbow', 0, 1]] },
+  { id: 'd46', name: '彩虹奶昔',       emoji: '🌈', recipe: [['rainbow', 0, 1], ['strawberry', 2, 2]] },
+  { id: 'd47', name: '星辰大餐',       emoji: '✨', recipe: [['starfruit', 2, 2]] },
+  { id: 'd48', name: '彩虹蛋糕',       emoji: '🎂', recipe: [['rainbow', 1, 2]] },
+  { id: 'd49', name: '满汉全席',       emoji: '👑', recipe: [['rainbow', 1, 1], ['starfruit', 1, 1], ['crystal', 1, 1]] },
+  { id: 'd50', name: '传说彩虹盛宴',   emoji: '🌈', recipe: [['rainbow', 2, 3]] },
+];
+export const dishById = (id) => DISHES.find(d => d.id === id);
+// 配方原料对应的背包 key
+export const ingredientKey = (seedId, q) => q === 0 ? seedId : `${seedId}:${q === 1 ? 'silver' : 'gold'}`;
+export function dishPrice(dish) {
+  return dish.recipe.reduce((sum, [id, q, n]) => sum + seedById(id).sell * [1, 2, 3][q] * n, 0) * DISH_MULT;
+}
+
 // 房子内饰：床是白送的，其余去商场「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
 export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
@@ -264,6 +331,10 @@ export const decorById = (id) => DECORS.find(d => d.id === id);
 export function keyInfo(key) {
   if (key === EGG.key) {
     return { seed: null, quality: undefined, processed: false, stunted: false, price: EGG.sell, label: EGG.name, icon: EGG.emoji };
+  }
+  if (key.startsWith('k:')) {
+    const dish = dishById(key.slice(2));
+    return { seed: null, quality: undefined, processed: false, stunted: false, dish: true, price: dishPrice(dish), label: dish.name, icon: dish.emoji };
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');
