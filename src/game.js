@@ -6,7 +6,7 @@ import {
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST,
-  DISHES, dishById, ingredientKey,
+  DISHES, dishById, ingredientKey, ROD, CASTNET,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -139,6 +139,11 @@ export class Game {
 
     // 抓鱼水滩：左前方空地
     this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
+    this.fishing = false;      // 主动钓鱼模式：进了就安心钓，不能干别的
+    this.fishingTimer = 0;     // 距下次咬钩的计时
+    this.fishingEarned = 0;    // 本次钓鱼小计
+    this.pendingCatch = null;  // 咬钩待收杆：{ label, value, clicksLeft, total }
+    this.catchQueue = [];      // 同一分钟咬了两条就排队收
     this.pond = createPond();
     this.pond.position.set(-14, -0.51, 10);
     this.group.add(this.pond);
@@ -523,8 +528,11 @@ export class Game {
 
   buyItem(id, count = 1) {
     const item = itemById(id);
-    const n = Math.max(1, Math.floor(count));
-    if (!item || !this.spend(item.cost * n)) return;
+    if (!item) return;
+    // 永久工具一件就够
+    if (item.once && (this.items[id] ?? 0) > 0) { this.onToast(`${item.emoji} ${item.name}已经有了，一件就够用`); return; }
+    const n = item.once ? 1 : Math.max(1, Math.floor(count));
+    if (!this.spend(item.cost * n)) return;
     this.items[id] = (this.items[id] ?? 0) + n;
     this.onToast(`${item.emoji} 买了 ${n} 个${item.name}，放进道具背包`);
     this.onState();
@@ -534,6 +542,7 @@ export class Game {
   useItem(id) {
     if ((this.items[id] ?? 0) <= 0) return;
     if (id === 'net') { this.onToast('🕸️ 抓鱼网要拿到水滩去摆（点击左前方的水塘）'); return; }
+    if (id === 'rod' || id === 'castnet') { this.onToast('🎣 渔具带在身上就行，点击水塘开始钓鱼'); return; }
     const ok = id === 'fertilizer' ? this.useFertilizer()
       : id === 'restorer' ? this.useRestorer()
       : id === 'pesticide' ? this.usePesticide()
@@ -707,6 +716,73 @@ export class Game {
   }
 
   /* ---------- 抓鱼水滩 ---------- */
+
+  // —— 主动钓鱼 ——
+
+  startFishing() {
+    if ((this.items.rod ?? 0) <= 0) { this.onToast('先去商场买根 🎣 鱼竿（100💰）'); return false; }
+    this.fishing = true;
+    this.fishingTimer = 0;
+    this.fishingEarned = 0;
+    this.onToast('🎣 甩竿！安心钓鱼，每分钟看一次收成');
+    return true;
+  }
+
+  stopFishing() {
+    if (!this.fishing) return;
+    this.fishing = false;
+    const escaped = (this.pendingCatch ? 1 : 0) + this.catchQueue.length;
+    this.pendingCatch = null;
+    this.catchQueue = [];
+    if (escaped > 0) this.onToast(`💨 ${escaped} 条没收完杆的鱼跑掉了…`);
+    this.onToast(this.fishingEarned > 0
+      ? `🎣 收竿！这趟一共钓了 ${this.fishingEarned}💰`
+      : '🎣 收竿，空手而归也是一种修行');
+  }
+
+  // 咬钩后排进收杆队列：点击次数 = 金额 + 5（5块10下、6块11下…）
+  queueCatch(label, value) {
+    const c = { label, value, total: value + 5, clicksLeft: value + 5 };
+    if (this.pendingCatch) this.catchQueue.push(c);
+    else this.pendingCatch = c;
+  }
+
+  // 收杆按钮点一下拉一下，拉完鱼才到手
+  reelClick() {
+    const c = this.pendingCatch;
+    if (!c) return;
+    c.clicksLeft -= 1;
+    if (c.clicksLeft > 0) return;
+    this.coins += c.value;
+    this.fishingEarned += c.value;
+    this.onToast(`${c.label} 钓上来了！+${c.value}💰`);
+    this.pendingCatch = this.catchQueue.shift() ?? null;
+    if (this.pendingCatch) this.onToast('🐟 又一条在钩上，继续收杆！');
+    this.onState();
+    this.save();
+  }
+
+  // 每满 1 分钟看一次咬钩：鱼竿 90% 5~10；有渔网再 70% 10~20
+  // 咬钩后计时暂停——鱼在钩上，先收杆再说
+  tickFishing(dt) {
+    if (!this.fishing) return;
+    if (this.pendingCatch) return;
+    this.fishingTimer += dt;
+    if (this.fishingTimer < 60) return;
+    this.fishingTimer -= 60;
+    const misses = [];
+    if (Math.random() < ROD.chance) {
+      this.queueCatch('🎣 鱼竿', ROD.min + Math.floor(Math.random() * (ROD.max - ROD.min + 1)));
+    } else misses.push('🎣 没咬钩…');
+    if ((this.items.castnet ?? 0) > 0) {
+      if (Math.random() < CASTNET.chance) {
+        this.queueCatch('🥅 渔网', CASTNET.min + Math.floor(Math.random() * (CASTNET.max - CASTNET.min + 1)));
+      } else misses.push('🥅 空网');
+    }
+    if (this.pendingCatch) this.onToast('🐟 有鱼咬钩了！快点收杆！');
+    else this.onToast(misses.join(' · '));
+    this.onState();
+  }
 
   placeNet(k) {
     if (this.fishNets[k]) return;
@@ -1131,6 +1207,8 @@ export class Game {
         this.onToast(`🌀 风车发电 +${mills * payouts}💰`);
       }
     }
+
+    this.tickFishing(dt);
 
     const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
     for (const t of this.tiles) {

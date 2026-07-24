@@ -117,6 +117,32 @@ body {
 #quick-menu button small { font-size: 11px; color: #a1834f; font-weight: 400; }
 #quick-menu button:hover { background: #ffe9b8; border-color: #e09b3d; }
 
+/* ---------- music menu ---------- */
+#music-menu {
+  position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; z-index: 11;
+  background: #fff8ecee; border: 2px solid #e8c68f; border-radius: 16px; padding: 10px;
+  min-width: 300px;
+}
+#music-menu .music-head {
+  text-align: center; color: #8a5a2b; font-size: 13px; font-weight: 700; padding: 2px 0;
+}
+.music-row {
+  display: flex; align-items: center; gap: 8px;
+  border: 2px solid #d9b071; background: #fff; border-radius: 12px; padding: 8px 12px;
+}
+.music-row.current { border-color: #6aae5e; background: #f0f9ec; }
+.music-row b { flex: 1; color: #6b4a24; font-size: 14px; font-weight: 700; }
+.music-row button {
+  border: 1.5px solid #d9b071; background: #fff8ec; color: #8a5a2b;
+  border-radius: 9px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 700;
+}
+.music-row button:hover { background: #ffe9b8; }
+#music-menu .cancel-loop {
+  border: 2px solid #e09b3d; background: #ffe9b8; color: #8a5a2b;
+  border-radius: 12px; padding: 9px 0; cursor: pointer; font-size: 14px; font-weight: 700;
+}
+
 /* ---------- backpack ---------- */
 #bag-btn { position: relative; }
 #bag-badge {

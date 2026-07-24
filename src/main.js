@@ -3,6 +3,11 @@ import { createScene } from './scene.js';
 import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
 import { INTERIOR_POS } from './config.js';
+import { music } from './music.js';
+
+// 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
+['pointerdown', 'keydown'].forEach(ev =>
+  window.addEventListener(ev, () => music.start(), { once: false }));
 
 // 启动前先看硬盘备份：浏览器存档丢了或更旧时，用备份顶上
 try {
@@ -313,5 +318,5 @@ function animate() {
 animate();
 
 setInterval(() => game.save(), 10000);
-window.__debug = { renderer, scene, camera, game, ui };
+window.__debug = { renderer, scene, camera, game, ui, music };
 window.addEventListener('beforeunload', () => game.save());

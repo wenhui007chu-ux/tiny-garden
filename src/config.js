@@ -97,7 +97,19 @@ export const ITEMS = [
     id: 'pesticide', name: '杀虫剂', emoji: '🧴', cost: 70,
     desc: '一键清光全场虫害（也可以直接点作物上的虫子免费拍掉）',
   },
+  {
+    id: 'rod', name: '鱼竿', emoji: '🎣', cost: 100, once: true,
+    desc: '永久渔具：点击水塘进入钓鱼模式安心垂钓，每分钟 90% 概率钓到 5~10💰',
+  },
+  {
+    id: 'castnet', name: '渔网', emoji: '🥅', cost: 110, once: true,
+    desc: '永久渔具：钓鱼时顺手撒一网，每分钟 70% 概率再捞 10~20💰（配合鱼竿使用）',
+  },
 ];
+
+// 主动钓鱼：进入钓鱼模式后每分钟结算一次
+export const ROD = { chance: 0.9, min: 5, max: 10 };
+export const CASTNET = { chance: 0.7, min: 10, max: 20 };
 
 // 天灾毁地：旱天晒裂、雨天水泡，随机 5~10 块，修复前不能种田
 export const DAMAGE = { min: 5, max: 10 };

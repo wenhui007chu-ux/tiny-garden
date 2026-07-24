@@ -1,4 +1,5 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET } from './config.js';
+import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
 const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
@@ -51,13 +52,37 @@ export class UI {
     // 工坊/鱼网倒计时刷新
     setInterval(() => {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
-      if (!$('#fish').classList.contains('hidden')) this.renderFishing();
+      if (!$('#fish').classList.contains('hidden')) {
+        // 正在狂点收杆时别整块重绘，会打断连点
+        if (this.game.pendingCatch && $('#reel-btn')) return;
+        this.renderFishing();
+      }
     }, 500);
     // 左上角时钟
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
     // 工具栏保存布局按钮
     $('#save-layout-btn').addEventListener('click', () => this.game.saveLayout());
+    // 背景音乐开关
+    $('#music-btn').addEventListener('click', () => {
+      const on = music.toggle();
+      $('#music-btn').innerHTML = on ? '🎵<span>音乐</span>' : '🔇<span>音乐</span>';
+      this.toast(on ? '🎵 音乐开' : '🔇 音乐关');
+    });
+    if (!music.enabled) $('#music-btn').innerHTML = '🔇<span>音乐</span>';
+    music.onTrack = (name) => {
+      this.toast(`🎵 正在播放《${name}》`);
+      if (!$('#music-menu').classList.contains('hidden')) this.renderMusicMenu();
+    };
+    // 选曲弹窗
+    $('#music-pick-btn').addEventListener('click', () => {
+      const menu = $('#music-menu');
+      const wasHidden = menu.classList.contains('hidden');
+      menu.classList.add('hidden');
+      $('#quick-menu').classList.add('hidden');
+      $('#seed-picker').classList.add('hidden');
+      if (wasHidden) { menu.classList.remove('hidden'); this.renderMusicMenu(); }
+    });
     // 挂机模式
     $('#afk-btn').addEventListener('click', () => this.setAfk(true));
     $('#afk-resume').addEventListener('click', () => this.setAfk(false));
@@ -68,6 +93,7 @@ export class UI {
       if (menu.classList.contains('hidden')) this.openQuickMenu('main');
       else menu.classList.add('hidden');
       $('#seed-picker').classList.add('hidden');
+      $('#music-menu').classList.add('hidden');
     });
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return; // 正在输入金额时快捷键不抢戏
@@ -75,8 +101,10 @@ export class UI {
       const k = e.key.toLowerCase();
       if (k === 'escape') {
         $('#quick-menu').classList.add('hidden');
+        $('#music-menu').classList.add('hidden');
         this.exitHouse();
         this.exitCodex();
+        this.exitFishing();
         return;
       }
       if (this.inside()) return; // 屋里/馆里不干农活
@@ -94,6 +122,7 @@ export class UI {
       b.classList.toggle('active', b.dataset.tool === tool));
     $('#seed-picker').classList.toggle('hidden', tool !== 'plant');
     $('#quick-menu').classList.add('hidden');
+    $('#music-menu').classList.add('hidden');
     if (tool === 'plant') this.renderSeedPicker();
     const tips = {
       soil: `点击地块升级为${SOILS[this.selectedSoil].name}（每格 ${SOILS[this.selectedSoil].cost}💰）`,
@@ -162,9 +191,49 @@ export class UI {
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
+    this.exitFishing(); // 干别的就等于收竿
   }
 
-  inside() { return this.inHouse || this.inCodex; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing; }
+
+  /* ---------- 主动钓鱼 ---------- */
+
+  enterFishing() {
+    if (!this.game.startFishing()) return;
+    // closePanels 会触发 exitFishing，所以先关面板再进入
+    this.game.fishing = false;
+    this.closePanels();
+    this.game.fishing = true;
+    if (this.camera) {
+      this._fishCamBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = this.game.pond.position;
+      this.controls.target.set(p.x, 0.2, p.z);
+      this.camera.position.set(p.x + 6, 4.5, p.z + 8);
+      this.controls.minDistance = 4;
+      this.controls.update();
+    }
+    this.inFishing = true;
+    $('#fish').classList.remove('hidden');
+    this.renderFishing();
+  }
+
+  exitFishing() {
+    if (!this.inFishing) return;
+    this.inFishing = false;
+    this.game.stopFishing();
+    $('#fish').classList.add('hidden');
+    if (this._fishCamBackup) {
+      this.camera.position.copy(this._fishCamBackup.pos);
+      this.controls.target.copy(this._fishCamBackup.target);
+      this.controls.minDistance = this._fishCamBackup.minD;
+      this.controls.update();
+      this._fishCamBackup = null;
+    }
+  }
 
   /* ---------- 图鉴大楼 ---------- */
 
@@ -443,6 +512,71 @@ export class UI {
     const body = $('#fish-body');
     const g = this.game;
     body.innerHTML = '';
+
+    // —— 钓鱼进行中：专注模式 ——
+    if (this.inFishing) {
+      const c = g.pendingCatch;
+      if (c) {
+        // 鱼在钩上！狂点收杆
+        const pct = Math.round(((c.total - c.clicksLeft) / c.total) * 100);
+        body.insertAdjacentHTML('beforeend', `
+          <div id="kitchen-progress">🐟 咬钩了！！<small>${c.label}上的鱼值 ${c.value}💰，越肥的鱼越难拉</small></div>
+          <div class="ws-slot done"><div class="icon">💪</div>
+            <div class="info"><b>拉扯进度 ${pct}%</b>
+            <div class="bar"><i style="width:${pct}%"></i></div></div></div>
+          ${g.catchQueue.length ? `<p class="shop-note">后面还排着 ${g.catchQueue.length} 条鱼等着收！</p>` : ''}`);
+        const reel = document.createElement('button');
+        reel.id = 'reel-btn';
+        reel.textContent = `🎣 收杆！还差 ${c.clicksLeft} 下`;
+        reel.style.cssText = 'width:100%;padding:22px 0;border-radius:16px;border:3px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:800;font-size:19px;cursor:pointer;';
+        reel.addEventListener('click', () => {
+          g.reelClick();
+          // 没拉完就只更新文字，别整块重绘打断连点
+          const cc = g.pendingCatch;
+          if (cc && cc.clicksLeft < cc.total && cc === c) {
+            reel.textContent = `🎣 收杆！还差 ${cc.clicksLeft} 下`;
+          } else this.renderFishing();
+        });
+        body.appendChild(reel);
+        return;
+      }
+      const next = Math.max(0, Math.ceil(60 - g.fishingTimer));
+      body.insertAdjacentHTML('beforeend', `
+        <div id="kitchen-progress">🎣 钓鱼中…<small>安心等鱼咬钩，咬钩后要狂点收杆才拿得到</small></div>
+        <div class="ws-slot"><div class="icon">⏳</div>
+          <div class="info"><b>下次咬钩还有 ${next} 秒</b>
+          <div class="bar"><i style="width:${Math.round((1 - next / 60) * 100)}%"></i></div></div></div>
+        <div class="ws-slot"><div class="icon">🎣</div>
+          <div class="info"><b>鱼竿</b><p>每分钟 ${ROD.chance * 100}% 咬钩，鱼值 ${ROD.min}~${ROD.max}💰（收杆点 ${ROD.min + 5}~${ROD.max + 5} 下）</p></div></div>
+        ${(g.items.castnet ?? 0) > 0
+          ? `<div class="ws-slot"><div class="icon">🥅</div>
+             <div class="info"><b>渔网</b><p>每分钟 ${CASTNET.chance * 100}% 咬钩，鱼值 ${CASTNET.min}~${CASTNET.max}💰（收杆点 ${CASTNET.min + 5}~${CASTNET.max + 5} 下）</p></div></div>`
+          : `<div class="ws-slot"><div class="icon">🥅</div>
+             <div class="info"><b>渔网（未拥有）</b><p>商场 110💰，钓鱼时多一份收入</p></div></div>`}
+        <div class="ws-slot done"><div class="icon">💰</div>
+          <div class="info"><b>本次已钓 ${g.fishingEarned}💰</b></div></div>`);
+      const btn = document.createElement('button');
+      btn.textContent = '🎣 收竿结束';
+      btn.style.cssText = 'width:100%;padding:11px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
+      btn.addEventListener('click', () => this.exitFishing());
+      body.appendChild(btn);
+      return;
+    }
+
+    // —— 钓鱼入口 ——
+    const hasRod = (g.items.rod ?? 0) > 0;
+    const rodRow = document.createElement('div');
+    rodRow.className = 'ws-slot' + (hasRod ? ' done' : '');
+    rodRow.innerHTML = `<div class="icon">🎣</div>
+      <div class="info"><b>安心垂钓</b><p>${hasRod ? `每分钟 ${ROD.chance * 100}% 得 ${ROD.min}~${ROD.max}💰${(g.items.castnet ?? 0) > 0 ? `，渔网再 ${CASTNET.chance * 100}% 得 ${CASTNET.min}~${CASTNET.max}💰` : ''}` : '需要 🎣 鱼竿（商场 100💰）'}</p></div>`;
+    const rodBtn = document.createElement('button');
+    rodBtn.textContent = hasRod ? '开始钓鱼' : '没有鱼竿';
+    rodBtn.disabled = !hasRod;
+    if (hasRod) rodBtn.addEventListener('click', () => this.enterFishing());
+    else rodBtn.style.cssText = 'border-color:#ccc;background:#f0f0f0;color:#aaa;cursor:default;';
+    rodRow.appendChild(rodBtn);
+    body.appendChild(rodRow);
+
     const nets = g.items.net ?? 0;
     const note = document.createElement('p');
     note.className = 'shop-note';
@@ -673,6 +807,14 @@ export class UI {
       const qty = () => Math.max(1, Math.floor(Number(input.value) || 1));
       ITEMS.forEach(it => {
         const owned = g.items[it.id] ?? 0;
+        // 永久工具只买一件
+        if (it.once) {
+          item(it.emoji, it.name, it.desc,
+            owned ? '已拥有' : `${it.cost}💰`,
+            owned ? null : () => { g.buyItem(it.id, 1); this.renderMall(); },
+            owned ? 'owned' : '');
+          return;
+        }
         const btn = item(it.emoji, `${it.name}${owned ? `（持有 ${owned}）` : ''}`, it.desc,
           `买 ${qty()} 个 · ${it.cost * qty()}💰`,
           () => { g.buyItem(it.id, qty()); this.renderMall(); });
@@ -943,6 +1085,48 @@ export class UI {
       this.toast('☀️ 解冻！世界继续转动');
       this.refresh();
     }
+  }
+
+  /* ---------- 选曲 ---------- */
+
+  renderMusicMenu() {
+    const menu = $('#music-menu');
+    menu.innerHTML = '';
+    const modeText = music.mode === 'loop' ? '🔁 单曲循环中'
+      : music.mode === 'once' ? '▶ 点播中，播完回到随机' : '🔀 随机轮播中';
+    menu.insertAdjacentHTML('beforeend',
+      `<div class="music-head">${music.playing ? `正在播放《${music.track?.name ?? ''}》 · ${modeText}` : '音乐未开启，选一首即可播放'}</div>`);
+    if (music.mode === 'loop') {
+      const cancel = document.createElement('button');
+      cancel.className = 'cancel-loop';
+      cancel.textContent = '⏹ 取消循环（本曲放完回到随机）';
+      cancel.addEventListener('click', () => {
+        music.cancelLoop();
+        this.toast('🔀 已取消循环，回到随机轮播');
+        this.renderMusicMenu();
+      });
+      menu.appendChild(cancel);
+    }
+    music.listTracks().forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'music-row' + (music.track?.id === t.id && music.playing ? ' current' : '');
+      row.innerHTML = `<b>${music.track?.id === t.id && music.playing ? '🎵 ' : ''}${t.name}</b>`;
+      const once = document.createElement('button');
+      once.textContent = '▶ 一次';
+      once.addEventListener('click', () => {
+        music.playTrack(t.id, 'once');
+        this.renderMusicMenu();
+      });
+      const loop = document.createElement('button');
+      loop.textContent = '🔁 循环';
+      loop.addEventListener('click', () => {
+        music.playTrack(t.id, 'loop');
+        this.toast(`🔁 循环播放《${t.name}》`);
+        this.renderMusicMenu();
+      });
+      row.append(once, loop);
+      menu.appendChild(row);
+    });
   }
 
   /* ---------- 时钟 ---------- */
