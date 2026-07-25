@@ -111,6 +111,53 @@ export const ITEMS = [
 export const ROD = { chance: 0.9, min: 5, max: 10 };
 export const CASTNET = { chance: 0.7, min: 10, max: 20 };
 
+// 水塘装饰：30 种按稀有度定价，买断制，钓鱼区最多同时摆 3 个，全部会动
+export const POND_RARITY = {
+  common: { name: '普通', color: '#8a9aa8' },
+  rare:   { name: '稀有', color: '#4a90c2' },
+  epic:   { name: '史诗', color: '#8a4ac2' },
+  legend: { name: '传说', color: '#e0a020' },
+};
+export const POND_MAX_PLACED = 3;
+// kind 决定模型，anim 决定动法：circle 绕塘游 / bob 水面漂 / hover 空中盘旋
+export const POND_DECORS = [
+  // —— 普通 ——
+  { id: 'duck_y',   name: '小黄鸭',   rarity: 'common', cost: 80,  kind: 'duck', color: 0xf2c94c, anim: { type: 'circle', radius: 1.6, speed: 0.5 } },
+  { id: 'duck_w',   name: '小白鸭',   rarity: 'common', cost: 90,  kind: 'duck', color: 0xf5f0e6, anim: { type: 'circle', radius: 2.0, speed: 0.45 } },
+  { id: 'duck_g',   name: '绿头鸭',   rarity: 'common', cost: 110, kind: 'duck', color: 0x9a8a6a, head: 0x2a7a4a, anim: { type: 'circle', radius: 2.4, speed: 0.4 } },
+  { id: 'lily',     name: '大荷叶',   rarity: 'common', cost: 60,  kind: 'lily', color: 0x5c9b52, anim: { type: 'bob', speed: 1.2 } },
+  { id: 'lotus_p',  name: '粉荷花',   rarity: 'common', cost: 120, kind: 'lotus', color: 0xf2a7c3, anim: { type: 'bob', speed: 1 } },
+  { id: 'lotus_w',  name: '白荷花',   rarity: 'common', cost: 110, kind: 'lotus', color: 0xf5f0e6, anim: { type: 'bob', speed: 0.9 } },
+  { id: 'buoy_r',   name: '红浮标',   rarity: 'common', cost: 70,  kind: 'buoy', color: 0xd9534f, anim: { type: 'bob', speed: 1.6 } },
+  { id: 'buoy_y',   name: '黄浮标',   rarity: 'common', cost: 70,  kind: 'buoy', color: 0xf2c94c, anim: { type: 'bob', speed: 1.4 } },
+  { id: 'turtle',   name: '小乌龟',   rarity: 'common', cost: 150, kind: 'turtle', color: 0x5c8a52, anim: { type: 'circle', radius: 1.2, speed: 0.22 } },
+  { id: 'frog',     name: '荷叶青蛙', rarity: 'common', cost: 130, kind: 'frog', color: 0x6aae5e, anim: { type: 'bob', speed: 2 } },
+  { id: 'reed',     name: '芦苇丛',   rarity: 'common', cost: 90,  kind: 'reed', color: 0x8a9a5a, anim: { type: 'bob', speed: 0.8 } },
+  { id: 'lily2',    name: '睡莲丛',   rarity: 'common', cost: 100, kind: 'lily', color: 0x4a8a62, double: true, anim: { type: 'bob', speed: 1.1 } },
+  // —— 稀有 ——
+  { id: 'koi_r',    name: '红锦鲤',   rarity: 'rare', cost: 400, kind: 'koi', color: 0xd9534f, anim: { type: 'circle', radius: 2.2, speed: 0.8 } },
+  { id: 'koi_g',    name: '金锦鲤',   rarity: 'rare', cost: 500, kind: 'koi', color: 0xe0a020, anim: { type: 'circle', radius: 2.6, speed: 0.85 } },
+  { id: 'koi_w',    name: '白锦鲤',   rarity: 'rare', cost: 450, kind: 'koi', color: 0xf0ece4, anim: { type: 'circle', radius: 1.8, speed: 0.75 } },
+  { id: 'boat',     name: '小木船',   rarity: 'rare', cost: 550, kind: 'boat', color: 0x9a6a42, anim: { type: 'bob', speed: 0.7 } },
+  { id: 'dfly_r',   name: '红蜻蜓',   rarity: 'rare', cost: 300, kind: 'dragonfly', color: 0xd9534f, anim: { type: 'hover', radius: 0.8, speed: 1.6 } },
+  { id: 'dfly_b',   name: '蓝蜻蜓',   rarity: 'rare', cost: 300, kind: 'dragonfly', color: 0x4a90c2, anim: { type: 'hover', radius: 1.1, speed: 1.9 } },
+  { id: 'egret',    name: '白鹭',     rarity: 'rare', cost: 600, kind: 'bird', color: 0xf5f0e6, anim: { type: 'bob', speed: 0.5 } },
+  { id: 'crane',    name: '灰鹤',     rarity: 'rare', cost: 550, kind: 'bird', color: 0x9aa8b0, anim: { type: 'bob', speed: 0.45 } },
+  { id: 'lantern',  name: '荷花灯',   rarity: 'rare', cost: 350, kind: 'lantern', color: 0xf2a7c3, anim: { type: 'bob', speed: 0.9 } },
+  { id: 'island',   name: '迷你浮岛', rarity: 'rare', cost: 500, kind: 'island', color: 0x6aae5e, anim: { type: 'bob', speed: 0.4 } },
+  // —— 史诗 ——
+  { id: 'swan_w',   name: '白天鹅',   rarity: 'epic', cost: 1200, kind: 'swan', color: 0xf5f0e6, anim: { type: 'circle', radius: 2.8, speed: 0.35 } },
+  { id: 'swan_b',   name: '黑天鹅',   rarity: 'epic', cost: 1500, kind: 'swan', color: 0x2a2a30, anim: { type: 'circle', radius: 2.2, speed: 0.4 } },
+  { id: 'fountain', name: '小喷泉',   rarity: 'epic', cost: 1300, kind: 'fountain', color: 0xd4c9b8, anim: { type: 'bob', speed: 0.3 } },
+  { id: 'wheel',    name: '水车',     rarity: 'epic', cost: 1400, kind: 'wheel', color: 0x9a6a42, anim: { type: 'bob', speed: 0.2 } },
+  { id: 'flamingo', name: '火烈鸟',   rarity: 'epic', cost: 1600, kind: 'bird', color: 0xf08098, anim: { type: 'bob', speed: 0.55 } },
+  // —— 传说 ——
+  { id: 'swan_gold', name: '金色天鹅', rarity: 'legend', cost: 3000, kind: 'swan', color: 0xe0b64a, glow: true, anim: { type: 'circle', radius: 3.2, speed: 0.3 } },
+  { id: 'koi_king',  name: '锦鲤王',   rarity: 'legend', cost: 3500, kind: 'koi', color: 0xe0364a, scale: 1.9, glow: true, anim: { type: 'circle', radius: 3.0, speed: 0.55 } },
+  { id: 'jelly',     name: '发光水母', rarity: 'legend', cost: 4000, kind: 'jelly', color: 0x6ae0d0, glow: true, anim: { type: 'hover', radius: 1.4, speed: 0.8 } },
+];
+export const pondDecorById = (id) => POND_DECORS.find(d => d.id === id);
+
 // 天灾毁地：旱天晒裂、雨天水泡，随机 5~10 块，修复前不能种田
 export const DAMAGE = { min: 5, max: 10 };
 

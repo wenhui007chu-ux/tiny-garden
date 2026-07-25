@@ -7,6 +7,7 @@ import {
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST,
   DISHES, dishById, ingredientKey, ROD, CASTNET,
+  pondDecorById, POND_MAX_PLACED,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -16,7 +17,7 @@ import {
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
-  createPestBug, createKitchen,
+  createPestBug, createKitchen, createPondDecor,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -144,6 +145,9 @@ export class Game {
     this.fishingEarned = 0;    // 本次钓鱼小计
     this.pendingCatch = null;  // 咬钩待收杆：{ label, value, clicksLeft, total }
     this.catchQueue = [];      // 同一分钟咬了两条就排队收
+    this.pondOwned = {};       // 水塘装饰：id -> true（买断制）
+    this.pondPlaced = [];      // 摆出来的装饰 id，最多 3 个
+    this.pondDecorMeshes = {}; // id -> mesh
     this.pond = createPond();
     this.pond.position.set(-14, -0.51, 10);
     this.group.add(this.pond);
@@ -719,13 +723,26 @@ export class Game {
 
   // —— 主动钓鱼 ——
 
-  startFishing() {
-    if ((this.items.rod ?? 0) <= 0) { this.onToast('先去商场买根 🎣 鱼竿（100💰）'); return false; }
+  startFishing(gear = 'rod') {
+    if ((this.items[gear] ?? 0) <= 0) {
+      this.onToast(gear === 'rod' ? '先去商场买根 🎣 鱼竿（100💰）' : '先去商场买张 🥅 渔网（110💰）');
+      return false;
+    }
     this.fishing = true;
+    this.fishingGear = gear;
     this.fishingTimer = 0;
     this.fishingEarned = 0;
-    this.onToast('🎣 甩竿！安心钓鱼，每分钟看一次收成');
+    this.onToast(gear === 'rod' ? '🎣 甩竿！安心钓鱼，每分钟看一次动静' : '🥅 撒网！每分钟收一次网');
     return true;
+  }
+
+  // 钓到一半换装备（钩上有鱼时不行）
+  switchGear() {
+    if (!this.fishing || this.pendingCatch) return;
+    const other = this.fishingGear === 'rod' ? 'castnet' : 'rod';
+    if ((this.items[other] ?? 0) <= 0) { this.onToast('另一件渔具还没买呢'); return; }
+    this.fishingGear = other;
+    this.onToast(other === 'rod' ? '🎣 换上鱼竿，稳稳地钓' : '🥅 换上渔网，搏一把大的');
   }
 
   stopFishing() {
@@ -762,7 +779,7 @@ export class Game {
     this.save();
   }
 
-  // 每满 1 分钟看一次咬钩：鱼竿 90% 5~10；有渔网再 70% 10~20
+  // 每满 1 分钟按当前装备看一次动静：鱼竿 90% 5~10 / 渔网 70% 10~20
   // 咬钩后计时暂停——鱼在钩上，先收杆再说
   tickFishing(dt) {
     if (!this.fishing) return;
@@ -770,18 +787,65 @@ export class Game {
     this.fishingTimer += dt;
     if (this.fishingTimer < 60) return;
     this.fishingTimer -= 60;
-    const misses = [];
-    if (Math.random() < ROD.chance) {
-      this.queueCatch('🎣 鱼竿', ROD.min + Math.floor(Math.random() * (ROD.max - ROD.min + 1)));
-    } else misses.push('🎣 没咬钩…');
-    if ((this.items.castnet ?? 0) > 0) {
-      if (Math.random() < CASTNET.chance) {
-        this.queueCatch('🥅 渔网', CASTNET.min + Math.floor(Math.random() * (CASTNET.max - CASTNET.min + 1)));
-      } else misses.push('🥅 空网');
+    const usingRod = this.fishingGear === 'rod';
+    const cfg = usingRod ? ROD : CASTNET;
+    if (Math.random() < cfg.chance) {
+      this.queueCatch(usingRod ? '🎣 鱼竿' : '🥅 渔网',
+        cfg.min + Math.floor(Math.random() * (cfg.max - cfg.min + 1)));
+      this.onToast('🐟 有鱼咬钩了！快点收杆！');
+    } else {
+      this.onToast(usingRod ? '🎣 没咬钩…' : '🥅 空网…');
     }
-    if (this.pendingCatch) this.onToast('🐟 有鱼咬钩了！快点收杆！');
-    else this.onToast(misses.join(' · '));
     this.onState();
+  }
+
+  // —— 水塘装饰 ——
+
+  buyPondDecor(id) {
+    const d = pondDecorById(id);
+    if (!d) return;
+    if (this.pondOwned[id]) { this.onToast(`${d.name}已经买过了`); return; }
+    if (!this.spend(d.cost)) return;
+    this.pondOwned[id] = true;
+    this.onToast(`🦆 买下了${d.name}，去水塘摆出来吧`);
+    this.onState();
+    this.save();
+  }
+
+  placePondDecor(id) {
+    const d = pondDecorById(id);
+    if (!d || !this.pondOwned[id] || this.pondPlaced.includes(id)) return;
+    if (this.pondPlaced.length >= POND_MAX_PLACED) {
+      this.onToast(`水塘最多摆 ${POND_MAX_PLACED} 个装饰，先收一个`);
+      return;
+    }
+    this.pondPlaced.push(id);
+    this.refreshPondDecors();
+    this.onToast(`🦆 ${d.name}下水啦！`);
+    this.onState();
+    this.save();
+  }
+
+  removePondDecor(id) {
+    const i = this.pondPlaced.indexOf(id);
+    if (i < 0) return;
+    this.pondPlaced.splice(i, 1);
+    this.refreshPondDecors();
+    this.onToast(`收起了${pondDecorById(id).name}`);
+    this.onState();
+    this.save();
+  }
+
+  refreshPondDecors() {
+    Object.values(this.pondDecorMeshes).forEach(m => this.pond.remove(m));
+    this.pondDecorMeshes = {};
+    this.pondPlaced.forEach((id, slot) => {
+      const d = pondDecorById(id);
+      if (!d) return;
+      const m = createPondDecor(d, slot);
+      this.pond.add(m);
+      this.pondDecorMeshes[id] = m;
+    });
   }
 
   placeNet(k) {
@@ -1174,6 +1238,7 @@ export class Game {
     this.refreshInterior();
     this.refreshCodex();
     this.refreshGallery();
+    this.refreshPondDecors();
   }
 
   /* ---------- 主循环 ---------- */
@@ -1263,6 +1328,8 @@ export class Game {
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
       workshop: this.workshop.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
+      pondOwned: this.pondOwned,
+      pondPlaced: this.pondPlaced,
       clock: this.clock,
       windTimer: this.windTimer,
       drought: this.drought,
@@ -1374,6 +1441,8 @@ export class Game {
       }
     });
     this.refreshNets();
+    this.pondOwned = data.pondOwned ?? {};
+    this.pondPlaced = (data.pondPlaced ?? []).filter(id => pondDecorById(id)).slice(0, POND_MAX_PLACED);
     // 离线跨天：旧的天灾先消退，再按新天气重新受灾
     if (this._pendingHeal) {
       this._pendingHeal = false;

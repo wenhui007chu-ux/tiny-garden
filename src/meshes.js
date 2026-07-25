@@ -448,6 +448,224 @@ export function createNetMesh() {
   return g;
 }
 
+/* ================= 水塘装饰（会动的） ================= */
+
+const pondKinds = {
+  duck(c, def) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(c), 0, 0, 0);
+    body.scale.set(1.3, 0.85, 1);
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), mat(def.head ?? c), 0.24, 0.16, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.05, 0.12, 5), mat(0xe8843f), 0.38, 0.14, 0).rotateZ(-Math.PI / 2));
+    return g;
+  },
+  lily(c, def) {
+    const g = new THREE.Group();
+    const leaf = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 9, 1, false, 0, Math.PI * 1.8), mat(c), 0, 0, 0);
+    g.add(leaf);
+    if (def.double) g.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 8, 1, false, 0, Math.PI * 1.8), mat(c), 0.45, 0.01, 0.3));
+    return g;
+  },
+  lotus(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 9), mat(0x5c9b52), 0, 0, 0));
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      const petal = mesh(new THREE.SphereGeometry(0.09, 6, 5), mat(c), Math.cos(a) * 0.12, 0.1, Math.sin(a) * 0.12);
+      petal.scale.set(1, 1.4, 0.5);
+      petal.rotation.y = -a;
+      g.add(petal);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.06, 6, 5), mat(0xf2c94c), 0, 0.14, 0));
+    return g;
+  },
+  buoy(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.SphereGeometry(0.16, 8, 7), mat(c), 0, 0.04, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 5), mat(0x5a5a66), 0, 0.25, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.14, 0.09, 0.02), mat(c), 0.07, 0.34, 0));
+    return g;
+  },
+  turtle(c) {
+    const g = new THREE.Group();
+    const shell = mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(c), 0, 0.02, 0);
+    shell.scale.set(1.2, 0.6, 1);
+    g.add(shell);
+    g.add(mesh(new THREE.SphereGeometry(0.08, 6, 5), mat(0x8aae6a), 0.26, 0.02, 0));
+    return g;
+  },
+  frog(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.03, 8), mat(0x5c9b52), 0, 0, 0)); // 脚下荷叶
+    const body = mesh(new THREE.SphereGeometry(0.13, 7, 6), mat(c), 0, 0.1, 0);
+    body.scale.set(1.1, 0.85, 1);
+    g.add(body);
+    [[-0.06], [0.06]].forEach(([x]) => {
+      g.add(mesh(new THREE.SphereGeometry(0.045, 6, 5), mat(c), x, 0.21, 0.06));
+      g.add(mesh(new THREE.SphereGeometry(0.02, 5, 4), mat(0x2a2a30), x, 0.22, 0.09));
+    });
+    return g;
+  },
+  reed(c) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 5; k++) {
+      const h = 0.5 + (k % 3) * 0.2;
+      const stem = mesh(new THREE.CylinderGeometry(0.015, 0.025, h, 4), mat(c), (k - 2) * 0.09, h / 2, (k % 2) * 0.1);
+      stem.rotation.z = (k - 2) * 0.08;
+      g.add(stem);
+      if (k % 2 === 0) g.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 5), mat(0x8a5a35), (k - 2) * 0.09, h + 0.06, (k % 2) * 0.1));
+    }
+    return g;
+  },
+  koi(c, def) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.18, 8, 6), mat(c, def.glow ? { emissive: c, emissiveIntensity: 0.25 } : {}), 0, 0, 0);
+    body.scale.set(1.7, 0.7, 0.8);
+    g.add(body);
+    const tail = mesh(new THREE.ConeGeometry(0.1, 0.22, 5), mat(c), -0.34, 0, 0);
+    tail.rotation.z = Math.PI / 2;
+    g.add(tail);
+    g.add(mesh(new THREE.SphereGeometry(0.05, 5, 4), mat(0xf5f0e6), 0.1, 0.1, 0.06));
+    if (def.scale) g.scale.setScalar(def.scale);
+    return g;
+  },
+  boat(c) {
+    const g = new THREE.Group();
+    const hull = mesh(new THREE.CylinderGeometry(0.5, 0.32, 0.26, 8, 1, false, 0, Math.PI), mat(c), 0, 0.05, 0);
+    hull.rotation.z = Math.PI;
+    hull.scale.set(1.5, 1, 0.7);
+    g.add(hull);
+    g.add(mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), mat(0x8a5a35), 0, 0.35, 0));
+    return g;
+  },
+  dragonfly(c) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.CylinderGeometry(0.03, 0.015, 0.4, 5), mat(c), 0, 0, 0);
+    body.rotation.z = Math.PI / 2;
+    g.add(body);
+    [[-0.05, 0.12], [0.08, 0.12], [-0.05, -0.12], [0.08, -0.12]].forEach(([x, z]) => {
+      const wing = mesh(new THREE.SphereGeometry(0.09, 6, 4), mat(0xd8ecf5, { transparent: true, opacity: 0.6 }), x, 0.03, z);
+      wing.scale.set(1.6, 0.15, 0.5);
+      g.add(wing);
+    });
+    return g;
+  },
+  bird(c) {
+    const g = new THREE.Group();
+    // 站在小石头上的水鸟
+    g.add(mesh(new THREE.DodecahedronGeometry(0.16), mat(0xa8a095), 0, 0, 0));
+    [[-0.03], [0.04]].forEach(([x]) => g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 4), mat(0xe8843f), x, 0.25, 0)));
+    const body = mesh(new THREE.SphereGeometry(0.14, 8, 6), mat(c), 0, 0.48, 0);
+    body.scale.set(1.3, 1, 0.9);
+    g.add(body);
+    g.add(mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.22, 5), mat(c), 0.1, 0.66, 0).rotateZ(-0.4));
+    g.add(mesh(new THREE.SphereGeometry(0.07, 6, 5), mat(c), 0.2, 0.76, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.02, 0.12, 4), mat(0xe8843f), 0.3, 0.75, 0).rotateZ(-Math.PI / 2));
+    return g;
+  },
+  lantern(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.04, 8), mat(0x5c9b52), 0, 0, 0));
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      const petal = mesh(new THREE.SphereGeometry(0.08, 6, 5), mat(c), Math.cos(a) * 0.1, 0.08, Math.sin(a) * 0.1);
+      petal.scale.set(1, 1.3, 0.5);
+      g.add(petal);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.05, 6, 5),
+      mat(0xffd27a, { emissive: 0xffb838, emissiveIntensity: 1 }), 0, 0.12, 0));
+    const glow = new THREE.PointLight(0xffb838, 0.4, 2.5, 2);
+    glow.position.y = 0.3;
+    g.add(glow);
+    return g;
+  },
+  island(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.4, 0.3, 0.16, 9), mat(0x9a7a55), 0, 0, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.05, 9), mat(c), 0, 0.1, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.3, 4), mat(0x8a5a35), 0.08, 0.28, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.16, 0.3, 6), mat(0x4a8a52), 0.08, 0.52, 0));
+    return g;
+  },
+  swan(c, def) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.26, 9, 7), mat(c, def.glow ? { emissive: c, emissiveIntensity: 0.2, roughness: 0.4 } : {}), 0, 0.05, 0);
+    body.scale.set(1.4, 0.9, 1);
+    g.add(body);
+    const neck = mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.42, 6), mat(c), 0.3, 0.32, 0);
+    neck.rotation.z = -0.35;
+    g.add(neck);
+    g.add(mesh(new THREE.SphereGeometry(0.08, 7, 6), mat(c), 0.42, 0.52, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.03, 0.12, 4), mat(0xe8843f), 0.52, 0.51, 0).rotateZ(-Math.PI / 2));
+    const wing = mesh(new THREE.SphereGeometry(0.16, 7, 5), mat(c), -0.08, 0.16, 0);
+    wing.scale.set(1.2, 0.6, 0.9);
+    g.add(wing);
+    return g;
+  },
+  fountain(c) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.5, 0.56, 0.2, 10), mat(c), 0, 0, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.5, 8), mat(c), 0, 0.3, 0));
+    // 喷起的水柱和水花
+    g.add(mesh(new THREE.CylinderGeometry(0.045, 0.03, 0.55, 6),
+      mat(0x7ec4e8, { transparent: true, opacity: 0.7 }), 0, 0.8, 0));
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      const drop = mesh(new THREE.SphereGeometry(0.05, 5, 4),
+        mat(0x9ed4f0, { transparent: true, opacity: 0.7 }), Math.cos(a) * 0.2, 1, Math.sin(a) * 0.2);
+      drop.userData.spin = true;
+      g.add(drop);
+    }
+    return g;
+  },
+  wheel(c) {
+    const g = new THREE.Group();
+    [[-0.35], [0.35]].forEach(([z]) => g.add(mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), mat(c), 0, 0.2, z)));
+    const wheelG = new THREE.Group();
+    wheelG.add(mesh(new THREE.TorusGeometry(0.45, 0.05, 6, 12), mat(c), 0, 0, 0));
+    for (let k = 0; k < 6; k++) {
+      const spoke = mesh(new THREE.BoxGeometry(0.85, 0.05, 0.12), mat(c), 0, 0, 0);
+      spoke.rotation.z = (k / 6) * Math.PI;
+      wheelG.add(spoke);
+    }
+    wheelG.position.y = 0.55;
+    wheelG.userData.windmill = true; // 复用风车的持续转动动画
+    g.add(wheelG);
+    return g;
+  },
+  jelly(c, def) {
+    const g = new THREE.Group();
+    const dome = mesh(new THREE.SphereGeometry(0.24, 9, 7, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      mat(c, { transparent: true, opacity: 0.65, emissive: c, emissiveIntensity: 0.5 }), 0, 0, 0);
+    g.add(dome);
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      g.add(mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.34, 4),
+        mat(c, { transparent: true, opacity: 0.5 }), Math.cos(a) * 0.12, -0.2, Math.sin(a) * 0.12));
+    }
+    const glow = new THREE.PointLight(c, 0.5, 3, 2);
+    g.add(glow);
+    return g;
+  },
+};
+
+// 三个槽位的锚点（塘内局部坐标）
+export const POND_SPOTS = [[0, 0], [1.7, -1.2], [-1.6, 1.5]];
+
+export function createPondDecor(def, slot) {
+  const g = pondKinds[def.kind](def.color, def);
+  const [ax, az] = POND_SPOTS[slot];
+  const baseY = def.kind === 'dragonfly' || def.kind === 'jelly' ? 1 : 0.28;
+  g.position.set(ax, baseY, az);
+  g.userData.pondAnim = {
+    ...def.anim,
+    y: baseY, cx: def.anim.type === 'circle' ? 0 : ax, cz: def.anim.type === 'circle' ? 0 : az,
+    phase: slot * 2.1,
+  };
+  return g;
+}
+
 /* ================= 房子内部：3D 房间与家具 ================= */
 
 export function createInteriorRoom() {

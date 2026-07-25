@@ -118,12 +118,14 @@ body {
 #quick-menu button:hover { background: #ffe9b8; border-color: #e09b3d; }
 
 /* ---------- music menu ---------- */
-#music-menu {
+#music-menu, #settings-menu {
   position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; gap: 8px; z-index: 11;
   background: #fff8ecee; border: 2px solid #e8c68f; border-radius: 16px; padding: 10px;
   min-width: 300px;
 }
+#settings-menu .music-row button.on { border-color: #6aae5e; background: #dff3d8; color: #3d7a33; }
+#settings-menu .music-row button.off { border-color: #c9c9c9; background: #f0f0f0; color: #999; }
 #music-menu .music-head {
   text-align: center; color: #8a5a2b; font-size: 13px; font-weight: 700; padding: 2px 0;
 }
@@ -150,18 +152,35 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body { padding: 12px; overflow-y: auto; flex: 1; }
+
+/* 游戏百科（手风琴分节） */
+.wiki-sec { border: 2px solid #eedcba; border-radius: 14px; background: #fff; margin-bottom: 9px; overflow: hidden; }
+.wiki-sec > .sec-head {
+  display: flex; align-items: center; gap: 8px; padding: 11px 13px; cursor: pointer;
+  color: #6b4a24; font-weight: 700; font-size: 14px;
+}
+.wiki-sec > .sec-head .arrow { margin-left: auto; color: #c9a97e; font-size: 12px; }
+.wiki-sec.open { border-color: #e0b64a; }
+.wiki-sec > .sec-body { display: none; padding: 0 13px 12px; font-size: 13px; color: #7a5a38; line-height: 1.85; }
+.wiki-sec.open > .sec-body { display: block; }
+.wiki-sec .sec-body b { color: #5a3a1c; }
+.wiki-sec .wtable { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+.wiki-sec .wtable td, .wiki-sec .wtable th {
+  border: 1px solid #eedcba; padding: 3px 6px; text-align: center; color: #7a5a38;
+}
+.wiki-sec .wtable th { background: #fdf6e8; color: #8a5a2b; }
 
 /* 料理工坊 */
 #kitchen-progress {

@@ -285,6 +285,26 @@ function animate() {
       obj.rotation.y = t * 1.6;
       obj.position.y = 0.75 + Math.sin(t * 3 + obj.id) * 0.06;
     }
+    if (obj.userData.pondAnim) {                                             // 水塘装饰的动法
+      const a = obj.userData.pondAnim;
+      if (a.type === 'circle') {                                             // 绕塘游，头朝前进方向
+        const ang = t * a.speed + a.phase;
+        obj.position.x = a.cx + Math.cos(ang) * a.radius;
+        obj.position.z = a.cz + Math.sin(ang) * a.radius;
+        obj.position.y = a.y + Math.sin(t * 2 + a.phase) * 0.03;
+        obj.rotation.y = -ang - Math.PI;
+      } else if (a.type === 'hover') {                                       // 空中小圈盘旋
+        const ang = t * a.speed + a.phase;
+        obj.position.x = a.cx + Math.cos(ang) * a.radius;
+        obj.position.z = a.cz + Math.sin(ang) * a.radius;
+        obj.position.y = a.y + Math.sin(t * 3.5 + a.phase) * 0.12;
+        obj.rotation.y = -ang - Math.PI / 2;
+      } else {                                                               // 水面漂浮摇晃
+        obj.position.y = a.y + Math.sin(t * a.speed + a.phase) * 0.05;
+        obj.rotation.z = Math.sin(t * a.speed * 0.7 + a.phase) * 0.06;
+        obj.rotation.y = Math.sin(t * 0.3 + a.phase) * 0.3;
+      }
+    }
     if (obj.userData.flame) {                                                // 炉火/烛火摇曳
       obj.scale.set(1 + Math.sin(t * 11) * 0.12, 1 + Math.sin(t * 14 + 1) * 0.2, 1 + Math.cos(t * 9) * 0.12);
       obj.material.emissiveIntensity = 1 + Math.sin(t * 13) * 0.3;

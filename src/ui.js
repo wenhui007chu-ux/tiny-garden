@@ -1,4 +1,5 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
+import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById } from './config.js';
 import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -42,6 +43,7 @@ export class UI {
     $('#fish-close').addEventListener('click', () => $('#fish').classList.add('hidden'));
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
+    $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -63,13 +65,17 @@ export class UI {
     setInterval(() => this.updateClock(), 1000);
     // 工具栏保存布局按钮
     $('#save-layout-btn').addEventListener('click', () => this.game.saveLayout());
-    // 背景音乐开关
-    $('#music-btn').addEventListener('click', () => {
-      const on = music.toggle();
-      $('#music-btn').innerHTML = on ? '🎵<span>音乐</span>' : '🔇<span>音乐</span>';
-      this.toast(on ? '🎵 音乐开' : '🔇 音乐关');
+    // 设置菜单：音乐开关 + 提示开关
+    this.tipsOn = localStorage.getItem('farm-tips-on') !== '0';
+    $('#settings-btn').addEventListener('click', () => {
+      const menu = $('#settings-menu');
+      const wasHidden = menu.classList.contains('hidden');
+      menu.classList.add('hidden');
+      $('#quick-menu').classList.add('hidden');
+      $('#music-menu').classList.add('hidden');
+      $('#seed-picker').classList.add('hidden');
+      if (wasHidden) { menu.classList.remove('hidden'); this.renderSettingsMenu(); }
     });
-    if (!music.enabled) $('#music-btn').innerHTML = '🔇<span>音乐</span>';
     music.onTrack = (name) => {
       this.toast(`🎵 正在播放《${name}》`);
       if (!$('#music-menu').classList.contains('hidden')) this.renderMusicMenu();
@@ -80,6 +86,7 @@ export class UI {
       const wasHidden = menu.classList.contains('hidden');
       menu.classList.add('hidden');
       $('#quick-menu').classList.add('hidden');
+      $('#settings-menu').classList.add('hidden');
       $('#seed-picker').classList.add('hidden');
       if (wasHidden) { menu.classList.remove('hidden'); this.renderMusicMenu(); }
     });
@@ -94,6 +101,7 @@ export class UI {
       else menu.classList.add('hidden');
       $('#seed-picker').classList.add('hidden');
       $('#music-menu').classList.add('hidden');
+      $('#settings-menu').classList.add('hidden');
     });
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return; // 正在输入金额时快捷键不抢戏
@@ -102,6 +110,7 @@ export class UI {
       if (k === 'escape') {
         $('#quick-menu').classList.add('hidden');
         $('#music-menu').classList.add('hidden');
+        $('#settings-menu').classList.add('hidden');
         this.exitHouse();
         this.exitCodex();
         this.exitFishing();
@@ -123,6 +132,7 @@ export class UI {
     $('#seed-picker').classList.toggle('hidden', tool !== 'plant');
     $('#quick-menu').classList.add('hidden');
     $('#music-menu').classList.add('hidden');
+    $('#settings-menu').classList.add('hidden');
     if (tool === 'plant') this.renderSeedPicker();
     const tips = {
       soil: `点击地块升级为${SOILS[this.selectedSoil].name}（每格 ${SOILS[this.selectedSoil].cost}💰）`,
@@ -187,7 +197,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -198,8 +208,8 @@ export class UI {
 
   /* ---------- 主动钓鱼 ---------- */
 
-  enterFishing() {
-    if (!this.game.startFishing()) return;
+  enterFishing(gear = 'rod') {
+    if (!this.game.startFishing(gear)) return;
     // closePanels 会触发 exitFishing，所以先关面板再进入
     this.game.fishing = false;
     this.closePanels();
@@ -294,11 +304,7 @@ export class UI {
   renderCodexDonate(body) {
     const g = this.game;
     body.insertAdjacentHTML('beforeend',
-      `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42<small>每种作物的每个品质各收录一次，拖动可以环视展馆</small></div>`);
-    const note = document.createElement('p');
-    note.className = 'shop-note';
-    note.textContent = '从背包里挑作物捐进展馆（罐头、生长不良和恐龙虾卵不收）：';
-    body.appendChild(note);
+      `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42</div>`);
     const donatable = Object.entries(g.inventory)
       .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg');
     if (!donatable.length) {
@@ -338,7 +344,7 @@ export class UI {
     const g = this.game;
     const used = g.displaySlots.filter(s => s.item).length;
     body.insertAdjacentHTML('beforeend',
-      `<div id="codex-progress">🏆 个人珍藏 ${used} / 10<small>红毯贵宾区的金台，摆你最得意的作物，随时可收回</small></div>`);
+      `<div id="codex-progress">🏆 个人珍藏 ${used} / 10</div>`);
 
     // 正在给某个台子挑作物
     if (this.codexChoosing != null) {
@@ -425,7 +431,7 @@ export class UI {
     const madeCount = DISHES.filter(d => g.inventory['k:' + d.id]).length;
     const cookableCount = DISHES.filter(d => g.canCook(d.id)).length;
     body.insertAdjacentHTML('beforeend',
-      `<div id="kitchen-progress">🍳 共 50 道料理 · 现在能做 ${cookableCount} 道<small>凑齐配方指定品质的作物即可制作，料理卖价是原料单卖的 3 倍</small></div>`);
+      `<div id="kitchen-progress">🍳 共 50 道料理 · 现在能做 ${cookableCount} 道</div>`);
 
     // 只看现在能做的
     const filterBtn = document.createElement('button');
@@ -467,7 +473,7 @@ export class UI {
     const g = this.game;
     body.innerHTML = '';
     body.insertAdjacentHTML('beforeend',
-      `<div id="bank-balance">🏦 ${g.bank}💰<small>每天日结：85% 赚 1~3💰，15% 亏 1~3💰</small></div>`);
+      `<div id="bank-balance">🏦 ${g.bank}💰</div>`);
     const note = document.createElement('p');
     note.className = 'shop-note';
     note.textContent = `身上现金 ${g.coins}💰`;
@@ -540,21 +546,25 @@ export class UI {
         body.appendChild(reel);
         return;
       }
+      const usingRod = g.fishingGear === 'rod';
+      const gearCfg = usingRod ? ROD : CASTNET;
       const next = Math.max(0, Math.ceil(60 - g.fishingTimer));
       body.insertAdjacentHTML('beforeend', `
-        <div id="kitchen-progress">🎣 钓鱼中…<small>安心等鱼咬钩，咬钩后要狂点收杆才拿得到</small></div>
+        <div id="kitchen-progress">${usingRod ? '🎣 鱼竿垂钓中…' : '🥅 渔网捕捞中…'}</div>
         <div class="ws-slot"><div class="icon">⏳</div>
-          <div class="info"><b>下次咬钩还有 ${next} 秒</b>
+          <div class="info"><b>下次动静还有 ${next} 秒</b>
           <div class="bar"><i style="width:${Math.round((1 - next / 60) * 100)}%"></i></div></div></div>
-        <div class="ws-slot"><div class="icon">🎣</div>
-          <div class="info"><b>鱼竿</b><p>每分钟 ${ROD.chance * 100}% 咬钩，鱼值 ${ROD.min}~${ROD.max}💰（收杆点 ${ROD.min + 5}~${ROD.max + 5} 下）</p></div></div>
-        ${(g.items.castnet ?? 0) > 0
-          ? `<div class="ws-slot"><div class="icon">🥅</div>
-             <div class="info"><b>渔网</b><p>每分钟 ${CASTNET.chance * 100}% 咬钩，鱼值 ${CASTNET.min}~${CASTNET.max}💰（收杆点 ${CASTNET.min + 5}~${CASTNET.max + 5} 下）</p></div></div>`
-          : `<div class="ws-slot"><div class="icon">🥅</div>
-             <div class="info"><b>渔网（未拥有）</b><p>商场 110💰，钓鱼时多一份收入</p></div></div>`}
-        <div class="ws-slot done"><div class="icon">💰</div>
+        <div class="ws-slot done"><div class="icon">${usingRod ? '🎣' : '🥅'}</div>
+          <div class="info"><b>${usingRod ? '鱼竿' : '渔网'}</b><p>每分钟 ${gearCfg.chance * 100}% 咬钩，鱼值 ${gearCfg.min}~${gearCfg.max}💰（收杆点 ${gearCfg.min + 5}~${gearCfg.max + 5} 下）</p></div></div>
+        <div class="ws-slot"><div class="icon">💰</div>
           <div class="info"><b>本次已钓 ${g.fishingEarned}💰</b></div></div>`);
+      if ((g.items[usingRod ? 'castnet' : 'rod'] ?? 0) > 0) {
+        const sw = document.createElement('button');
+        sw.textContent = usingRod ? '🥅 换用渔网（搏大的）' : '🎣 换用鱼竿（求稳）';
+        sw.style.cssText = 'width:100%;margin-bottom:8px;padding:10px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;';
+        sw.addEventListener('click', () => { g.switchGear(); this.renderFishing(); });
+        body.appendChild(sw);
+      }
       const btn = document.createElement('button');
       btn.textContent = '🎣 收竿结束';
       btn.style.cssText = 'width:100%;padding:11px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
@@ -563,25 +573,71 @@ export class UI {
       return;
     }
 
-    // —— 钓鱼入口 ——
-    const hasRod = (g.items.rod ?? 0) > 0;
-    const rodRow = document.createElement('div');
-    rodRow.className = 'ws-slot' + (hasRod ? ' done' : '');
-    rodRow.innerHTML = `<div class="icon">🎣</div>
-      <div class="info"><b>安心垂钓</b><p>${hasRod ? `每分钟 ${ROD.chance * 100}% 得 ${ROD.min}~${ROD.max}💰${(g.items.castnet ?? 0) > 0 ? `，渔网再 ${CASTNET.chance * 100}% 得 ${CASTNET.min}~${CASTNET.max}💰` : ''}` : '需要 🎣 鱼竿（商场 100💰）'}</p></div>`;
-    const rodBtn = document.createElement('button');
-    rodBtn.textContent = hasRod ? '开始钓鱼' : '没有鱼竿';
-    rodBtn.disabled = !hasRod;
-    if (hasRod) rodBtn.addEventListener('click', () => this.enterFishing());
-    else rodBtn.style.cssText = 'border-color:#ccc;background:#f0f0f0;color:#aaa;cursor:default;';
-    rodRow.appendChild(rodBtn);
-    body.appendChild(rodRow);
+    // —— 钓鱼入口：选一件装备下水 ——
+    [['rod', '🎣', '鱼竿垂钓', `${ROD.chance * 100}% 咬钩 · 鱼值 ${ROD.min}~${ROD.max}💰 · 求稳`],
+     ['castnet', '🥅', '渔网捕捞', `${CASTNET.chance * 100}% 咬钩 · 鱼值 ${CASTNET.min}~${CASTNET.max}💰 · 搏大的`]]
+      .forEach(([gear, icon, name, desc]) => {
+        const owned = (g.items[gear] ?? 0) > 0;
+        const row = document.createElement('div');
+        row.className = 'ws-slot' + (owned ? ' done' : '');
+        row.innerHTML = `<div class="icon">${icon}</div>
+          <div class="info"><b>${name}</b><p>${owned ? desc : `未拥有 · 商场 ${itemById(gear).cost}💰`}</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = owned ? '下水' : '没装备';
+        btn.disabled = !owned;
+        if (owned) btn.addEventListener('click', () => this.enterFishing(gear));
+        else btn.style.cssText = 'border-color:#ccc;background:#f0f0f0;color:#aaa;cursor:default;';
+        row.appendChild(btn);
+        body.appendChild(row);
+      });
+
+    // —— 水塘装饰摆放 ——
+    const ownedDecors = POND_DECORS.filter(d => g.pondOwned[d.id]);
+    if (this.pondChoosing) {
+      const unplaced = ownedDecors.filter(d => !g.pondPlaced.includes(d.id));
+      unplaced.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'ws-slot';
+        el.innerHTML = `<div class="icon">🦆</div>
+          <div class="info"><b>${d.name}</b><p style="color:${POND_RARITY[d.rarity].color}">${POND_RARITY[d.rarity].name}</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '摆放';
+        btn.addEventListener('click', () => { g.placePondDecor(d.id); this.pondChoosing = false; this.renderFishing(); });
+        el.appendChild(btn);
+        body.appendChild(el);
+      });
+      const back = document.createElement('button');
+      back.textContent = '← 返回';
+      back.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;margin-bottom:8px;';
+      back.addEventListener('click', () => { this.pondChoosing = false; this.renderFishing(); });
+      body.appendChild(back);
+      return;
+    }
+    if (ownedDecors.length) {
+      g.pondPlaced.forEach(id => {
+        const d = pondDecorById(id);
+        const el = document.createElement('div');
+        el.className = 'ws-slot done';
+        el.innerHTML = `<div class="icon">🦆</div>
+          <div class="info"><b>${d.name}</b><p style="color:${POND_RARITY[d.rarity].color}">${POND_RARITY[d.rarity].name} · 塘里游着呢</p></div>`;
+        const btn = document.createElement('button');
+        btn.className = 'collect';
+        btn.textContent = '收起';
+        btn.addEventListener('click', () => { g.removePondDecor(id); this.renderFishing(); });
+        el.appendChild(btn);
+        body.appendChild(el);
+      });
+      const unplacedCount = ownedDecors.length - g.pondPlaced.length;
+      if (unplacedCount > 0 && g.pondPlaced.length < POND_MAX_PLACED) {
+        const btn = document.createElement('button');
+        btn.textContent = `🦆 摆放装饰（${g.pondPlaced.length}/${POND_MAX_PLACED}）`;
+        btn.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;margin-bottom:8px;';
+        btn.addEventListener('click', () => { this.pondChoosing = true; this.renderFishing(); });
+        body.appendChild(btn);
+      }
+    }
 
     const nets = g.items.net ?? 0;
-    const note = document.createElement('p');
-    note.className = 'shop-note';
-    note.textContent = `摆网 ${FISHING.time / 60} 分钟，随机捞 ${FISHING.rewardMin}~${FISHING.rewardMax}💰，是亏是赚全看脸。持有抓鱼网 ×${nets}（商场有售 100💰）。`;
-    body.appendChild(note);
     g.fishNets.forEach((n, k) => {
       const el = document.createElement('div');
       el.className = 'ws-slot';
@@ -756,7 +812,7 @@ export class UI {
     // 页签栏：原商店的全部分类都搬进商场大楼
     const tabsBar = $('#mall-tabs');
     tabsBar.innerHTML = '';
-    [['items', '道具'], ['seeds', '种子'], ['soil', '土壤'], ['water', '水源'], ['decor', '装饰'], ['interior', '内饰']]
+    [['items', '道具'], ['seeds', '种子'], ['soil', '土壤'], ['water', '水源'], ['decor', '装饰'], ['interior', '内饰'], ['pond', '水塘']]
       .forEach(([id, label]) => {
         const tab = document.createElement('button');
         tab.className = 'shop-tab' + (this.mallTab === id ? ' active' : '');
@@ -782,10 +838,6 @@ export class UI {
     };
 
     if (this.mallTab === 'items') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '买来的道具放在 🧰 道具背包里，和作物背包分开。';
-      body.appendChild(note);
       // 一次买几个，想买多少填多少
       const qtyBox = document.createElement('div');
       qtyBox.id = 'mall-qty-box';
@@ -834,10 +886,6 @@ export class UI {
     }
 
     if (this.mallTab === 'soil') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '先「选择」想要的土壤，再点下方按钮进入升级模式，点击地块直接升到所选土壤（可以跳级）。';
-      body.appendChild(note);
       SOILS.forEach((s, i) => {
         const desc = `生长速度 ×${s.speed}${s.yield > 1 ? ` · 收成 ×${s.yield}` : ''}${i > 0 ? ` · 每格 ${s.cost}💰` : ' · 初始土壤'}`;
         if (i === 0) { item('🟫', s.name, desc, '默认', null, 'owned'); return; }
@@ -865,21 +913,32 @@ export class UI {
     }
 
     if (this.mallTab === 'decor') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '点「摆放」后，点击盒子四周的装饰台放置（放置时扣钱）。共 10 个装饰台。';
-      body.appendChild(note);
       DECORS.forEach(d => {
         item(d.emoji, d.name, `${d.cost}💰`,
           '摆放', () => { this.setTool('decor', { decorId: d.id }); $('#mall').classList.add('hidden'); });
       });
     }
 
+    if (this.mallTab === 'pond') {
+      ['common', 'rare', 'epic', 'legend'].forEach(rar => {
+        POND_DECORS.filter(d => d.rarity === rar).forEach(d => {
+          const owned = !!g.pondOwned[d.id];
+          const badge = `<span style="color:${POND_RARITY[rar].color};font-weight:700">【${POND_RARITY[rar].name}】</span>`;
+          const el = document.createElement('div');
+          el.className = 'shop-item';
+          el.innerHTML = `<div class="icon">🦆</div>
+            <div class="info"><b>${d.name}</b><p>${badge} 摆进钓鱼水塘，会动的</p></div>`;
+          const btn = document.createElement('button');
+          btn.textContent = owned ? '已拥有' : `${d.cost}💰`;
+          if (owned) { btn.className = 'owned'; btn.disabled = true; }
+          else btn.addEventListener('click', () => { g.buyPondDecor(d.id); this.renderMall(); });
+          el.appendChild(btn);
+          body.appendChild(el);
+        });
+      });
+    }
+
     if (this.mallTab === 'interior') {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = '买回来的家具直接摆进 🏠 小屋，进屋后还能花钱升级到 3 级。';
-      body.appendChild(note);
       FURNITURE.filter(f => !f.free).forEach(f => {
         const lv = g.furniture[f.id] ?? 0;
         item(f.emoji, f.name,
@@ -932,10 +991,6 @@ export class UI {
 
     // 选择要加工的作物
     if (this.wsChoosing !== null) {
-      const note = document.createElement('p');
-      note.className = 'shop-note';
-      note.textContent = `选 ${WORKSHOP.ingredients} 个同种作物加工成 1 个罐头（${WORKSHOP.time} 秒，卖价比原料多 50%）：`;
-      body.appendChild(note);
       const raw = Object.entries(g.inventory)
         .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg' && n > 0);
       if (!raw.length) {
@@ -970,10 +1025,6 @@ export class UI {
     }
 
     // 加工位列表
-    const note = document.createElement('p');
-    note.className = 'shop-note';
-    note.textContent = `${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒变 1 个罐头，卖价比原料多 50%。想赚更多就去 🍳 料理工坊凑配方（×3）。`;
-    body.appendChild(note);
     g.workshop.forEach((s, k) => {
       const el = document.createElement('div');
       el.className = 'ws-slot';
@@ -1040,6 +1091,9 @@ export class UI {
         g.waterAll();
         menu.classList.add('hidden');
       });
+      addBtn('📖 游戏百科 <small>所有玩法规则都在这里</small>', () => {
+        this.openWiki();
+      });
       return;
     }
 
@@ -1085,6 +1139,135 @@ export class UI {
       this.toast('☀️ 解冻！世界继续转动');
       this.refresh();
     }
+  }
+
+  /* ---------- 游戏百科 ---------- */
+
+  openWiki() {
+    this.closePanels();
+    $('#wiki').classList.remove('hidden');
+    this.renderWiki();
+  }
+
+  renderWiki() {
+    const body = $('#wiki-body');
+    body.innerHTML = '';
+    const pct = (x) => `${Math.round(x * 100)}%`;
+    const sections = [
+      {
+        icon: '🌱', title: '种田基础',
+        html: `流程：<b>选种子 → 点空地种下 → 浇水保湿 → 等成熟 → 收获进背包 → 出售</b>。<br>
+          没浇水的地作物不生长（湿润保持 45 秒）。二层农田每格 <b>${UNLOCK_COST}💰</b> 解锁（绿边标记）。<br>
+          <table class="wtable"><tr><th>土壤</th><th>生长速度</th><th>收成</th><th>每格价</th></tr>
+          ${SOILS.map(s => `<tr><td>${s.name}</td><td>×${s.speed}</td><td>×${s.yield}</td><td>${s.cost || '默认'}</td></tr>`).join('')}</table>
+          <table class="wtable"><tr><th>水源</th><th>效果</th><th>价格</th></tr>
+          ${WATER_LEVELS.map(w => `<tr><td>${w.name}</td><td>${w.desc}</td><td>${w.cost || '默认'}</td></tr>`).join('')}</table>
+          升到自动灌溉后，浇水键专门用来找恐龙虾卵（每浇一格 ${pct(EGG.chance)} 出一颗，卖 ${EGG.sell}💰）。`,
+      },
+      {
+        icon: '🥕', title: '作物一览',
+        html: `<table class="wtable"><tr><th>作物</th><th>种子</th><th>卖价</th><th>生长</th><th>解锁</th></tr>
+          ${SEEDS.map(s => `<tr><td>${s.emoji}${s.name}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || '默认'}</td></tr>`).join('')}</table>`,
+      },
+      {
+        icon: '✨', title: '稀有品质',
+        html: `种下的一刻暗中判定品质：<b>黄金 ${pct(GOLD_CHANCE)}（卖价 ×3）、白银 ${pct(SILVER_CHANCE)}（×2）</b>，整株带淡金/淡银镀层。<br>
+          商场买不到，纯看脸。🧪 幸运药剂可让指定空地下次播种概率<b>翻倍</b>。<br>
+          稀有作物可以：直接卖 / 进工坊 / 做料理 / 收录图鉴 / 摆上个人金台。`,
+      },
+      {
+        icon: '⏰', title: '时间与天气',
+        html: `现实 <b>${DAY_CYCLE / 60} 分钟 = 游戏一天</b>（白天 6:00~18:00）。夜晚生长 ×${NIGHT_SLOW}。<br>
+          每天早上 6 点掷天气：<b>晴 ${pct(1 - DROUGHT.chance - RAIN.chance)} / 暴雨 ${pct(RAIN.chance)} / 大旱 ${pct(DROUGHT.chance)}</b>。<br>
+          大旱生长 ×1/3；恶劣天气收获的作物全部「<b>生长不良</b>」只卖半价，且会随机毁掉 ${DAMAGE.min}~${DAMAGE.max} 块地（晒裂/水泡，不能种）。<br>
+          天灾随当天天气结束<b>自动恢复</b>；急用可花 🔧 恢复器当场修。<br>
+          🛏 睡觉：夜里睡到早 6 点，白天午睡到晚 6 点，期间生长加工照常。😴 挂机则冻结整个世界。`,
+      },
+      {
+        icon: '🐛', title: '虫害',
+        html: `作物成熟时 <b>${pct(PEST.chance)}</b> 概率生虫（头顶飘着小甲虫）。<br>
+          不处理就收 → 变生长不良半价。<br>
+          <b>直接点击虫子免费拍掉</b>；🧴 杀虫剂（${itemById('pesticide').cost}💰）一键清光全场。`,
+      },
+      {
+        icon: '🏭', title: '工坊与料理',
+        html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
+          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可制作，卖价是原料单卖的 <b>×${DISH_MULT}</b>——最赚钱的变现方式。<br>
+          生长不良的作物两边都不收；罐头和料理不能二次加工。`,
+      },
+      {
+        icon: '🎣', title: '水塘钓鱼',
+        html: `<b>🕸️ 抓鱼网</b>（${itemById('net').cost}💰/张）：摆进水塘 ${FISHING.time / 60} 分钟，随机开出 ${FISHING.rewardMin}~${FISHING.rewardMax}💰，最多同时 ${FISHING.slots} 张，是亏是赚看脸。<br>
+          主动钓鱼要<b>二选一带装备下水</b>（钓鱼中可随时切换）：<br>
+          <b>🎣 鱼竿</b>（${itemById('rod').cost}💰，永久）：每分钟 ${pct(ROD.chance)} 咬钩，鱼值 ${ROD.min}~${ROD.max}💰——求稳。<br>
+          <b>🥅 渔网</b>（${itemById('castnet').cost}💰，永久）：每分钟 ${pct(CASTNET.chance)} 咬钩，鱼值 ${CASTNET.min}~${CASTNET.max}💰——搏大的。<br>
+          咬钩后要狂点收杆：<b>点击次数 = 鱼价 + 5</b>。钓鱼时干别的 = 收竿，钩上的鱼会跑。`,
+      },
+      {
+        icon: '🏦', title: '银行',
+        html: `黑房子银行：存取自由，金额自填。<br>
+          每天结束对存款结算：<b>${pct(BANK.gainChance)} 赚 ${BANK.magMin}~${BANK.magMax}💰，${pct(1 - BANK.gainChance)} 亏 ${BANK.magMin}~${BANK.magMax}💰</b>，离线也照常。<br>
+          HUD 黑色钱袋显示存款余额。`,
+      },
+      {
+        icon: '📖', title: '图鉴大楼',
+        html: `<b>基础图鉴</b>：${SEEDS.length} 作物 × 3 品质 = 42 个说明台。捐一个对应品质的新鲜作物即可收录（重复不收，罐头/生长不良/料理不收），台上立起模型和数据说明牌。<br>
+          <b>个人图鉴</b>：红毯贵宾区 10 座金台，摆你最得意的作物，随摆随收。`,
+      },
+      {
+        icon: '🏠', title: '我的小屋',
+        html: `点房子进 3D 房间。🛏 床免费自带，可睡觉跳时间。<br>
+          ${FURNITURE.length} 件家具（商场「内饰」页购买），每件升到 3 级，<b>三种外观解锁后随意切换混搭</b>。<br>
+          「🔧 布置模式」里按住家具拖动摆放、↻ 旋转，打造自己的家。`,
+      },
+      {
+        icon: '🧰', title: '道具一览',
+        html: `<table class="wtable"><tr><th>道具</th><th>价格</th><th>效果</th></tr>
+          ${ITEMS.map(i => `<tr><td>${i.emoji}${i.name}</td><td>${i.cost}${i.once ? '(永久)' : ''}</td><td style="text-align:left">${i.desc}</td></tr>`).join('')}</table>
+          🌀 小风车装饰每台每分钟发电 +1💰，离线也发（上限 12 小时）。💡 小灯夜里会亮。🎩 稻草人纯装饰。`,
+      },
+      {
+        icon: '⌨️', title: '快捷键',
+        html: `<b>H</b> 一键收取全部成熟作物<br><b>S</b> 一键卖光背包（稀有和罐头也卖，慎按！）<br>
+          <b>R</b> 打开布局列表一键播种（先用 💾 保存布局）<br><b>W</b> 一键浇水（${QUICK_WATER_COST}💰，全场+找🦐卵）<br>
+          <b>Esc</b> 关闭菜单 / 出屋出馆收竿`,
+      },
+    ];
+    sections.forEach((s, i) => {
+      const sec = document.createElement('div');
+      sec.className = 'wiki-sec' + (this.wikiOpenSec === i ? ' open' : '');
+      sec.innerHTML = `<div class="sec-head">${s.icon} ${s.title}<span class="arrow">${this.wikiOpenSec === i ? '▲' : '▼'}</span></div>
+        <div class="sec-body">${s.html}</div>`;
+      sec.querySelector('.sec-head').addEventListener('click', () => {
+        this.wikiOpenSec = this.wikiOpenSec === i ? -1 : i;
+        this.renderWiki();
+      });
+      body.appendChild(sec);
+    });
+  }
+
+  /* ---------- 设置 ---------- */
+
+  renderSettingsMenu() {
+    const menu = $('#settings-menu');
+    menu.innerHTML = '<div class="music-head">⚙️ 设置</div>';
+    const row = (icon, label, on, onClick) => {
+      const el = document.createElement('div');
+      el.className = 'music-row';
+      el.innerHTML = `<b>${icon} ${label}</b>`;
+      const btn = document.createElement('button');
+      btn.className = on ? 'on' : 'off';
+      btn.textContent = on ? '开' : '关';
+      btn.addEventListener('click', () => { onClick(); this.renderSettingsMenu(); });
+      el.appendChild(btn);
+      menu.appendChild(el);
+    };
+    row('🎵', '背景音乐', music.enabled, () => music.toggle());
+    row('💬', '消息提示', this.tipsOn, () => {
+      this.tipsOn = !this.tipsOn;
+      localStorage.setItem('farm-tips-on', this.tipsOn ? '1' : '0');
+      if (this.tipsOn) this.toast('💬 提示已打开');
+    });
   }
 
   /* ---------- 选曲 ---------- */
@@ -1162,6 +1345,7 @@ export class UI {
   }
 
   toast(msg) {
+    if (this.tipsOn === false) return; // 设置里关掉了消息提示
     const wrap = $('#toast-wrap');
     const el = document.createElement('div');
     el.className = 'toast';
