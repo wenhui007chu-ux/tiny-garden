@@ -6,7 +6,7 @@ import {
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST, POISON,
-  DISHES, dishById, ingredientKey, ROD, CASTNET,
+  DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
   pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
   PETS, petById, PET_DECORS, petDecorById, PET_POS,
@@ -45,6 +45,7 @@ export class Game {
     this.paused = false;    // 挂机模式：整个世界暂停
     this.poisonUntil = 0;   // 中毒倒计时：到点还没解毒就死
     this.deadUntil = 0;     // 死亡复活倒计时：这期间什么都干不了
+    this.cookSlots = Array(COOK_SLOTS).fill(null); // 灶位：{ id, readyAt } 或 null
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
@@ -740,18 +741,31 @@ export class Game {
 
   cookDish(dishId) {
     const dish = dishById(dishId);
+    const slot = this.cookSlots.findIndex(s => !s);
+    if (slot < 0) { this.onToast(`${COOK_SLOTS} 个灶都在用，先端走做好的菜`); return false; }
     if (!this.canCook(dishId)) { this.onToast('原料不够，先凑齐配方吧'); return false; }
     dish.recipe.forEach(([id, q, n]) => {
       const key = ingredientKey(id, q);
       this.inventory[key] -= n;
       if (this.inventory[key] <= 0) delete this.inventory[key];
     });
-    const dkey = 'k:' + dishId;
-    this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
-    this.onToast(`🍳 做好了${dish.emoji}${dish.name}！放入背包`);
+    this.cookSlots[slot] = { id: dishId, readyAt: this.time + COOK_TIME };
+    this.onToast(`🍳 ${dish.emoji}${dish.name}下锅了，${COOK_TIME} 秒后出锅`);
     this.onState();
     this.save();
     return true;
+  }
+
+  collectDish(slot) {
+    const s = this.cookSlots[slot];
+    if (!s || this.time < s.readyAt) return;
+    const dish = dishById(s.id);
+    const dkey = 'k:' + s.id;
+    this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
+    this.cookSlots[slot] = null;
+    this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包`);
+    this.onState();
+    this.save();
   }
 
   /* ---------- 宠物间 ---------- */
@@ -1572,6 +1586,7 @@ export class Game {
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
       workshop: this.workshop.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
+      cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
       hybridSlots: this.hybridSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
@@ -1709,6 +1724,12 @@ export class Game {
       if (this.petDecorsOwned[k] === true) this.petDecorsOwned[k] = 1;
     });
     this.petDecorStyle = data.petDecorStyle ?? {};
+    // 灶位：离线也照常炖着
+    (data.cookSlots ?? []).forEach((s, k) => {
+      if (s && k < this.cookSlots.length && dishById(s.id)) {
+        this.cookSlots[k] = { id: s.id, readyAt: this.time + Math.max(0, s.remain - elapsed) };
+      }
+    });
     // 培养罩：离线也照常培养
     (data.hybridSlots ?? []).forEach((s, k) => {
       if (s && k < this.hybridSlots.length && hybridById(s.id)) {

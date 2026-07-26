@@ -1,5 +1,5 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
-import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS } from './config.js';
+import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS } from './config.js';
 import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -56,6 +56,7 @@ export class UI {
     // 工坊/鱼网倒计时刷新
     setInterval(() => {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
+      if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
       if (!$('#hybrid').classList.contains('hidden')) {
         this.renderHybrid();
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
@@ -682,6 +683,34 @@ export class UI {
     body.insertAdjacentHTML('beforeend',
       `<div id="kitchen-progress">🍳 共 50 道料理 · 现在能做 ${cookableCount} 道</div>`);
 
+    // 灶位状态
+    g.cookSlots.forEach((s, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!s) {
+        el.innerHTML = `<div class="icon">🍳</div><div class="info"><b>${k + 1} 号灶</b><p>空着</p></div>`;
+      } else {
+        const dish = dishById(s.id);
+        const remain = Math.max(0, s.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / COOK_TIME) * 100);
+          el.innerHTML = `<div class="icon">${dish.emoji}</div>
+            <div class="info"><b>${dish.name} 烹饪中</b><p>还剩 ${Math.ceil(remain)} 秒</p>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.classList.add('done');
+          el.innerHTML = `<div class="icon">${dish.emoji}</div>
+            <div class="info"><b>${dish.name} 出锅啦！</b><p>可卖 ${dishPrice(dish)}💰</p></div>`;
+          const btn = document.createElement('button');
+          btn.className = 'collect';
+          btn.textContent = '端走';
+          btn.addEventListener('click', () => { g.collectDish(k); this.renderKitchen(); });
+          el.appendChild(btn);
+        }
+      }
+      body.appendChild(el);
+    });
+
     // 只看现在能做的
     const filterBtn = document.createElement('button');
     filterBtn.id = 'kitchen-filter';
@@ -708,10 +737,11 @@ export class UI {
       el.innerHTML = `<div class="icon">${dish.emoji}</div>
         <div class="info"><b>${dish.name}</b> <span class="price">卖 ${dishPrice(dish)}💰</span>
         <div class="recipe">${ings}</div></div>`;
+      const stoveFree = g.cookSlots.some(s => !s);
       const btn = document.createElement('button');
-      btn.textContent = '制作';
-      btn.disabled = !ready;
-      if (ready) btn.addEventListener('click', () => { g.cookDish(dish.id); this.renderKitchen(); });
+      btn.textContent = stoveFree ? '下锅' : '灶满';
+      btn.disabled = !ready || !stoveFree;
+      if (ready && stoveFree) btn.addEventListener('click', () => { g.cookDish(dish.id); this.renderKitchen(); });
       el.appendChild(btn);
       body.appendChild(el);
     });
@@ -1444,7 +1474,7 @@ export class UI {
       {
         icon: '🏭', title: '工坊与料理',
         html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
-          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可制作，卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
+          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可下锅，<b>${COOK_SLOTS} 个灶位</b>可同时开火，每道菜炒 <b>${COOK_TIME} 秒</b>出锅（离线照常烹饪）。卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
           生长不良的作物两边都不收；罐头和料理不能二次加工。<br>
           <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。`,
       },

@@ -263,6 +263,8 @@ export const itemById = (id) => ITEMS.find(i => i.id === id);
 // 料理工坊：50 种料理，凑齐指定品质的作物就能做，卖价是原料单卖的 3 倍
 // recipe 每项 [作物id, 品质档 0普通/1白银/2黄金, 数量]
 export const DISH_MULT = 3;
+export const COOK_TIME = 30;   // 每道菜要炒 30 秒
+export const COOK_SLOTS = 3;   // 3 个灶位可以同时开火
 export const DISHES = [
   // —— 一档：家常小菜（便宜作物·普通品质）——
   { id: 'd1',  name: '烤红薯',     emoji: '🍠', recipe: [['sweetpot', 0, 3]] },
