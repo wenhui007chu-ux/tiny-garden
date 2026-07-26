@@ -4,6 +4,7 @@ import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
 import { INTERIOR_POS } from './config.js';
 import { music } from './music.js';
+import { startWatchdog } from './watchdog.js';
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -356,4 +357,6 @@ animate();
 
 setInterval(() => game.save(), 10000);
 window.__debug = { renderer, scene, camera, game, ui, music };
+
+startWatchdog(game); // 服务器掉线时提示并自动重连
 window.addEventListener('beforeunload', () => game.save());

@@ -344,6 +344,28 @@ body {
 .bag-item.quality-silver, .ws-slot.quality-silver { border-color: #b8c4d0; background: linear-gradient(135deg, #fff, #eef3f8); }
 .bag-item.quality-gold, .ws-slot.quality-gold { border-color: #e0b64a; background: linear-gradient(135deg, #fff, #fdf3d1); }
 
+/* ---------- offline overlay ---------- */
+#offline-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: #1a1a20cc; backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+}
+#offline-overlay.hidden { display: none; }
+#offline-card {
+  background: #fffaf0; border: 3px solid #d9a05a; border-radius: 22px;
+  padding: 30px 40px; text-align: center; color: #6b4a24; max-width: 420px;
+  box-shadow: 0 10px 40px #0007;
+}
+#offline-emoji { font-size: 50px; margin-bottom: 6px; }
+#offline-card b { font-size: 19px; }
+#offline-card p { font-size: 14px; color: #8a6a44; line-height: 1.8; margin: 10px 0 0; }
+#offline-card p.hint { font-size: 12.5px; color: #a1834f; margin-top: 12px; }
+#offline-card code {
+  background: #f0e4d0; border-radius: 5px; padding: 1px 6px;
+  font-size: 12px; color: #8a5a2b;
+}
+#offline-dots { margin-top: 14px; font-size: 13px; color: #b0906a; }
+
 /* ---------- afk overlay ---------- */
 #afk-overlay {
   position: fixed; inset: 0; z-index: 50;
