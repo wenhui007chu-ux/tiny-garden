@@ -7,7 +7,8 @@ import {
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST,
   DISHES, dishById, ingredientKey, ROD, CASTNET,
-  pondDecorById, POND_MAX_PLACED,
+  pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
+  HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -17,7 +18,8 @@ import {
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
-  createPestBug, createKitchen, createPondDecor,
+  createPestBug, createKitchen, createPondDecor, createHybridLab,
+  createHybridInterior, createHybridCrop, HYBRID_STATIONS,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -137,6 +139,21 @@ export class Game {
     this.group.add(kitchen);
     this.kitchenMeshes = [];
     kitchen.traverse(o => { if (o.isMesh) this.kitchenMeshes.push(o); });
+
+    // 杂交室：前方偏左的玻璃穹顶实验室
+    const lab = createHybridLab();
+    lab.position.set(-5, -0.51, 14.5);
+    lab.rotation.y = 0.2;
+    this.group.add(lab);
+    this.hybridLabMeshes = [];
+    lab.traverse(o => { if (o.isMesh) this.hybridLabMeshes.push(o); });
+
+    // 实验室内部大厅（藏在岛下）+ 5 个培养罩
+    this.hybridHall = createHybridInterior();
+    this.hybridHall.position.set(HYBRID_POS.x, HYBRID_POS.y, HYBRID_POS.z);
+    this.group.add(this.hybridHall);
+    this.hybridSlots = Array(HYBRID_SLOTS).fill(null); // { id, readyAt } 或 null
+    this.hybridCropMeshes = Array(HYBRID_SLOTS).fill(null);
 
     // 抓鱼水滩：左前方空地
     this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
@@ -641,7 +658,7 @@ export class Game {
   }
 
   donateCodex(key) {
-    if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key === EGG.key) {
+    if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) {
       this.onToast('图鉴只收录新鲜的作物本体');
       return false;
     }
@@ -680,6 +697,75 @@ export class Game {
     this.onState();
     this.save();
     return true;
+  }
+
+  /* ---------- 杂交室 ---------- */
+
+  canHybrid(id) {
+    const h = hybridById(id);
+    const ka = ingredientKey(h.a[0], h.a[1]);
+    const kb = ingredientKey(h.b[0], h.b[1]);
+    if (ka === kb) return (this.inventory[ka] ?? 0) >= 2; // 同料配对要两个
+    return (this.inventory[ka] ?? 0) >= 1 && (this.inventory[kb] ?? 0) >= 1;
+  }
+
+  makeHybrid(id) {
+    const h = hybridById(id);
+    const slot = this.hybridSlots.findIndex(s => !s);
+    if (slot < 0) { this.onToast('5 个培养罩都占着，先取出培养好的'); return false; }
+    if (!this.canHybrid(id)) { this.onToast('原料不够，凑齐两种作物再来'); return false; }
+    [h.a, h.b].forEach(([sid, q]) => {
+      const key = ingredientKey(sid, q);
+      this.inventory[key] -= 1;
+      if (this.inventory[key] <= 0) delete this.inventory[key];
+    });
+    this.hybridSlots[slot] = { id, readyAt: this.time + HYBRID_TIME };
+    this.refreshHybridStations();
+    this.onToast(`🧬 ${h.emoji}${h.name}进入 ${slot + 1} 号培养罩，${HYBRID_TIME / 60} 分钟后来取`);
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  collectHybrid(slot) {
+    const s = this.hybridSlots[slot];
+    if (!s || this.time < s.readyAt) return;
+    const h = hybridById(s.id);
+    const hkey = 'h:' + s.id;
+    this.inventory[hkey] = (this.inventory[hkey] ?? 0) + 1;
+    this.hybridSlots[slot] = null;
+    this.refreshHybridStations();
+    this.onToast(`🧬 培养完成！${h.emoji}${h.name}放入背包`);
+    this.onState();
+    this.save();
+  }
+
+  // 培养罩里的 3D 模型：有作物就摆上，没有就空着
+  refreshHybridStations() {
+    this.hybridSlots.forEach((s, k) => {
+      if (this.hybridCropMeshes[k]) {
+        this.hybridHall.remove(this.hybridCropMeshes[k]);
+        this.hybridCropMeshes[k] = null;
+      }
+      if (s) {
+        const m = createHybridCrop(s.id);
+        const [x, z] = HYBRID_STATIONS[k];
+        m.position.set(x, 0.56, z);
+        this.hybridHall.add(m);
+        this.hybridCropMeshes[k] = m;
+      }
+    });
+    this.updateHybridVisuals();
+  }
+
+  // 培养进度可视化：作物随进度从小长大
+  updateHybridVisuals() {
+    this.hybridSlots.forEach((s, k) => {
+      const m = this.hybridCropMeshes[k];
+      if (!s || !m) return;
+      const p = Math.min(1, 1 - (s.readyAt - this.time) / HYBRID_TIME);
+      m.scale.setScalar(0.45 + 0.55 * p);
+    });
   }
 
   /* ---------- 黑房子银行 ---------- */
@@ -1038,7 +1124,7 @@ export class Game {
   placeDisplay(k, key) {
     const s = this.displaySlots[k];
     if (s.item) { this.onToast('这个展台已经摆着东西了'); return false; }
-    if (key.startsWith('p:') || key.startsWith('k:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
+    if (key.startsWith('p:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
@@ -1073,6 +1159,7 @@ export class Game {
     if (this.workshop[slot]) return;
     if (key.startsWith('p:')) { this.onToast('罐头不能再加工啦'); return; }
     if (key.startsWith('k:')) { this.onToast('料理不能做成罐头'); return; }
+    if (key.startsWith('h:')) { this.onToast('杂交作物是稀世珍品，直接卖个好价吧'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
     const need = WORKSHOP.ingredients;
@@ -1239,6 +1326,7 @@ export class Game {
     this.refreshCodex();
     this.refreshGallery();
     this.refreshPondDecors();
+    this.refreshHybridStations();
   }
 
   /* ---------- 主循环 ---------- */
@@ -1330,6 +1418,7 @@ export class Game {
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
+      hybridSlots: this.hybridSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
       clock: this.clock,
       windTimer: this.windTimer,
       drought: this.drought,
@@ -1443,6 +1532,12 @@ export class Game {
     this.refreshNets();
     this.pondOwned = data.pondOwned ?? {};
     this.pondPlaced = (data.pondPlaced ?? []).filter(id => pondDecorById(id)).slice(0, POND_MAX_PLACED);
+    // 培养罩：离线也照常培养
+    (data.hybridSlots ?? []).forEach((s, k) => {
+      if (s && k < this.hybridSlots.length && hybridById(s.id)) {
+        this.hybridSlots[k] = { id: s.id, readyAt: this.time + Math.max(0, s.remain - elapsed) };
+      }
+    });
     // 离线跨天：旧的天灾先消退，再按新天气重新受灾
     if (this._pendingHeal) {
       this._pendingHeal = false;

@@ -1,5 +1,5 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
-import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById } from './config.js';
+import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS } from './config.js';
 import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -44,6 +44,7 @@ export class UI {
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
+    $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -54,6 +55,10 @@ export class UI {
     // 工坊/鱼网倒计时刷新
     setInterval(() => {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
+      if (!$('#hybrid').classList.contains('hidden')) {
+        this.renderHybrid();
+        this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
+      }
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -114,6 +119,7 @@ export class UI {
         this.exitHouse();
         this.exitCodex();
         this.exitFishing();
+        this.exitHybridLab();
         return;
       }
       if (this.inside()) return; // 屋里/馆里不干农活
@@ -197,14 +203,15 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
     this.exitFishing(); // 干别的就等于收竿
+    this.exitHybridLab();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab; }
 
   /* ---------- 主动钓鱼 ---------- */
 
@@ -306,7 +313,7 @@ export class UI {
     body.insertAdjacentHTML('beforeend',
       `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42</div>`);
     const donatable = Object.entries(g.inventory)
-      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg');
+      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && k !== 'egg');
     if (!donatable.length) {
       body.insertAdjacentHTML('beforeend',
         '<div class="bag-empty">背包里没有可收录的作物<br>去地里收点新鲜的来 🌱</div>');
@@ -354,7 +361,7 @@ export class UI {
       note.textContent = `选一个作物摆上 ${k + 1} 号金台：`;
       body.appendChild(note);
       const crops = Object.entries(g.inventory)
-        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && key !== 'egg');
+        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && !key.startsWith('h:') && key !== 'egg');
       if (!crops.length) {
         body.insertAdjacentHTML('beforeend',
           '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来吧 🌱</div>');
@@ -404,6 +411,114 @@ export class UI {
         btn.addEventListener('click', () => { this.codexChoosing = k; this.renderCodex(); });
         el.appendChild(btn);
       }
+      body.appendChild(el);
+    });
+  }
+
+  /* ---------- 杂交室 ---------- */
+
+  openHybrid() {
+    this.closePanels();
+    // 镜头切进实验大厅
+    if (!this.inHybridLab && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = HYBRID_POS;
+      this.controls.target.set(p.x, p.y + 0.8, p.z - 1);
+      this.camera.position.set(p.x + 6.5, p.y + 6.5, p.z + 9);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inHybridLab = true;
+    }
+    $('#hybrid').classList.remove('hidden');
+    this.renderHybrid();
+  }
+
+  exitHybridLab() {
+    $('#hybrid').classList.add('hidden');
+    if (!this.inHybridLab) return;
+    this.inHybridLab = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderHybrid() {
+    const body = $('#hybrid-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const canCount = HYBRIDS.filter(h => g.canHybrid(h.id)).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="hybrid-progress">🧬 共 ${HYBRIDS.length} 种杂交作物 · 现在能合成 ${canCount} 种</div>`);
+
+    // 5 个培养罩状态
+    g.hybridSlots.forEach((s, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!s) {
+        el.innerHTML = `<div class="icon">🫙</div><div class="info"><b>${k + 1} 号培养罩</b><p>空着</p></div>`;
+      } else {
+        const h = hybridById(s.id);
+        const remain = Math.max(0, s.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / HYBRID_TIME) * 100);
+          el.innerHTML = `<div class="icon">${h.emoji}</div>
+            <div class="info"><b>${h.name} 培养中</b><p>还剩 ${fmtTime(remain)}</p>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.classList.add('done');
+          el.innerHTML = `<div class="icon">${h.emoji}</div>
+            <div class="info"><b>${h.name} 培养完成！</b><p>可卖 ${h.sell}💰</p></div>`;
+          const btn = document.createElement('button');
+          btn.className = 'collect';
+          btn.textContent = '取出';
+          btn.addEventListener('click', () => { g.collectHybrid(k); this.renderHybrid(); });
+          el.appendChild(btn);
+        }
+      }
+      body.appendChild(el);
+    });
+
+    const filterBtn = document.createElement('button');
+    filterBtn.id = 'kitchen-filter';
+    filterBtn.className = this.hybridReadyOnly ? 'on' : '';
+    filterBtn.textContent = this.hybridReadyOnly ? '✓ 只显示能合成的' : `🔍 只看现在能合成的（${canCount}）`;
+    filterBtn.addEventListener('click', () => { this.hybridReadyOnly = !this.hybridReadyOnly; this.renderHybrid(); });
+    body.appendChild(filterBtn);
+
+    const list = this.hybridReadyOnly ? HYBRIDS.filter(h => g.canHybrid(h.id)) : HYBRIDS;
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend', '<div class="bag-empty">现在还凑不齐任何配对<br>去攒对应品质的作物吧 🌱</div>');
+      return;
+    }
+    list.forEach(h => {
+      const ready = g.canHybrid(h.id);
+      const el = document.createElement('div');
+      el.className = 'dish-row' + (ready ? ' ready' : '');
+      const same = ingredientKey(h.a[0], h.a[1]) === ingredientKey(h.b[0], h.b[1]);
+      const need = (pair, count) => {
+        const key = ingredientKey(pair[0], pair[1]);
+        const have = g.inventory[key] ?? 0;
+        const info = keyInfo(key);
+        return `<span class="ing ${have >= count ? 'ok' : 'no'}">${info.icon}${info.label} ${have}/${count}</span>`;
+      };
+      const ings = same ? need(h.a, 2) : need(h.a, 1) + need(h.b, 1);
+      el.innerHTML = `<div class="icon">${h.emoji}</div>
+        <div class="info"><b>${h.name}</b> <span class="price">卖 ${h.sell}💰</span>
+        <div class="recipe">${ings}</div></div>`;
+      const slotFree = g.hybridSlots.some(s => !s);
+      const btn = document.createElement('button');
+      btn.textContent = slotFree ? '培养' : '罩满';
+      btn.disabled = !ready || !slotFree;
+      if (ready && slotFree) btn.addEventListener('click', () => { g.makeHybrid(h.id); this.renderHybrid(); });
+      el.appendChild(btn);
       body.appendChild(el);
     });
   }
@@ -992,7 +1107,7 @@ export class UI {
     // 选择要加工的作物
     if (this.wsChoosing !== null) {
       const raw = Object.entries(g.inventory)
-        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && k !== 'egg' && n > 0);
+        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && k !== 'egg' && n > 0);
       if (!raw.length) {
         body.insertAdjacentHTML('beforeend', '<div class="bag-empty">背包里没有可加工的作物<br>先去收获一些吧 🌱</div>');
       }
@@ -1192,7 +1307,8 @@ export class UI {
       {
         icon: '🏭', title: '工坊与料理',
         html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
-          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可制作，卖价是原料单卖的 <b>×${DISH_MULT}</b>——最赚钱的变现方式。<br>
+          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可制作，卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
+          <b>🧬 杂交室</b>：${HYBRIDS.length} 种杂交作物，两种指定品质的作物配对合成，卖价约原料 <b>×5</b>——全游戏最高倍率，顶级配方「创世之种」卖 75000💰。<br>
           生长不良的作物两边都不收；罐头和料理不能二次加工。`,
       },
       {
@@ -1328,6 +1444,7 @@ export class UI {
     $('#bank-count').textContent = this.game.bank;
     if (!$('#bank').classList.contains('hidden')) this.renderBank();
     if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
+    if (!$('#hybrid').classList.contains('hidden')) this.renderHybrid();
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);

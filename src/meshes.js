@@ -380,6 +380,189 @@ export function createKitchen() {
   return g;
 }
 
+/* ================= 杂交室 ================= */
+
+export function createHybridLab() {
+  const g = new THREE.Group();
+  const wall = mat(0xe8f0ec);
+  // 圆形实验室基座 + 玻璃穹顶
+  g.add(mesh(new THREE.CylinderGeometry(1.7, 1.85, 1.3, 12), wall, 0, 0.65, 0));
+  const dome = mesh(new THREE.SphereGeometry(1.6, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    mat(0xa8e0d0, { transparent: true, opacity: 0.45, roughness: 0.15 }), 0, 1.3, 0);
+  g.add(dome);
+  // 门和门框
+  g.add(mesh(new THREE.BoxGeometry(0.7, 1.1, 0.1), mat(0x4a8a72), 0, 0.55, 1.78));
+  g.add(mesh(new THREE.BoxGeometry(0.85, 0.12, 0.14), mat(0x3a6a58), 0, 1.15, 1.78));
+  // 穹顶里的双螺旋（DNA，会转）
+  const helix = new THREE.Group();
+  for (let k = 0; k < 8; k++) {
+    const y = 0.15 + k * 0.16;
+    const a = k * 0.8;
+    [[a, 0x5ce0a0], [a + Math.PI, 0xe0a05c]].forEach(([ang, c]) => {
+      helix.add(mesh(new THREE.SphereGeometry(0.09, 6, 5), mat(c, { emissive: c, emissiveIntensity: 0.3 }),
+        Math.cos(ang) * 0.35, y, Math.sin(ang) * 0.35));
+    });
+    helix.add(mesh(new THREE.BoxGeometry(0.66, 0.03, 0.03), mat(0xd4e8e0), 0, y, 0).rotateY(a));
+  }
+  helix.position.y = 1.2;
+  helix.userData.spin = true;
+  g.add(helix);
+  // 侧边试管架
+  [[-1.4, 0x5ce0a0], [-1.15, 0xe05c8a], [-0.9, 0x5ca0e0]].forEach(([x, c]) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 6),
+      mat(c, { transparent: true, opacity: 0.75, emissive: c, emissiveIntensity: 0.35 }), x, 1.45, 0.9));
+  });
+  g.traverse(o => { if (o.isMesh) o.userData.hybridLab = true; });
+  return g;
+}
+
+/* ================= 杂交室内部：实验大厅与培养罩 ================= */
+
+// 5 个培养罩的站位（大厅局部坐标）
+export const HYBRID_STATIONS = [[-4.4, -0.6], [-2.2, -2], [0, -2.6], [2.2, -2], [4.4, -0.6]];
+
+export function createHybridInterior() {
+  const g = new THREE.Group();
+  const W = 14, D = 11;
+  // 实验室地板（冷色调）+ 后墙左墙
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xdce8e4), 0, -0.15, 0));
+  g.add(mesh(new THREE.BoxGeometry(W, 4.2, 0.3), mat(0xeef4f0), 0, 2.1, -D / 2 + 0.15));
+  g.add(mesh(new THREE.BoxGeometry(0.3, 4.2, D), mat(0xeef4f0), -W / 2 + 0.15, 2.1, 0));
+  // 后墙大屏幕（发着幽幽绿光）
+  g.add(mesh(new THREE.BoxGeometry(4.2, 1.8, 0.1),
+    mat(0x9ae0c8, { emissive: 0x4aa888, emissiveIntensity: 0.5 }), -3, 2.3, -D / 2 + 0.26));
+  // 中央大 DNA 双螺旋
+  const helix = new THREE.Group();
+  for (let k = 0; k < 12; k++) {
+    const y = 0.3 + k * 0.24;
+    const a = k * 0.7;
+    [[a, 0x5ce0a0], [a + Math.PI, 0xe0a05c]].forEach(([ang, c]) => {
+      helix.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), mat(c, { emissive: c, emissiveIntensity: 0.35 }),
+        Math.cos(ang) * 0.55, y, Math.sin(ang) * 0.55));
+    });
+    helix.add(mesh(new THREE.BoxGeometry(1.05, 0.045, 0.045), mat(0xd4e8e0), 0, y, 0).rotateY(a));
+  }
+  helix.position.set(2.8, 0, -3);
+  helix.userData.spin = true;
+  g.add(helix);
+  // 5 座培养台 + 玻璃罩
+  HYBRID_STATIONS.forEach(([x, z]) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.72, 0.8, 0.5, 10), mat(0xc4d4ce), x, 0.25, z));
+    g.add(mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 10),
+      mat(0xf2f7f4, { emissive: 0x88c8b0, emissiveIntensity: 0.25 }), x, 0.53, z));
+    const dome = mesh(new THREE.SphereGeometry(0.58, 12, 9, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      mat(0xa8e0d0, { transparent: true, opacity: 0.32, roughness: 0.1 }), x, 0.56, z);
+    g.add(dome);
+  });
+  // 顶灯
+  [[-3.5, -1], [3.5, -1], [0, 2.5]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xd8fff0, 0.55, 18, 1.8);
+    l.position.set(x, 3.6, z);
+    g.add(l);
+  });
+  return g;
+}
+
+// 20 种杂交作物的 3D 模型（参数化生成）
+const HYBRID_MODELS = {
+  h1:  { kind: 'blob',   c1: 0xf07338, c2: 0x5ea25a },
+  h2:  { kind: 'bulb',   c1: 0xb0895a, c2: 0xf07338 },
+  h3:  { kind: 'blob',   c1: 0x8fbf6a, c2: 0xd9c9a8 },
+  h4:  { kind: 'flower', c1: 0xe8483f, c2: 0x8fbf6a },
+  h5:  { kind: 'bulb',   c1: 0xf2c94c, c2: 0xe8483f },
+  h6:  { kind: 'cluster', c1: 0xf2a7c3, c2: 0xf2c94c },
+  h7:  { kind: 'melon',  c1: 0xe8842f, c2: 0xf2a7c3 },
+  h8:  { kind: 'melon',  c1: 0x6a3d9e, c2: 0xe0b64a },
+  h9:  { kind: 'melon',  c1: 0x2a3a2a, c2: 0x3e7d3a },
+  h10: { kind: 'crown',  c1: 0xe8a53d, c2: 0x3e7d3a },
+  h11: { kind: 'bulb',   c1: 0xc8d0d8, c2: 0xe8483f, glow: 0.2 },
+  h12: { kind: 'gem',    c1: 0xcfe0f0, c2: 0x9ec4e0, glow: 0.4 },
+  h13: { kind: 'melon',  c1: 0x9ab8d0, c2: 0x4a90c2, glow: 0.3 },
+  h14: { kind: 'gem',    c1: 0x6ae0d0, c2: 0x8fbf6a, glow: 0.4 },
+  h15: { kind: 'flower', c1: 0xb35de0, c2: 0xe0b64a, glow: 0.3 },
+  h16: { kind: 'melon',  c1: 0xe0b64a, c2: 0xc98a12, glow: 0.4 },
+  h17: { kind: 'flame',  c1: 0xff8c1a, c2: 0xe0364a, glow: 0.6 },
+  h18: { kind: 'star',   c1: 0xb35de0, c2: 0x4a90c2, glow: 0.6 },
+  h19: { kind: 'gem',    c1: 0xf7f2e0, c2: 0xe0b64a, glow: 0.8, big: true },
+  h20: { kind: 'seed',   c1: 0xfff4d8, c2: 0xb35de0, glow: 1 },
+};
+
+export function createHybridCrop(id) {
+  const p = HYBRID_MODELS[id] ?? HYBRID_MODELS.h1;
+  const glowOpt = p.glow ? { emissive: p.c1, emissiveIntensity: p.glow, roughness: 0.35 } : {};
+  const g = new THREE.Group();
+  const m1 = mat(p.c1, glowOpt);
+  const m2 = mat(p.c2 ?? p.c1);
+  switch (p.kind) {
+    case 'blob': {
+      const a = mesh(new THREE.SphereGeometry(0.2, 8, 6), m1, -0.08, 0.18, 0);
+      const b = mesh(new THREE.SphereGeometry(0.15, 8, 6), m2, 0.13, 0.14, 0);
+      g.add(a, b);
+      break;
+    }
+    case 'bulb': {
+      const cone = mesh(new THREE.ConeGeometry(0.17, 0.3, 7), m1, 0, 0.14, 0);
+      cone.rotation.x = Math.PI;
+      g.add(cone, mesh(new THREE.SphereGeometry(0.14, 8, 6), m2, 0, 0.37, 0));
+      break;
+    }
+    case 'melon': {
+      const body = mesh(new THREE.SphereGeometry(0.24, 9, 7), m1, 0, 0.22, 0);
+      body.scale.y = 0.8;
+      g.add(body);
+      g.add(mesh(new THREE.TorusGeometry(0.24, 0.03, 6, 12), m2, 0, 0.22, 0).rotateX(Math.PI / 2));
+      g.add(mesh(new THREE.CylinderGeometry(0.025, 0.04, 0.1, 5), mat(0x6b8f3e), 0, 0.45, 0));
+      break;
+    }
+    case 'cluster': {
+      [[0, 0.32, 0.11], [-0.11, 0.16, 0.13], [0.11, 0.14, 0.12]].forEach(([x, y, r], k) =>
+        g.add(mesh(new THREE.SphereGeometry(r, 7, 6), k === 0 ? m2 : m1, x, y, 0)));
+      break;
+    }
+    case 'flower': {
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        const petal = mesh(new THREE.SphereGeometry(0.1, 6, 5), m1, Math.cos(a) * 0.14, 0.24, Math.sin(a) * 0.14);
+        petal.scale.set(1.2, 0.5, 0.7);
+        petal.rotation.y = -a;
+        g.add(petal);
+      }
+      g.add(mesh(new THREE.SphereGeometry(0.09, 7, 6), m2, 0, 0.26, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.2, 5), mat(0x6b8f3e), 0, 0.1, 0));
+      break;
+    }
+    case 'gem': {
+      const size = p.big ? 0.26 : 0.2;
+      const gem = mesh(new THREE.OctahedronGeometry(size), m1, 0, size + 0.1, 0);
+      gem.userData.spin = true;
+      g.add(gem, mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.08, 8), m2, 0, 0.04, 0));
+      break;
+    }
+    case 'star': {
+      const star = mesh(new THREE.DodecahedronGeometry(0.2), m1, 0, 0.32, 0);
+      star.userData.spin = true;
+      g.add(star, mesh(new THREE.TorusGeometry(0.16, 0.025, 6, 12), m2, 0, 0.12, 0).rotateX(Math.PI / 2));
+      break;
+    }
+    case 'flame': {
+      const f = mesh(new THREE.ConeGeometry(0.15, 0.4, 6), m1, 0, 0.28, 0);
+      f.userData.flame = true;
+      g.add(f, mesh(new THREE.SphereGeometry(0.12, 7, 6), m2, 0, 0.08, 0));
+      break;
+    }
+    case 'seed': {
+      const orb = mesh(new THREE.SphereGeometry(0.16, 10, 8), m1, 0, 0.28, 0);
+      orb.userData.spin = true;
+      const ring = mesh(new THREE.TorusGeometry(0.26, 0.03, 6, 16), mat(p.c2, { emissive: p.c2, emissiveIntensity: 0.6 }), 0, 0.28, 0);
+      ring.rotation.x = Math.PI / 2.4;
+      ring.userData.spin = true;
+      g.add(orb, ring);
+      break;
+    }
+  }
+  return g;
+}
+
 /* ================= 黑房子银行 ================= */
 
 export function createBank() {

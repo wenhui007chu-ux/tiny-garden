@@ -158,6 +158,38 @@ export const POND_DECORS = [
 ];
 export const pondDecorById = (id) => POND_DECORS.find(d => d.id === id);
 
+// 杂交室：两种指定品质的作物合成一个杂交作物，卖价极高（约原料 5 倍）
+// a/b: [作物id, 品质 0普通/1白银/2黄金]
+export const HYBRIDS = [
+  // —— 普通配对，入门款 ——
+  { id: 'h1',  name: '萝卜薯',   emoji: '🥣', a: ['sweetpot', 0], b: ['radish', 0],     sell: 60 },
+  { id: 'h2',  name: '土萝铃',   emoji: '🔔', a: ['potato', 0],   b: ['radish', 0],     sell: 160 },
+  { id: 'h3',  name: '菜薯球',   emoji: '🥎', a: ['cabbage', 0],  b: ['potato', 0],     sell: 300 },
+  { id: 'h4',  name: '茄菜锦',   emoji: '🎀', a: ['tomato', 0],   b: ['cabbage', 0],    sell: 450 },
+  { id: 'h5',  name: '金茄穗',   emoji: '🌾', a: ['corn', 0],     b: ['tomato', 0],     sell: 750 },
+  { id: 'h6',  name: '莓香穗',   emoji: '🍡', a: ['strawberry', 0], b: ['corn', 0],     sell: 1300 },
+  { id: 'h7',  name: '莓瓜宝',   emoji: '🧧', a: ['pumpkin', 0],  b: ['strawberry', 0], sell: 1900 },
+  { id: 'h8',  name: '紫金瓜',   emoji: '🟣', a: ['eggplant', 0], b: ['pumpkin', 0],    sell: 2900 },
+  { id: 'h9',  name: '墨玉瓜',   emoji: '🖤', a: ['watermelon', 0], b: ['eggplant', 0], sell: 4400 },
+  { id: 'h10', name: '菠西蜜',   emoji: '🍯', a: ['pineapple', 0], b: ['watermelon', 0], sell: 6200 },
+  // —— 白银配对 ——
+  { id: 'h11', name: '银穗茄',   emoji: '🥈', a: ['tomato', 1],   b: ['corn', 1],       sell: 1600 },
+  { id: 'h12', name: '银霜果',   emoji: '❄️', a: ['strawberry', 1], b: ['pumpkin', 1],  sell: 4000 },
+  { id: 'h13', name: '银波蜜',   emoji: '🌊', a: ['watermelon', 1], b: ['pineapple', 1], sell: 13000 },
+  { id: 'h14', name: '晶瓜灵',   emoji: '💠', a: ['crystal', 0],  b: ['pumpkin', 1],    sell: 7000 },
+  { id: 'h15', name: '晶辰花',   emoji: '💮', a: ['crystal', 0],  b: ['starfruit', 0],  sell: 12500 },
+  // —— 黄金与传说配对 ——
+  { id: 'h16', name: '鎏金瓜',   emoji: '🏵️', a: ['pumpkin', 2],  b: ['corn', 2],       sell: 5500 },
+  { id: 'h17', name: '金焰果',   emoji: '🔥', a: ['strawberry', 2], b: ['watermelon', 2], sell: 11000 },
+  { id: 'h18', name: '星虹晶',   emoji: '🌠', a: ['starfruit', 0], b: ['rainbow', 0],   sell: 20000 },
+  { id: 'h19', name: '神辉结晶', emoji: '💎', a: ['crystal', 2],  b: ['starfruit', 2],  sell: 40000 },
+  { id: 'h20', name: '创世之种', emoji: '🌟', a: ['rainbow', 2],  b: ['rainbow', 2],    sell: 75000 },
+];
+export const hybridById = (id) => HYBRIDS.find(h => h.id === id);
+export const HYBRID_POS = { x: -60, y: -60, z: 0 }; // 3D 实验室藏在岛下
+export const HYBRID_TIME = 600;  // 培养 10 分钟
+export const HYBRID_SLOTS = 5;   // 5 个玻璃培养罩
+
 // 天灾毁地：旱天晒裂、雨天水泡，随机 5~10 块，修复前不能种田
 export const DAMAGE = { min: 5, max: 10 };
 
@@ -396,6 +428,10 @@ export function keyInfo(key) {
   if (key.startsWith('k:')) {
     const dish = dishById(key.slice(2));
     return { seed: null, quality: undefined, processed: false, stunted: false, dish: true, price: dishPrice(dish), label: dish.name, icon: dish.emoji };
+  }
+  if (key.startsWith('h:')) {
+    const hy = hybridById(key.slice(2));
+    return { seed: null, quality: undefined, processed: false, stunted: false, hybrid: true, price: hy.sell, label: hy.name, icon: hy.emoji };
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');

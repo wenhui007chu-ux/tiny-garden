@@ -61,7 +61,8 @@ function pickTile(e) {
   const hits = raycaster.intersectObjects(
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
      ...game.mallMeshes, ...game.houseMeshes,
-     ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes, ...game.kitchenMeshes], false);
+     ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
+     ...game.kitchenMeshes, ...game.hybridLabMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -171,6 +172,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 料理工坊：点击打开料理面板
   if (hit.userData.kitchen) {
     ui.openKitchen();
+    return;
+  }
+
+  // 杂交室：点击打开合成面板
+  if (hit.userData.hybridLab) {
+    ui.openHybrid();
     return;
   }
 
