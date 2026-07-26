@@ -62,7 +62,7 @@ function pickTile(e) {
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
      ...game.mallMeshes, ...game.houseMeshes,
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
-     ...game.kitchenMeshes, ...game.hybridLabMeshes], false);
+     ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -181,6 +181,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
 
+  // 宠物间：点击进屋
+  if (hit.userData.petHouse) {
+    ui.openPetRoom();
+    return;
+  }
+
   // 图鉴大楼：点击进馆
   if (hit.userData.codex) {
     ui.openCodex();
@@ -291,6 +297,10 @@ function animate() {
     if (obj.userData.pestBug) {                                              // 虫子绕着作物打转
       obj.rotation.y = t * 1.6;
       obj.position.y = 0.75 + Math.sin(t * 3 + obj.id) * 0.06;
+    }
+    if (obj.userData.petIdle) {                                              // 展示台上的宠物轻轻晃动
+      obj.position.y = 0.35 + Math.sin(t * 1.6) * 0.035;
+      obj.rotation.y = Math.sin(t * 0.4) * 0.5;
     }
     if (obj.userData.pondAnim) {                                             // 水塘装饰的动法
       const a = obj.userData.pondAnim;

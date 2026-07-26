@@ -1,5 +1,5 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
-import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS } from './config.js';
+import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS } from './config.js';
 import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -45,6 +45,7 @@ export class UI {
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
+    $('#pet-close').addEventListener('click', () => this.exitPetRoom());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -120,6 +121,7 @@ export class UI {
         this.exitCodex();
         this.exitFishing();
         this.exitHybridLab();
+        this.exitPetRoom();
         return;
       }
       if (this.inside()) return; // 屋里/馆里不干农活
@@ -203,15 +205,16 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
     this.exitFishing(); // 干别的就等于收竿
     this.exitHybridLab();
+    this.exitPetRoom();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom; }
 
   /* ---------- 主动钓鱼 ---------- */
 
@@ -411,6 +414,130 @@ export class UI {
         btn.addEventListener('click', () => { this.codexChoosing = k; this.renderCodex(); });
         el.appendChild(btn);
       }
+      body.appendChild(el);
+    });
+  }
+
+  /* ---------- 宠物间 ---------- */
+
+  openPetRoom() {
+    this.closePanels();
+    if (!this.inPetRoom && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = PET_POS;
+      this.controls.target.set(p.x, p.y + 0.7, p.z - 1.2);
+      this.camera.position.set(p.x + 4.5, p.y + 4.5, p.z + 6);
+      this.controls.minDistance = 2.5;
+      this.controls.update();
+      this.inPetRoom = true;
+    }
+    $('#pet').classList.remove('hidden');
+    this.renderPetRoom();
+  }
+
+  exitPetRoom() {
+    $('#pet').classList.add('hidden');
+    if (!this.inPetRoom) return;
+    this.inPetRoom = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderPetRoom() {
+    const g = this.game;
+    const tabsBar = $('#pet-tabs');
+    tabsBar.innerHTML = '';
+    [['pets', '宠物'], ['decor', '房间装饰']].forEach(([id, label]) => {
+      const tab = document.createElement('button');
+      tab.className = 'shop-tab' + ((this.petTab ?? 'pets') === id ? ' active' : '');
+      tab.textContent = label;
+      tab.addEventListener('click', () => { this.petTab = id; this.renderPetRoom(); });
+      tabsBar.appendChild(tab);
+    });
+
+    const body = $('#pet-body');
+    body.innerHTML = '';
+    const tab = this.petTab ?? 'pets';
+
+    if (tab === 'pets') {
+      const ownedCount = PETS.filter(p => g.petsOwned[p.id]).length;
+      const shown = g.petShown ? petById(g.petShown) : null;
+      body.insertAdjacentHTML('beforeend',
+        `<div id="pet-progress">🐾 已收养 ${ownedCount} / ${PETS.length}<small style="display:block;font-size:12px;font-weight:400;margin-top:4px">${shown ? `正在展示：${shown.emoji} ${shown.name}` : '还没有宠物上台'}</small></div>`);
+      ['common', 'rare', 'epic', 'legend'].forEach(rar => {
+        PETS.filter(p => p.rarity === rar).forEach(p => {
+          const owned = !!g.petsOwned[p.id];
+          const onStage = g.petShown === p.id;
+          const el = document.createElement('div');
+          el.className = 'ws-slot' + (onStage ? ' done' : '');
+          el.innerHTML = `<div class="icon">${p.emoji}</div>
+            <div class="info"><b>${p.name}</b><p style="color:${POND_RARITY[rar].color}">${POND_RARITY[rar].name}${owned ? (onStage ? ' · 展示中' : ' · 已收养') : ` · ${p.cost}💰`}</p></div>`;
+          const btn = document.createElement('button');
+          if (!owned) {
+            btn.textContent = `${p.cost}💰`;
+            btn.addEventListener('click', () => { g.buyPet(p.id); this.renderPetRoom(); });
+          } else if (onStage) {
+            btn.textContent = '展示中';
+            btn.disabled = true;
+            btn.style.cssText = 'border-color:#b8b8b8;background:#f3f3f3;color:#888;cursor:default;';
+          } else {
+            btn.textContent = '上台';
+            btn.addEventListener('click', () => { g.showPet(p.id); this.renderPetRoom(); });
+          }
+          el.appendChild(btn);
+          body.appendChild(el);
+        });
+      });
+      return;
+    }
+
+    const ownedD = PET_DECORS.filter(d => g.petDecorsOwned[d.id]).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="pet-progress">🛋 房间装饰 ${ownedD} / ${PET_DECORS.length}</div>`);
+    PET_DECORS.forEach(d => {
+      const lv = g.petDecorsOwned[d.id] ?? 0;
+      const shown = lv ? Math.min(g.petDecorStyle[d.id] ?? lv, lv) : 0;
+      const el = document.createElement('div');
+      el.className = 'fur-row' + (lv ? '' : ' locked');
+      const desc = lv
+        ? `已解锁 Lv.${lv}/3 · 正在展示「${d.levelNames[shown - 1]}」`
+        : `${d.levelNames[0]} · ${d.cost}💰（之后可升到 3 级）`;
+      el.innerHTML = `<div class="icon">${d.emoji}</div>
+        <div class="info"><b>${d.name}</b><p>${desc}</p></div>`;
+      // 已解锁的外观随便换
+      if (lv >= 2) {
+        const chips = document.createElement('div');
+        chips.className = 'style-chips';
+        for (let k = 1; k <= lv; k++) {
+          const chip = document.createElement('button');
+          chip.textContent = d.levelNames[k - 1];
+          chip.className = k === shown ? 'active' : '';
+          chip.addEventListener('click', () => { g.setPetDecorStyle(d.id, k); this.renderPetRoom(); });
+          chips.appendChild(chip);
+        }
+        el.querySelector('.info').appendChild(chips);
+      }
+      const btn = document.createElement('button');
+      if (!lv) {
+        btn.textContent = `${d.cost}💰`;
+        btn.addEventListener('click', () => { g.buyPetDecor(d.id); this.renderPetRoom(); });
+      } else if (lv < 3) {
+        btn.textContent = `升级 ${d.up[lv - 1]}💰`;
+        btn.addEventListener('click', () => { g.upgradePetDecor(d.id); this.renderPetRoom(); });
+      } else {
+        btn.className = 'maxed';
+        btn.textContent = '满级';
+      }
+      el.appendChild(btn);
       body.appendChild(el);
     });
   }
@@ -1308,8 +1435,21 @@ export class UI {
         icon: '🏭', title: '工坊与料理',
         html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
           <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可制作，卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
-          <b>🧬 杂交室</b>：${HYBRIDS.length} 种杂交作物，两种指定品质的作物配对合成，卖价约原料 <b>×5</b>——全游戏最高倍率，顶级配方「创世之种」卖 75000💰。<br>
-          生长不良的作物两边都不收；罐头和料理不能二次加工。`,
+          生长不良的作物两边都不收；罐头和料理不能二次加工。<br>
+          <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。`,
+      },
+      {
+        icon: '🧬', title: '杂交室',
+        html: `点击玻璃穹顶实验室进入 3D 大厅，<b>${HYBRID_SLOTS} 个培养罩</b>可同时培养 ${HYBRID_SLOTS} 个杂交作物。<br>
+          流程：<b>选配方 → 消耗两种指定品质的作物 → 培养 ${HYBRID_TIME / 60} 分钟 → 取出进背包</b>。离线照常培养，罩里的作物会随进度慢慢长大。<br>
+          共 <b>${HYBRIDS.length} 种</b>杂交作物，卖价约为原料总价的 <b>5 倍</b>，是全游戏最高倍率的变现方式。<br>
+          杂交作物不能做罐头、不能收录图鉴、不能上展示台——生来就是为了卖大钱。<br>
+          <table class="wtable"><tr><th>杂交作物</th><th>配方</th><th>卖价</th></tr>
+          ${HYBRIDS.map(h => {
+            const nameOf = ([sid, q]) => `${['', '白银', '黄金'][q]}${seedById(sid).name}`;
+            const same = h.a[0] === h.b[0] && h.a[1] === h.b[1];
+            return `<tr><td>${h.emoji}${h.name}</td><td>${same ? `${nameOf(h.a)} ×2` : `${nameOf(h.a)} + ${nameOf(h.b)}`}</td><td>${h.sell}</td></tr>`;
+          }).join('')}</table>`,
       },
       {
         icon: '🎣', title: '水塘钓鱼',
@@ -1445,6 +1585,7 @@ export class UI {
     if (!$('#bank').classList.contains('hidden')) this.renderBank();
     if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
     if (!$('#hybrid').classList.contains('hidden')) this.renderHybrid();
+    if (!$('#pet').classList.contains('hidden')) this.renderPetRoom();
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);

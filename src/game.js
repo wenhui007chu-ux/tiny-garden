@@ -9,6 +9,7 @@ import {
   DISHES, dishById, ingredientKey, ROD, CASTNET,
   pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
+  PETS, petById, PET_DECORS, petDecorById, PET_POS,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -20,6 +21,7 @@ import {
   createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
+  createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -154,6 +156,24 @@ export class Game {
     this.group.add(this.hybridHall);
     this.hybridSlots = Array(HYBRID_SLOTS).fill(null); // { id, readyAt } 或 null
     this.hybridCropMeshes = Array(HYBRID_SLOTS).fill(null);
+
+    // 宠物间：岛上小屋 + 岛下 3D 展厅
+    const petHouse = createPetHouse();
+    petHouse.position.set(6.5, -0.51, 12.5);
+    petHouse.rotation.y = -0.3;
+    this.group.add(petHouse);
+    this.petHouseMeshes = [];
+    petHouse.traverse(o => { if (o.isMesh) this.petHouseMeshes.push(o); });
+
+    this.petHall = createPetInterior();
+    this.petHall.position.set(PET_POS.x, PET_POS.y, PET_POS.z);
+    this.group.add(this.petHall);
+    this.petsOwned = {};        // 买下的宠物
+    this.petShown = null;       // 当前展示的那只
+    this.petDecorsOwned = {};   // 房间装饰：id -> 已解锁最高等级(1~3)
+    this.petDecorStyle = {};    // 当前展示的外观等级（已解锁范围内随意切换）
+    this.petMesh = null;
+    this.petDecorMeshes = {};
 
     // 抓鱼水滩：左前方空地
     this.fishNets = Array(FISHING.slots).fill(null); // { readyAt } 或 null
@@ -697,6 +717,96 @@ export class Game {
     this.onState();
     this.save();
     return true;
+  }
+
+  /* ---------- 宠物间 ---------- */
+
+  buyPet(id) {
+    const p = petById(id);
+    if (!p || this.petsOwned[id]) return;
+    if (!this.spend(p.cost)) return;
+    this.petsOwned[id] = true;
+    if (!this.petShown) this.petShown = id; // 第一只自动上台
+    this.refreshPetRoom();
+    this.onToast(`${p.emoji} ${p.name}来到你家啦！`);
+    this.onState();
+    this.save();
+  }
+
+  showPet(id) {
+    if (!this.petsOwned[id]) return;
+    this.petShown = id;
+    this.refreshPetRoom();
+    this.onToast(`${petById(id).emoji} ${petById(id).name}上台展示中`);
+    this.onState();
+    this.save();
+  }
+
+  buyPetDecor(id) {
+    const d = petDecorById(id);
+    if (!d || this.petDecorsOwned[id]) return;
+    if (!this.spend(d.cost)) return;
+    this.petDecorsOwned[id] = 1;
+    this.refreshPetRoom();
+    this.onToast(`${d.emoji} ${d.name}摆进宠物间`);
+    this.onState();
+    this.save();
+  }
+
+  upgradePetDecor(id) {
+    const d = petDecorById(id);
+    const lv = this.petDecorsOwned[id] ?? 0;
+    if (!d || !lv) return;
+    if (lv >= 3) { this.onToast(`${d.name}已经是满级了`); return; }
+    if (!this.spend(d.up[lv - 1])) return;
+    this.petDecorsOwned[id] = lv + 1;
+    this.petDecorStyle[id] = lv + 1; // 刚升的新外观先亮出来
+    this.refreshPetRoom();
+    this.onToast(`${d.emoji} ${d.name}升级成「${d.levelNames[lv]}」！`);
+    this.onState();
+    this.save();
+  }
+
+  // 在已解锁的等级里切换外观，不花钱
+  setPetDecorStyle(id, lv) {
+    const d = petDecorById(id);
+    const max = this.petDecorsOwned[id] ?? 0;
+    if (!d || lv < 1 || lv > max) return;
+    this.petDecorStyle[id] = lv;
+    this.refreshPetRoom();
+    this.onToast(`${d.emoji} 换成了「${d.levelNames[lv - 1]}」`);
+    this.onState();
+    this.save();
+  }
+
+  refreshPetRoom() {
+    // 展示台上的宠物（同时只能一只）
+    if (this.petMesh) { this.petHall.remove(this.petMesh); this.petMesh = null; }
+    if (this.petShown && this.petsOwned[this.petShown]) {
+      const def = petById(this.petShown);
+      if (def) {
+        const m = createPetMesh(def);
+        m.position.set(0, 0.35, -1.6);
+        m.userData.petIdle = true; // 待机小动作
+        this.petHall.add(m);
+        this.petMesh = m;
+      }
+    }
+    // 房间装饰：按当前展示外观重建
+    PET_DECORS.forEach(d => {
+      const max = this.petDecorsOwned[d.id] ?? 0;
+      const lv = max > 0 ? Math.min(this.petDecorStyle[d.id] ?? max, max) : 0;
+      const cur = this.petDecorMeshes[d.id];
+      if (cur && cur.userData.lv === lv) return;
+      if (cur) { this.petHall.remove(cur); delete this.petDecorMeshes[d.id]; }
+      if (lv > 0) {
+        const m = createPetDecorMesh(d, lv);
+        m.userData.lv = lv;
+        m.position.set(d.pos[0], 0, d.pos[1]);
+        this.petHall.add(m);
+        this.petDecorMeshes[d.id] = m;
+      }
+    });
   }
 
   /* ---------- 杂交室 ---------- */
@@ -1327,6 +1437,7 @@ export class Game {
     this.refreshGallery();
     this.refreshPondDecors();
     this.refreshHybridStations();
+    this.refreshPetRoom();
   }
 
   /* ---------- 主循环 ---------- */
@@ -1419,6 +1530,10 @@ export class Game {
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
       hybridSlots: this.hybridSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
+      petsOwned: this.petsOwned,
+      petShown: this.petShown,
+      petDecorsOwned: this.petDecorsOwned,
+      petDecorStyle: this.petDecorStyle,
       clock: this.clock,
       windTimer: this.windTimer,
       drought: this.drought,
@@ -1532,6 +1647,14 @@ export class Game {
     this.refreshNets();
     this.pondOwned = data.pondOwned ?? {};
     this.pondPlaced = (data.pondPlaced ?? []).filter(id => pondDecorById(id)).slice(0, POND_MAX_PLACED);
+    this.petsOwned = data.petsOwned ?? {};
+    this.petShown = data.petShown && this.petsOwned[data.petShown] ? data.petShown : null;
+    this.petDecorsOwned = data.petDecorsOwned ?? {};
+    // 老存档里是 true，换算成 1 级
+    Object.keys(this.petDecorsOwned).forEach(k => {
+      if (this.petDecorsOwned[k] === true) this.petDecorsOwned[k] = 1;
+    });
+    this.petDecorStyle = data.petDecorStyle ?? {};
     // 培养罩：离线也照常培养
     (data.hybridSlots ?? []).forEach((s, k) => {
       if (s && k < this.hybridSlots.length && hybridById(s.id)) {

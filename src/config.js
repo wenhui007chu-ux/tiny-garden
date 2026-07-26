@@ -186,6 +186,52 @@ export const HYBRIDS = [
   { id: 'h20', name: '创世之种', emoji: '🌟', a: ['rainbow', 2],  b: ['rainbow', 2],    sell: 75000 },
 ];
 export const hybridById = (id) => HYBRIDS.find(h => h.id === id);
+// 宠物间：买断制，同时只能展示一只；房间装饰另计
+export const PET_POS = { x: 0, y: -60, z: 60 };
+export const PETS = [
+  // 普通
+  { id: 'chick',   name: '小鸡',     emoji: '🐤', rarity: 'common', cost: 200,   kind: 'chick',  c1: 0xf7d154, c2: 0xe8843f },
+  { id: 'bunny',   name: '小兔',     emoji: '🐰', rarity: 'common', cost: 300,   kind: 'bunny',  c1: 0xf5f0e6, c2: 0xf2a7c3 },
+  { id: 'duckling',name: '小鸭',     emoji: '🐥', rarity: 'common', cost: 260,   kind: 'chick',  c1: 0xf2c94c, c2: 0xe8a53d },
+  { id: 'piglet',  name: '小猪',     emoji: '🐷', rarity: 'common', cost: 400,   kind: 'piglet', c1: 0xf2a7c3, c2: 0xe08fa8 },
+  { id: 'lamb',    name: '小羊',     emoji: '🐑', rarity: 'common', cost: 450,   kind: 'lamb',   c1: 0xf5f0e6, c2: 0x9a8a7a },
+  // 稀有
+  { id: 'cat_o',   name: '橘猫',     rarity: 'rare', emoji: '🐱', cost: 900,   kind: 'cat',   c1: 0xe8942f, c2: 0xf5e0c0 },
+  { id: 'cat_b',   name: '黑猫',     rarity: 'rare', emoji: '🐈‍⬛', cost: 1000,  kind: 'cat',   c1: 0x3a3a44, c2: 0x6ae0a0 },
+  { id: 'dog_s',   name: '柴犬',     rarity: 'rare', emoji: '🐕', cost: 1100,  kind: 'dog',   c1: 0xd9a05a, c2: 0xf5f0e6 },
+  { id: 'fox',     name: '小狐狸',   rarity: 'rare', emoji: '🦊', cost: 1400,  kind: 'fox',   c1: 0xe8742f, c2: 0xf5f0e6 },
+  { id: 'panda',   name: '小熊猫',   rarity: 'rare', emoji: '🐼', cost: 1600,  kind: 'panda', c1: 0xf5f0e6, c2: 0x2a2a30 },
+  // 史诗
+  { id: 'owl',     name: '猫头鹰',   rarity: 'epic', emoji: '🦉', cost: 3000,  kind: 'owl',   c1: 0xa0794a, c2: 0xf2c94c },
+  { id: 'peacock', name: '孔雀',     rarity: 'epic', emoji: '🦚', cost: 3500,  kind: 'peacock', c1: 0x2a8a9a, c2: 0x4ac0a0 },
+  { id: 'deer',    name: '小鹿',     rarity: 'epic', emoji: '🦌', cost: 3200,  kind: 'deer',  c1: 0xc99a5a, c2: 0xf5f0e6 },
+  { id: 'wolf',    name: '雪狼',     rarity: 'epic', emoji: '🐺', cost: 4000,  kind: 'wolf',  c1: 0xc8d4e0, c2: 0x8a9aa8 },
+  { id: 'turtle_p',name: '仙龟',     rarity: 'epic', emoji: '🐢', cost: 3800,  kind: 'turtle',c1: 0x5c9b52, c2: 0xc9a05a },
+  // 传说
+  { id: 'dragon',  name: '幼龙',     rarity: 'legend', emoji: '🐲', cost: 12000, kind: 'dragon', c1: 0x4ac06a, c2: 0xe0b64a, glow: 0.4 },
+  { id: 'phoenix', name: '朱雀',     rarity: 'legend', emoji: '🔥', cost: 15000, kind: 'phoenix',c1: 0xf05a2a, c2: 0xf2c94c, glow: 0.6 },
+  { id: 'unicorn', name: '独角兽',   rarity: 'legend', emoji: '🦄', cost: 14000, kind: 'unicorn',c1: 0xf7f2ea, c2: 0xf2a7c3, glow: 0.4 },
+  { id: 'kirin',   name: '麒麟',     rarity: 'legend', emoji: '✨', cost: 18000, kind: 'kirin',  c1: 0xe0b64a, c2: 0x6ae0d0, glow: 0.6 },
+  { id: 'catgold', name: '招财猫',   rarity: 'legend', emoji: '🪙', cost: 20000, kind: 'cat',    c1: 0xe0b64a, c2: 0xf7f2ea, glow: 0.5 },
+];
+export const petById = (id) => PETS.find(p => p.id === id);
+
+// 宠物间的房间装饰（10 种，各自摆在固定位置）
+// 和小屋家具一样：买下后可升到 3 级，解锁的外观随时切换
+export const PET_DECORS = [
+  { id: 'bed',      name: '宠物窝',   emoji: '🛏️', cost: 300, up: [600, 1500],  kind: 'petbed',  pos: [-2.6, 1.4],  levelNames: ['草编窝', '软垫窝', '豪华四柱床'] },
+  { id: 'bowl',     name: '食碗',     emoji: '🥣', cost: 200, up: [400, 1000],  kind: 'bowl',    pos: [1.6, 1.8],   levelNames: ['塑料碗', '陶瓷双碗', '自动喂食器'] },
+  { id: 'ball',     name: '毛线球',   emoji: '🧶', cost: 150, up: [300, 750],   kind: 'ball',    pos: [2.4, 0.2],   levelNames: ['小线球', '双色线球', '逗猫棒套装'] },
+  { id: 'tree',     name: '猫爬架',   emoji: '🪜', cost: 900, up: [1800, 4500], kind: 'cattree', pos: [-3.2, -1.6], levelNames: ['单层架', '双层架', '顶天猫别墅'] },
+  { id: 'plant',    name: '观叶盆栽', emoji: '🪴', cost: 400, up: [800, 2000],  kind: 'petplant',pos: [3.2, -1.8],  levelNames: ['小盆栽', '龟背竹', '室内绿植墙'] },
+  { id: 'rug',      name: '圆地毯',   emoji: '⭕', cost: 350, up: [700, 1750],  kind: 'petrug',  pos: [0, 0.6],     levelNames: ['素色垫', '双色圆毯', '奢华绒毯'] },
+  { id: 'window',   name: '猫窗台',   emoji: '🪟', cost: 700, up: [1400, 3500], kind: 'perch',   pos: [-4.2, -3.4], levelNames: ['木搁板', '软垫窗台', '全景观景台'] },
+  { id: 'fountain', name: '饮水机',   emoji: '⛲', cost: 600, up: [1200, 3000], kind: 'petfount',pos: [2.9, 2.6],   levelNames: ['小水盆', '循环饮水机', '三层流水泉'] },
+  { id: 'toybox',   name: '玩具箱',   emoji: '🧸', cost: 500, up: [1000, 2500], kind: 'toybox',  pos: [-1.4, 2.8],  levelNames: ['小木箱', '玩具满箱', '游乐架'] },
+  { id: 'lamp',     name: '暖光灯',   emoji: '💡', cost: 800, up: [1600, 4000], kind: 'petlamp', pos: [4.0, 0.8],   levelNames: ['小夜灯', '落地暖灯', '水晶吊灯'] },
+];
+export const petDecorById = (id) => PET_DECORS.find(d => d.id === id);
+
 export const HYBRID_POS = { x: -60, y: -60, z: 0 }; // 3D 实验室藏在岛下
 export const HYBRID_TIME = 600;  // 培养 10 分钟
 export const HYBRID_SLOTS = 5;   // 5 个玻璃培养罩
