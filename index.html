@@ -103,6 +103,21 @@
 
   <div id="hint">🌱 选择种子种下 → 💧 浇水 → 等待成熟 → 🖐 点击收获卖钱</div>
 
+  <div id="dead-overlay" class="hidden">
+    <div id="dead-card">
+      <div id="dead-emoji">💀</div>
+      <b>你毒发身亡了</b>
+      <p>拍虫的时候被咬了一口，没来得及解毒。<br>躺一会儿就能复活，这期间什么都干不了。</p>
+      <div id="dead-timer">复活倒计时 90 秒</div>
+    </div>
+  </div>
+
+  <div id="poison-hud" class="hidden">
+    <b>☠️ 中毒！</b>
+    <span id="poison-timer">60</span> 秒内用 💉 解毒剂，否则死亡
+    <button id="poison-use">💉 立刻解毒</button>
+  </div>
+
   <div id="afk-overlay" class="hidden">
     <div id="afk-card">
       <div id="afk-emoji">😴</div>

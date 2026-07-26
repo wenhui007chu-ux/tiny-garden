@@ -131,6 +131,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   downPos = null;
   if (moved > 6) return; // 拖动视角，不算点击
   if (game.paused) return; // 挂机中一切操作无效
+  if (game.isDead()) return; // 死亡期间什么都干不了
   if (ui.inside()) return; // 屋里/馆里点不到菜园
 
   // 赤手拍虫：点到虫子就免费拍掉，优先级最高
@@ -329,6 +330,9 @@ function animate() {
     }
     if (obj.userData.lampBulb) obj.material.emissiveIntensity = 0.3 + (1 - f) * 1.2;
   });
+
+  // 死亡期间连视角都不能转
+  controls.enabled = !game.isDead() && !dragging;
 
   // 昼夜光照渐变（暴雨时天光压暗）
   const gloom = game.rain ? 0.55 : 1;

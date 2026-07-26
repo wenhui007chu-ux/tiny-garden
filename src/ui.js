@@ -1,4 +1,4 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS } from './config.js';
 import { music } from './music.js';
 
@@ -69,6 +69,12 @@ export class UI {
     // 左上角时钟
     this.updateClock();
     setInterval(() => this.updateClock(), 1000);
+    // 中毒/死亡状态显示
+    $('#poison-use').addEventListener('click', () => {
+      if ((this.game.items.antidote ?? 0) > 0) this.game.useItem('antidote');
+      else this.toast('没有解毒剂！去商场买（20💰）');
+    });
+    setInterval(() => this.updateHealth(), 250);
     // 工具栏保存布局按钮
     $('#save-layout-btn').addEventListener('click', () => this.game.saveLayout());
     // 设置菜单：音乐开关 + 提示开关
@@ -112,6 +118,7 @@ export class UI {
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return; // 正在输入金额时快捷键不抢戏
       if (e.repeat || this.game.paused) return; // 挂机中快捷键也冻结
+      if (this.game.isDead()) return;           // 躺着呢，什么都干不了
       const k = e.key.toLowerCase();
       if (k === 'escape') {
         $('#quick-menu').classList.add('hidden');
@@ -1429,7 +1436,10 @@ export class UI {
         icon: '🐛', title: '虫害',
         html: `作物成熟时 <b>${pct(PEST.chance)}</b> 概率生虫（头顶飘着小甲虫）。<br>
           不处理就收 → 变生长不良半价。<br>
-          <b>直接点击虫子免费拍掉</b>；🧴 杀虫剂（${itemById('pesticide').cost}💰）一键清光全场。`,
+          <b>直接点击虫子免费拍掉</b>；🧴 杀虫剂（${itemById('pesticide').cost}💰）一键清光全场。<br>
+          ⚠️ <b>徒手拍虫有风险</b>：每次 ${Math.round(POISON.chance * 100)}% 概率被咬中毒！中毒后必须在 <b>${POISON.timeout} 秒</b>内用 💉 解毒剂（${itemById('antidote').cost}💰），
+          否则毒发身亡，要躺 <b>${POISON.reviveTime} 秒</b>才能复活——这期间点不了、按不了，连视角都转不了。<br>
+          想省心就用杀虫剂，想省钱就随身带几支解毒剂。`,
       },
       {
         icon: '🏭', title: '工坊与料理',
@@ -1566,6 +1576,25 @@ export class UI {
       row.append(once, loop);
       menu.appendChild(row);
     });
+  }
+
+  /* ---------- 中毒与死亡显示 ---------- */
+
+  updateHealth() {
+    const g = this.game;
+    const poisoned = g.isPoisoned();
+    const dead = g.isDead();
+    $('#poison-hud').classList.toggle('hidden', !poisoned);
+    if (poisoned) {
+      $('#poison-timer').textContent = g.poisonLeft();
+      const n = g.items.antidote ?? 0;
+      $('#poison-use').textContent = n > 0 ? `💉 立刻解毒（${n}）` : '💉 没有解毒剂！';
+    }
+    $('#dead-overlay').classList.toggle('hidden', !dead);
+    if (dead) {
+      $('#dead-timer').textContent = `复活倒计时 ${g.reviveLeft()} 秒`;
+      this.closePanels(); // 死了就把面板全关掉
+    }
   }
 
   /* ---------- 时钟 ---------- */

@@ -98,6 +98,10 @@ export const ITEMS = [
     desc: '一键清光全场虫害（也可以直接点作物上的虫子免费拍掉）',
   },
   {
+    id: 'antidote', name: '解毒剂', emoji: '💉', cost: 20,
+    desc: '徒手拍虫有 5% 中毒风险，中毒后 60 秒内必须用它解毒，否则死亡',
+  },
+  {
     id: 'rod', name: '鱼竿', emoji: '🎣', cost: 100, once: true,
     desc: '永久渔具：点击水塘进入钓鱼模式安心垂钓，每分钟 90% 概率钓到 5~10💰',
   },
@@ -241,6 +245,9 @@ export const DAMAGE = { min: 5, max: 10 };
 
 // 虫害：作物成熟那一刻 15% 概率生虫，不打药收上来就是生长不良
 export const PEST = { chance: 0.15 };
+
+// 徒手拍虫的代价：5% 概率中毒，60 秒内不解毒就死亡，复活要躺 90 秒
+export const POISON = { chance: 0.05, timeout: 60, reviveTime: 90 };
 
 // 抓鱼水滩：最多同时摆 5 张网，是亏是赚全看脸
 export const FISHING = { slots: 5, time: 1200, rewardMin: 50, rewardMax: 150 };

@@ -5,7 +5,7 @@ import {
   QUALITIES, GOLD_CHANCE, SILVER_CHANCE, WORKSHOP, keyInfo,
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
-  CODEX_POS, CODEX_QUALITIES, PEST,
+  CODEX_POS, CODEX_QUALITIES, PEST, POISON,
   DISHES, dishById, ingredientKey, ROD, CASTNET,
   pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
@@ -43,6 +43,8 @@ export class Game {
     this.savedLayouts = []; // 玩家手动保存的种植布局 [{name, layout}]，供一键播种
     this.layoutSeq = 0;
     this.paused = false;    // 挂机模式：整个世界暂停
+    this.poisonUntil = 0;   // 中毒倒计时：到点还没解毒就死
+    this.deadUntil = 0;     // 死亡复活倒计时：这期间什么都干不了
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
@@ -291,7 +293,33 @@ export class Game {
     if (t.damaged === 'wet') t.mesh.add(createWetLayer());
   }
 
-  // 赤手拍虫：直接点掉某块地作物上的虫子，免费
+  /* ---------- 中毒与死亡 ---------- */
+
+  isPoisoned() { return this.poisonUntil > this.time; }
+  isDead() { return this.deadUntil > this.time; }
+  poisonLeft() { return Math.max(0, Math.ceil(this.poisonUntil - this.time)); }
+  reviveLeft() { return Math.max(0, Math.ceil(this.deadUntil - this.time)); }
+  // 中毒或死亡期间不能干活
+  incapacitated() { return this.isPoisoned() || this.isDead(); }
+
+  useAntidote() {
+    if (!this.isPoisoned()) { this.onToast('你没中毒，解毒剂先收着吧'); return false; }
+    this.poisonUntil = 0;
+    this.onToast('💉 解毒成功！捡回一条命');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  die() {
+    this.poisonUntil = 0;
+    this.deadUntil = this.time + POISON.reviveTime;
+    this.onToast('💀 毒发身亡…等着复活吧');
+    this.onState();
+    this.save();
+  }
+
+  // 赤手拍虫：免费，但有 5% 概率中毒
   swatPest(idx) {
     const t = this.tiles[idx];
     if (!t?.plant?.pest) return false;
@@ -299,7 +327,13 @@ export class Game {
     const bug = t.plant.mesh?.children.find(c => c.userData.pestBug);
     if (bug) t.plant.mesh.remove(bug);
     const seed = seedById(t.plant.seedId);
-    this.onToast(`👏 啪！拍掉了${seed.emoji}${seed.name}上的虫子`);
+    if (Math.random() < POISON.chance) {
+      this.poisonUntil = this.time + POISON.timeout;
+      this.onToast(`☠️ 拍虫时被咬了！${POISON.timeout} 秒内用 💉 解毒剂，否则死亡`);
+      this.onState();
+    } else {
+      this.onToast(`👏 啪！拍掉了${seed.emoji}${seed.name}上的虫子`);
+    }
     this.save();
     return true;
   }
@@ -587,6 +621,7 @@ export class Game {
     const ok = id === 'fertilizer' ? this.useFertilizer()
       : id === 'restorer' ? this.useRestorer()
       : id === 'pesticide' ? this.usePesticide()
+      : id === 'antidote' ? this.useAntidote()
       : this.useLuck();
     if (!ok) return;
     this.items[id] -= 1;
@@ -1472,6 +1507,16 @@ export class Game {
       }
     }
 
+    // 中毒到点没解毒 → 死亡
+    if (this.poisonUntil && this.time >= this.poisonUntil) this.die();
+    // 复活
+    if (this.deadUntil && this.time >= this.deadUntil) {
+      this.deadUntil = 0;
+      this.onToast('✨ 复活了！以后拍虫小心点');
+      this.onState();
+      this.save();
+    }
+
     this.tickFishing(dt);
 
     const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
@@ -1541,6 +1586,8 @@ export class Game {
       savedLayouts: this.savedLayouts,
       layoutSeq: this.layoutSeq,
       paused: this.paused,
+      poisonLeft: Math.max(0, this.poisonUntil - this.time),
+      deadLeft: Math.max(0, this.deadUntil - this.time),
       bank: this.bank,
       codex: this.codex,
     };
@@ -1571,6 +1618,13 @@ export class Game {
       ?? (data.lastLayout?.some(Boolean) ? [{ name: '上次布局', layout: data.lastLayout }] : []);
     this.layoutSeq = data.layoutSeq ?? this.savedLayouts.length;
     this.paused = data.paused ?? false;
+    // 中毒/死亡倒计时：离线时间照常流逝
+    const offPoison = (data.poisonLeft ?? 0) - (this.paused ? 0 : Math.max(0, (Date.now() - (data.savedAt ?? Date.now())) / 1000));
+    const offDead = (data.deadLeft ?? 0) - (this.paused ? 0 : Math.max(0, (Date.now() - (data.savedAt ?? Date.now())) / 1000));
+    this.poisonUntil = offPoison > 0 ? this.time + offPoison : 0;
+    // 离线期间毒发了就直接进入（剩余的）死亡状态
+    this.deadUntil = offDead > 0 ? this.time + offDead
+      : (data.poisonLeft > 0 && offPoison <= 0 ? this.time + Math.max(0, POISON.reviveTime + offPoison) : 0);
     // 挂机状态下关的游戏，离线时间不生效
     const elapsed = this.paused ? 0 : Math.max(0, (Date.now() - (data.savedAt ?? Date.now())) / 1000);
     this.drought = data.drought ?? false;
