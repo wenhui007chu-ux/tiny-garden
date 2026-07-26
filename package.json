@@ -1,17 +1,23 @@
 {
-  "name": "farmingminigame",
+  "name": "tiny-garden",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "手提小菜园 —— 一款 2.5D 低模玩具盒风格的种田经营游戏，全部 3D 模型由代码生成",
+  "author": "Jerry",
+  "license": "ISC",
+  "type": "module",
+  "keywords": [
+    "farming-game",
+    "three.js",
+    "2.5d",
+    "low-poly",
+    "incremental",
+    "vite"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "three": "^0.185.1"
   },
