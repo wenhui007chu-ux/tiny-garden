@@ -1,5 +1,7 @@
 node_modules/
 dist/
 debug-shot.png
-save-backup.json
+
+# 存档：主备份 save-backup.json 跟着 git 走，方便换电脑接着玩
+# saves/ 是每 10 分钟轮换的历史副本，数量多且只用于本机灾难恢复，不上云
 saves/
