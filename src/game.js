@@ -10,6 +10,7 @@ import {
   pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
   PETS, petById, PET_DECORS, petDecorById, PET_POS,
+  FURNITURE_MAX_LEVEL,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -750,7 +751,7 @@ export class Game {
       if (this.inventory[key] <= 0) delete this.inventory[key];
     });
     this.cookSlots[slot] = { id: dishId, readyAt: this.time + COOK_TIME };
-    this.onToast(`🍳 ${dish.emoji}${dish.name}下锅了，${COOK_TIME} 秒后出锅`);
+    this.onToast(`🍳 ${dish.emoji}${dish.name}下锅了，${COOK_TIME / 60} 分钟后出锅`);
     this.onState();
     this.save();
     return true;
@@ -806,7 +807,7 @@ export class Game {
     const d = petDecorById(id);
     const lv = this.petDecorsOwned[id] ?? 0;
     if (!d || !lv) return;
-    if (lv >= 3) { this.onToast(`${d.name}已经是满级了`); return; }
+    if (lv >= FURNITURE_MAX_LEVEL) { this.onToast(`${d.name}已经是满级了`); return; }
     if (!this.spend(d.up[lv - 1])) return;
     this.petDecorsOwned[id] = lv + 1;
     this.petDecorStyle[id] = lv + 1; // 刚升的新外观先亮出来
@@ -1150,7 +1151,7 @@ export class Game {
     const f = furnitureById(id);
     const lv = this.furniture[id] ?? 0;
     if (!f || !lv) return;
-    if (lv >= 3) { this.onToast(`${f.name}已经是满级了`); return; }
+    if (lv >= FURNITURE_MAX_LEVEL) { this.onToast(`${f.name}已经是满级了`); return; }
     const cost = f.up[lv - 1];
     if (!this.spend(cost)) return;
     this.furniture[id] = lv + 1;
@@ -1330,7 +1331,7 @@ export class Game {
     if (this.inventory[key] <= 0) delete this.inventory[key];
     this.workshop[slot] = { key, readyAt: this.time + WORKSHOP.time };
     const info = keyInfo(key);
-    this.onToast(`${info.icon}${info.label} ×${need} 开始加工 ⏳${WORKSHOP.time}秒`);
+    this.onToast(`${info.icon}${info.label} ×${need} 开始加工 ⏳${WORKSHOP.time / 60}分钟`);
     this.onState();
     this.save();
   }

@@ -1029,7 +1029,151 @@ const petDecorKinds = {
   },
 };
 
+// 传说光环：所有 lv5 顶配共用的特效——一圈悬浮旋转的金色星芒 + 一盏暖光
+function legendHalo(g, y = 1.7, r = 0.85, n = 6) {
+  const lamp = new THREE.PointLight(0xffe6a0, 0.9, 7, 2);
+  lamp.position.set(0, y, 0);
+  g.add(lamp);
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    const star = mesh(new THREE.OctahedronGeometry(0.075),
+      mat(0xfff2c8, { emissive: 0xffcf5a, emissiveIntensity: 1, transparent: true, opacity: 0.95 }),
+      Math.cos(a) * r, y + Math.sin(k * 1.7) * 0.16, Math.sin(a) * r);
+    star.userData.spin = true;
+    g.add(star);
+  }
+}
+
+// ===== 宠物间装饰 第 4/5 级「顶配」造型（全新建模，不复用低级外观）=====
+// lv4 = 鎏金豪华实体；lv5 = 换发光金质 + 顶部星空/水晶点缀 + 传说光环
+const PET_HALO_Y = { petbed: 1.5, bowl: 0.95, ball: 1.15, cattree: 2.95, petplant: 1.8, petrug: 0.6, perch: 2.55, petfount: 1.4, toybox: 1.05, petlamp: 2.35 };
+function petDecorLux(kind, lv) {
+  const g = new THREE.Group();
+  const lv5 = lv === 5;
+  const GOLD = 0xe0b64a;
+  // 主体材质：lv4 磨砂金，lv5 发光金
+  const body = () => mat(lv5 ? 0xf2d98a : GOLD, lv5 ? { emissive: 0xc79a2a, emissiveIntensity: 0.35, metalness: 0.3, roughness: 0.4 } : { metalness: 0.25, roughness: 0.5 });
+  const gem = (c) => mat(c, { emissive: c, emissiveIntensity: lv5 ? 0.7 : 0.3, transparent: true, opacity: 0.9 });
+  switch (kind) {
+    case 'petbed': { // 皇家顶篷大床 / 星空悬浮床
+      g.add(mesh(new THREE.BoxGeometry(1.5, 0.18, 1.15), body(), 0, 0.09, 0));
+      g.add(mesh(new THREE.BoxGeometry(1.32, 0.16, 0.96), mat(lv5 ? 0x9ec8ff : 0xf2d4d8, lv5 ? { emissive: 0x4a90c2, emissiveIntensity: 0.45 } : {}), 0, 0.25, 0));
+      g.add(mesh(new THREE.BoxGeometry(0.55, 0.13, 0.5), mat(0xffffff), -0.4, 0.37, 0));
+      [[-0.68, -0.5], [0.68, -0.5], [-0.68, 0.5], [0.68, 0.5]].forEach(([x, z]) =>
+        g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.15, 8), body(), x, 0.62, z)));
+      g.add(mesh(new THREE.BoxGeometry(1.62, 0.1, 1.27), body(), 0, 1.18, 0));
+      if (lv5) g.add(mesh(new THREE.ConeGeometry(0.95, 0.55, 4), mat(0x5a3f9e, { emissive: 0x3a2a7e, emissiveIntensity: 0.55 }), 0, 1.5, 0).rotateY(0.78));
+      break;
+    }
+    case 'bowl': { // 智能餐台 / 黄金自助环
+      g.add(mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.1, 16), body(), 0, 0.05, 0));
+      const n = 4;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        g.add(mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.12, 10), body(), Math.cos(a) * 0.3, 0.16, Math.sin(a) * 0.3));
+        g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.04, 10), gem([0xd9a05a, 0x7ec4e8, 0xe0648a, 0x6ac08a][k]), Math.cos(a) * 0.3, 0.22, Math.sin(a) * 0.3));
+      }
+      g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.45, 8), body(), 0, 0.32, 0));
+      g.add(mesh(new THREE.SphereGeometry(0.14, 10, 8), gem(lv5 ? 0x6ae0ff : 0xbfe3f0), 0, 0.6, 0));
+      break;
+    }
+    case 'ball': { // 弹簧逗猫乐园 / 激光旋转塔
+      g.add(mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.08, 16), body(), 0, 0.04, 0));
+      [[-0.22, 0xe0648a], [0.2, 0x5aa8d0], [0.05, 0x6ac08a]].forEach(([x, c], k) => {
+        const b = mesh(new THREE.SphereGeometry(0.13, 9, 7), gem(c), x, 0.18 + k * 0.02, (k - 1) * 0.15);
+        b.userData.spin = true; g.add(b);
+      });
+      const pole = mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.9, 6), body(), 0.28, 0.5, 0.1); pole.rotation.z = 0.35; g.add(pole);
+      const tip = mesh(new THREE.OctahedronGeometry(0.1), gem(lv5 ? 0xff5a5a : 0xf2c94c), 0.5, 0.86, 0.1); tip.userData.spin = true; g.add(tip);
+      break;
+    }
+    case 'cattree': { // 三层猫堡 / 发光摩天猫塔
+      g.add(mesh(new THREE.CylinderGeometry(0.55, 0.62, 0.12, 14), body(), 0, 0.06, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.7, 10), body(), 0, 1.4, 0));
+      [[0.75, 0.35], [1.5, -0.32], [2.3, 0.25]].forEach(([y, x], k) => {
+        g.add(mesh(new THREE.BoxGeometry(0.7, 0.1, 0.7), body(), x, y, 0));
+        if (k === 1) g.add(mesh(new THREE.SphereGeometry(0.3, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), mat(lv5 ? 0xffb0c8 : 0xe0b0a0, lv5 ? { emissive: 0xc06080, emissiveIntensity: 0.4 } : {}), x, y + 0.05, 0));
+        else g.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.1, 12), gem(k === 0 ? 0xf0a0b8 : 0x9ed4f0), x, y + 0.1, 0));
+      });
+      g.add(mesh(new THREE.ConeGeometry(0.4, 0.5, 8), body(), 0.25, 2.75, 0));
+      break;
+    }
+    case 'petplant': { // 巨型盆景 / 发光仙境花树
+      g.add(mesh(new THREE.CylinderGeometry(0.42, 0.32, 0.4, 12), body(), 0, 0.2, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.3, 6), mat(0x8a5a35), 0, 1.0, 0));
+      [[0, 1.7, 0, 0.5], [0.35, 1.45, 0.1, 0.32], [-0.32, 1.5, -0.1, 0.3], [0.1, 1.95, 0, 0.28]].forEach(([x, y, z, r]) =>
+        g.add(mesh(new THREE.SphereGeometry(r, 8, 7), mat(lv5 ? 0x8fe0a0 : 0x4a9a52, lv5 ? { emissive: 0x2a8a4a, emissiveIntensity: 0.4 } : {}), x, y, z)));
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        g.add(mesh(new THREE.SphereGeometry(0.07, 7, 6), gem(lv5 ? 0xff9ad0 : 0xf2a7c3), Math.cos(a) * 0.42, 1.6 + Math.sin(k) * 0.2, Math.sin(a) * 0.42));
+      }
+      break;
+    }
+    case 'petrug': { // 星纹波斯毯 / 魔法光环毯
+      const rings = [[1.35, 0xa8433a], [1.05, GOLD], [0.75, 0xe8b4a0], [0.42, 0xf2d4c4]];
+      rings.forEach(([r, c], k) => g.add(mesh(new THREE.CylinderGeometry(r, r, 0.04, 24), lv5 && k % 2 === 0 ? gem(c) : mat(c), 0, 0.02 + k * 0.006, 0)));
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        g.add(mesh(new THREE.BoxGeometry(0.12, 0.02, 0.03), body(), Math.cos(a) * 1.4, 0.02, Math.sin(a) * 1.4).rotateY(-a));
+      }
+      if (lv5) for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const rune = mesh(new THREE.TorusGeometry(0.08, 0.02, 5, 8), gem(0x9ed4f0), Math.cos(a) * 0.9, 0.06, Math.sin(a) * 0.9);
+        rune.rotation.x = Math.PI / 2; rune.userData.spin = true; g.add(rune);
+      }
+      break;
+    }
+    case 'perch': { // 豪华飘窗 / 全景玻璃观景塔
+      [[-0.85], [0.85]].forEach(([x]) => g.add(mesh(new THREE.BoxGeometry(0.12, 1.0, 0.12), body(), x, 0.5, 0)));
+      g.add(mesh(new THREE.BoxGeometry(2.0, 0.14, 0.6), body(), 0, 1.0, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.14, 14), mat(lv5 ? 0xffb0c8 : 0xf2d4d8, lv5 ? { emissive: 0xc06080, emissiveIntensity: 0.4 } : {}), 0, 1.14, 0));
+      g.add(mesh(new THREE.BoxGeometry(2.1, 1.7, 0.08), gem(lv5 ? 0x9ec8ff : 0xbfe3f0), 0, 2.0, -0.3));
+      g.add(mesh(new THREE.BoxGeometry(2.15, 0.1, 0.14), body(), 0, 2.85, -0.3));
+      g.add(mesh(new THREE.BoxGeometry(0.75, 0.12, 0.5), body(), 0.62, 1.55, 0.05));
+      break;
+    }
+    case 'petfount': { // 四层叠泉 / 水晶发光泉
+      const tiers = [[0.4, 0.1], [0.3, 0.55], [0.22, 0.9], [0.15, 1.2]];
+      tiers.forEach(([r, y]) => {
+        g.add(mesh(new THREE.CylinderGeometry(r, r + 0.04, 0.1, 12), body(), 0, y, 0));
+        g.add(mesh(new THREE.CylinderGeometry(r - 0.04, r - 0.04, 0.04, 12), gem(0x7ec4e8), 0, y + 0.07, 0));
+      });
+      g.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.15, 8), body(), 0, 0.7, 0));
+      const top = mesh(new THREE.OctahedronGeometry(0.14), gem(lv5 ? 0x6ae0ff : 0x9ed4f0), 0, 1.4, 0); top.userData.spin = true; g.add(top);
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; g.add(mesh(new THREE.SphereGeometry(0.04, 5, 4), gem(0x9ed4f0), Math.cos(a) * 0.3, 0.3, Math.sin(a) * 0.3)); }
+      break;
+    }
+    case 'toybox': { // 猫咪游乐场 / 梦幻旋转木马
+      g.add(mesh(new THREE.CylinderGeometry(0.6, 0.66, 0.12, 16), body(), 0, 0.06, 0));
+      const tunnel = mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 14, 1, true), mat(lv5 ? 0x8fe0b0 : 0x6ac08a, { side: 2, ...(lv5 ? { emissive: 0x3a9a6a, emissiveIntensity: 0.35 } : {}) }), 0.7, 0.35, 0); tunnel.rotation.z = Math.PI / 2; g.add(tunnel);
+      g.add(mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 8), body(), -0.35, 0.55, 0));
+      const roof = mesh(new THREE.ConeGeometry(0.5, 0.4, 8), gem(0xe0648a), -0.35, 1.15, 0); g.add(roof);
+      [[0, 0xe0648a], [1, 0x5aa8d0], [2, 0xf2c94c]].forEach(([k, c]) => {
+        const a = k * 2.1; const h = mesh(new THREE.SphereGeometry(0.1, 8, 6), gem(c), -0.35 + Math.cos(a) * 0.4, 0.75, Math.sin(a) * 0.4);
+        h.userData.spin = true; g.add(h);
+      });
+      break;
+    }
+    case 'petlamp': { // 黄金枝形灯 / 星河水晶吊灯
+      g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.55, 5), body(), 0, 2.1, 0));
+      g.add(mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 20), body(), 0, 1.75, 0).rotateX(Math.PI / 2));
+      g.add(mesh(new THREE.TorusGeometry(0.24, 0.045, 8, 16), body(), 0, 1.95, 0).rotateX(Math.PI / 2));
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        const cr = mesh(new THREE.OctahedronGeometry(0.08), mat(0xf7f2ea, { emissive: lv5 ? 0x9ed4ff : 0xffd8a0, emissiveIntensity: lv5 ? 0.9 : 0.6, transparent: true, opacity: 0.9 }), Math.cos(a) * 0.42, 1.55 - (k % 3) * 0.13, Math.sin(a) * 0.42);
+        cr.userData.spin = true; g.add(cr);
+      }
+      g.add(mesh(new THREE.SphereGeometry(0.15, 10, 8), mat(0xffe8b8, { emissive: 0xffc060, emissiveIntensity: 1 }), 0, 1.5, 0));
+      const l = new THREE.PointLight(lv5 ? 0xbfe0ff : 0xffd8a0, 1.2, 10, 2); l.position.set(0, 1.55, 0); g.add(l);
+      break;
+    }
+  }
+  if (lv5) legendHalo(g, PET_HALO_Y[kind] ?? 1.6, kind === 'petrug' ? 1.0 : 0.8);
+  return g;
+}
+
 export function createPetDecorMesh(def, lv = 1) {
+  if (lv >= 4) return petDecorLux(def.kind, lv);
   return petDecorKinds[def.kind](lv);
 }
 
@@ -2209,7 +2353,280 @@ const furnitureBuilders = {
   },
 };
 
+// ===== 小屋家具 第 4/5 级「顶配」造型（全新建模，不复用低级外观）=====
+// lv4 = 鎏金豪华放大版；lv5 = 发光金质 + 幻彩点缀 + 传说光环。均按「正面朝 +Z」建模，贴墙旋转交给外层。
+const FURN_HALO_Y = { bed: 1.75, wardrobe: 2.9, mirror: 2.7, teddy: 1.9, fire: 2.0, art: 3.0, sofa: 1.5, rug: 0.6, teatable: 1.2, tv: 2.5, floorlamp: 2.35, aquarium: 1.8, shelf: 3.0, clock: 3.0, statue: 2.2, safe: 2.6, piano: 1.9, harp: 2.5, table: 1.5, kitchen: 2.3, cabinet: 2.8, rocker: 2.0, plant: 2.3, bath: 1.4, arcade: 2.5, telescope: 2.1 };
+function furnitureLux(id, lv) {
+  const g = new THREE.Group();
+  const lv5 = lv === 5;
+  const GOLD = 0xe0b64a;
+  const body = () => mat(lv5 ? 0xf2d98a : GOLD, lv5 ? { emissive: 0xc79a2a, emissiveIntensity: 0.35, metalness: 0.3, roughness: 0.4 } : { metalness: 0.25, roughness: 0.5 });
+  const wood = mat(0x7a4e2d);
+  const gem = (c) => mat(c, { emissive: c, emissiveIntensity: lv5 ? 0.75 : 0.3, transparent: true, opacity: 0.9 });
+  const glass = mat(0xa8d8f0, { transparent: true, opacity: 0.35, roughness: 0.1 });
+  switch (id) {
+    case 'bed': { // 鎏金雕花大床 / 星空天蓬床
+      g.add(mesh(new THREE.BoxGeometry(2.5, 0.35, 1.6), body(), 0, 0.2, 0));
+      g.add(mesh(new THREE.BoxGeometry(2.3, 0.24, 1.4), mat(lv5 ? 0x9ec8ff : 0xf5efe2, lv5 ? { emissive: 0x4a90c2, emissiveIntensity: 0.4 } : {}), 0, 0.46, 0));
+      g.add(mesh(new THREE.BoxGeometry(1.3, 0.14, 1.3), mat(lv5 ? 0xd97a9a : 0xd96a6a), -0.5, 0.6, 0));
+      [[0.9, 0.35], [0.9, -0.35]].forEach(([x, z]) => g.add(mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5), mat(0xffffff), x, 0.62, z)));
+      [[-1.15, -0.7], [1.15, -0.7], [-1.15, 0.7], [1.15, 0.7]].forEach(([x, z]) => g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 8), body(), x, 0.75, z)));
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.12, 1.7), body(), 0, 1.5, 0));
+      if (lv5) g.add(mesh(new THREE.BoxGeometry(2.4, 0.05, 1.5), gem(0x5a3f9e), 0, 1.42, 0));
+      break;
+    }
+    case 'wardrobe': { // 鎏金三门大柜 / 魔法镜面衣橱
+      g.add(mesh(new THREE.BoxGeometry(3.0, 2.6, 0.72), body(), 0, 1.3, 0));
+      [-1, 0, 1].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.04, 2.4, 0.06), mat(0x5a3a22), x, 1.3, 0.37)));
+      [-1.4, -0.6, 0.4, 1.4].forEach(x => g.add(mesh(new THREE.SphereGeometry(0.06, 6, 5), body(), x, 1.3, 0.4)));
+      if (lv5) g.add(mesh(new THREE.BoxGeometry(0.8, 1.9, 0.05), mat(0xcfe6f5, { emissive: 0x9ec4e0, emissiveIntensity: 0.55, roughness: 0.1 }), -1, 1.35, 0.38));
+      else g.add(mesh(new THREE.BoxGeometry(0.85, 0.7, 0.1), mat(0xf3e6cf), 1, 1.75, 0.38));
+      g.add(mesh(new THREE.BoxGeometry(3.15, 0.16, 0.85), body(), 0, 2.65, 0));
+      break;
+    }
+    case 'mirror': { // 巴洛克金镜 / 魔镜
+      const frame = mesh(new THREE.TorusGeometry(0.85, 0.12, 8, 28), body(), 0, 1.7, 0);
+      frame.scale.set(0.85, 1.2, 1); g.add(frame);
+      const face = mesh(new THREE.CircleGeometry(0.78, 24), mat(0xcfe6f5, { emissive: lv5 ? 0x7ab0e0 : 0x9ec4e0, emissiveIntensity: lv5 ? 0.6 : 0.35, roughness: 0.1 }), 0, 1.7, 0.02);
+      face.scale.set(0.82, 1.15, 1); g.add(face);
+      g.add(mesh(new THREE.CylinderGeometry(0.14, 0.28, 0.5, 8), body(), 0, 0.25, 0));
+      [[0, 2.65]].forEach(([x, y]) => g.add(mesh(new THREE.SphereGeometry(0.11, 7, 6), body(), x, y, 0)));
+      break;
+    }
+    case 'teddy': { // 皇冠巨熊 / 星光泰迪
+      const s = 2.3;
+      const fur = mat(lv5 ? 0xd9a86a : 0xc9944a);
+      g.add(mesh(new THREE.SphereGeometry(0.34 * s, 9, 8), fur, 0, 0.34 * s, 0));
+      g.add(mesh(new THREE.SphereGeometry(0.25 * s, 9, 8), mat(0xe8d4b0), 0, 0.32 * s, 0.13 * s));
+      g.add(mesh(new THREE.SphereGeometry(0.23 * s, 9, 8), fur, 0, 0.74 * s, 0));
+      [[-0.16], [0.16]].forEach(([x]) => g.add(mesh(new THREE.SphereGeometry(0.085 * s, 6, 5), fur, x * s, 0.92 * s, 0)));
+      [[-0.16], [0.16]].forEach(([x]) => g.add(mesh(new THREE.SphereGeometry(0.14 * s, 6, 5), fur, x * s, 0.1 * s, 0.16 * s)));
+      g.add(mesh(new THREE.SphereGeometry(0.05 * s, 6, 5), gem(lv5 ? 0x6ae0ff : 0x3a2a1e), 0, 0.74 * s, 0.21 * s));
+      g.add(mesh(new THREE.CylinderGeometry(0.16 * s, 0.14 * s, 0.14 * s, 8), body(), 0, 0.96 * s, 0)); // 皇冠
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; g.add(mesh(new THREE.ConeGeometry(0.03 * s, 0.1 * s, 4), body(), Math.cos(a) * 0.15 * s, 1.04 * s, Math.sin(a) * 0.15 * s)); }
+      break;
+    }
+    case 'fire': { // 鎏金双柱壁炉 / 永恒蓝焰炉
+      g.add(mesh(new THREE.BoxGeometry(2.3, 1.7, 0.6), mat(0xe8e2d6), 0, 0.85, 0));
+      g.add(mesh(new THREE.BoxGeometry(1.0, 0.9, 0.24), mat(0x2e2620), 0, 0.6, 0.22));
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.18, 0.75), body(), 0, 1.75, 0));
+      [[-1.05], [1.05]].forEach(([x]) => g.add(mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.7, 8), body(), x, 0.85, 0.02)));
+      const flame = mesh(new THREE.ConeGeometry(0.3, 0.7, 6), mat(lv5 ? 0x6ac8ff : 0xffb838, { emissive: lv5 ? 0x2a90e0 : 0xff8c1a, emissiveIntensity: 1.3 }), 0, 0.55, 0.22);
+      flame.userData.flame = true; g.add(flame);
+      const glow = new THREE.PointLight(lv5 ? 0x6ac8ff : 0xff9c40, 1, 8, 2); glow.position.set(0, 0.7, 0.6); g.add(glow);
+      break;
+    }
+    case 'art': { // 三联金框油画 / 星空全息画（挂墙 y≈2.1）
+      const y = 2.1;
+      [-1.15, 0, 1.15].forEach((x, k) => {
+        g.add(mesh(new THREE.BoxGeometry(0.95, 1.5, 0.08), body(), x, y, 0));
+        g.add(mesh(new THREE.BoxGeometry(0.78, 1.33, 0.02), mat([0x5a7fa8, 0x7fb069, 0xd98a5a][k], lv5 ? { emissive: [0x2a4f78, 0x3f8039, 0xa95a2a][k], emissiveIntensity: 0.55 } : {}), x, y, 0.06));
+        g.add(mesh(new THREE.SphereGeometry(0.12, 7, 6), gem(0xf2c94c), x, y + 0.3, 0.08));
+      });
+      break;
+    }
+    case 'sofa': { // 贵族转角沙发 / 云端悬浮沙发
+      const fabric = mat(lv5 ? 0x8a6bd0 : 0xb04a4a, lv5 ? { emissive: 0x4a2a90, emissiveIntensity: 0.3 } : {});
+      const long = 3.0;
+      g.add(mesh(new THREE.BoxGeometry(long, 0.45, 1.0), fabric, 0, 0.3, 0));
+      g.add(mesh(new THREE.BoxGeometry(long, 0.75, 0.3), fabric, 0, 0.8, -0.4));
+      [[-long / 2 + 0.15], [long / 2 - 0.15]].forEach(([x]) => g.add(mesh(new THREE.BoxGeometry(0.3, 0.7, 1.0), fabric, x, 0.55, 0)));
+      for (let k = 0; k < 4; k++) g.add(mesh(new THREE.BoxGeometry(0.6, 0.18, 0.85), mat(lv5 ? 0xb89aff : 0xd97a6a), -long / 2 + 0.5 + k * 0.7, 0.62, 0.05));
+      g.add(mesh(new THREE.BoxGeometry(1.0, 0.45, 1.7), fabric, long / 2 - 0.5, 0.3, 1.35));
+      g.add(mesh(new THREE.BoxGeometry(0.85, 0.18, 1.5), mat(lv5 ? 0xb89aff : 0xd97a6a), long / 2 - 0.5, 0.62, 1.35));
+      break;
+    }
+    case 'rug': { // 皇家纹章毯 / 星图魔毯（方形）
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.05, 1.9), mat(lv5 ? 0x3a2a6e : 0x7a2a34, lv5 ? { emissive: 0x2a1a5e, emissiveIntensity: 0.3 } : {}), 0, 0.03, 0));
+      g.add(mesh(new THREE.BoxGeometry(2.2, 0.06, 1.5), mat(0xa8433a), 0, 0.04, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.07, 6), lv5 ? gem(GOLD) : body(), 0, 0.05, 0));
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; g.add(mesh(new THREE.OctahedronGeometry(0.12), lv5 ? gem(0xffe6a0) : body(), Math.cos(a) * 0.85, 0.06, Math.sin(a) * 0.6)); }
+      break;
+    }
+    case 'teatable': { // 大理石金腿茶几 / 水晶浮空茶几
+      g.add(mesh(new THREE.BoxGeometry(1.7, 0.1, 1.0), lv5 ? mat(0xbfe3f0, { transparent: true, opacity: 0.5, emissive: 0x6ab0d0, emissiveIntensity: 0.4 }) : mat(0xe8e2d6), 0, 0.5, 0));
+      [[-0.7, 0.35], [0.7, 0.35], [-0.7, -0.35], [0.7, -0.35]].forEach(([x, z]) => g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6), body(), x, 0.25, z)));
+      g.add(mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.16, 8), gem(0xd9534f), -0.2, 0.62, 0));
+      g.add(mesh(new THREE.SphereGeometry(0.08, 6, 5), gem(0xf2c94c), 0.25, 0.6, 0.1));
+      break;
+    }
+    case 'tv': { // 超宽曲面影院 / 全息投影幕（朝 +Z, y≈1.6）
+      g.add(mesh(new THREE.BoxGeometry(4.2, 2.2, 0.14), mat(0x2a2a30), 0, 1.6, 0));
+      g.add(mesh(new THREE.BoxGeometry(4.0, 2.0, 0.15), mat(0x9ecfe8, { emissive: lv5 ? 0x8a6bd0 : 0x6ab8e0, emissiveIntensity: lv5 ? 0.8 : 0.55 }), 0, 1.6, 0.02));
+      g.add(mesh(new THREE.BoxGeometry(4.6, 0.5, 0.6), body(), 0, 0.35, 0));
+      [[-1.6], [1.6]].forEach(([x]) => g.add(mesh(new THREE.BoxGeometry(0.35, 1.2, 0.35), mat(0x4a4a52), x, 0.6, 0.5)));
+      break;
+    }
+    case 'floorlamp': { // 三头金落地灯 / 星河灯树
+      g.add(mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.12, 10), body(), 0, 0.06, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.0, 6), body(), 0, 1.0, 0));
+      [[-0.4, 1.7], [0.4, 1.7], [0, 2.05]].forEach(([x, y]) => {
+        g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 5), body(), x / 2, (y + 1.3) / 2, 0).rotateZ(-x));
+        const shade = mesh(new THREE.ConeGeometry(0.26, 0.32, 8), mat(0xf3d9a4, { emissive: lv5 ? 0x9ed4ff : 0xffd27a, emissiveIntensity: 0.6 }), x, y, 0);
+        g.add(shade);
+      });
+      const light = new THREE.PointLight(lv5 ? 0xbfe0ff : 0xffd9a0, 1.1, 12, 2); light.position.set(0, 1.8, 0); g.add(light);
+      break;
+    }
+    case 'aquarium': { // 大型生态缸 / 发光水母缸
+      const w = 2.6, h = 1.2;
+      g.add(mesh(new THREE.BoxGeometry(w + 0.2, 0.55, 0.95), body(), 0, 0.28, 0));
+      g.add(mesh(new THREE.BoxGeometry(w, h, 0.8), glass, 0, 0.55 + h / 2, 0));
+      g.add(mesh(new THREE.BoxGeometry(w - 0.1, h - 0.14, 0.68), mat(0x4a90c2, { transparent: true, opacity: 0.55, emissive: lv5 ? 0x2a6ab0 : 0x1a4a70, emissiveIntensity: lv5 ? 0.6 : 0.4 }), 0, 0.53 + h / 2, 0));
+      if (lv5) for (let k = 0; k < 3; k++) { const jelly = mesh(new THREE.SphereGeometry(0.18, 9, 7, 0, Math.PI * 2, 0, Math.PI * 0.6), gem(0xff9ad0), -0.7 + k * 0.7, 1.1, 0); jelly.userData.spin = true; g.add(jelly); }
+      else { const school = new THREE.Group(); for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; const f = mesh(new THREE.SphereGeometry(0.09, 6, 5), mat([0xf07338, 0xf2c94c, 0xe0364a, 0x6aae5e, 0x4a90c2][k]), Math.cos(a) * w / 3.4, 0.55 + h / 2, Math.sin(a) * 0.2); f.scale.set(1.5, 0.8, 0.7); school.add(f); } school.userData.spin = true; g.add(school); }
+      break;
+    }
+    case 'shelf': { // 双塔图书墙 / 悬浮魔法书阁
+      const w = 2.8, h = 3.0;
+      [[-w / 2, 0], [w / 2, 0]].forEach(([x]) => g.add(mesh(new THREE.BoxGeometry(0.12, h, 0.42), body(), x, h / 2, 0)));
+      const colors = [0xc4574e, 0x4a90c2, 0x6aae5e, 0xe0b64a, 0x8a6bbf];
+      for (let k = 0; k < 5; k++) {
+        const y = 0.3 + k * ((h - 0.5) / 4);
+        g.add(mesh(new THREE.BoxGeometry(w, 0.08, 0.42), body(), 0, y, 0));
+        const count = Math.floor(w / 0.16) - 1;
+        for (let b = 0; b < count; b++) { const bh = 0.28 + ((b * 7 + k * 3) % 3) * 0.05; g.add(mesh(new THREE.BoxGeometry(0.12, bh, 0.32), lv5 && (b + k) % 4 === 0 ? gem(colors[(b + k) % 5]) : mat(colors[(b + k) % 5]), -w / 2 + 0.24 + b * 0.16, y + 0.04 + bh / 2, 0)); }
+      }
+      if (lv5) { const book = mesh(new THREE.BoxGeometry(0.4, 0.5, 0.1), gem(0x9ed4ff), 0, h + 0.4, 0.3); book.userData.spin = true; g.add(book); }
+      break;
+    }
+    case 'clock': { // 鎏金落地摆钟 / 星象天文钟
+      g.add(mesh(new THREE.BoxGeometry(1.0, 3.0, 0.55), body(), 0, 1.5, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.56, 16), mat(lv5 ? 0x9ec8ff : 0xf5efe2, lv5 ? { emissive: 0x4a90c2, emissiveIntensity: 0.5 } : {}), 0, 2.45, 0).rotateX(Math.PI / 2));
+      g.add(mesh(new THREE.BoxGeometry(0.6, 1.3, 0.56), mat(0xa8d8f0, { transparent: true, opacity: 0.35 }), 0, 1.1, 0));
+      const pend = mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.06, 12), gem(GOLD), 0, 0.65, 0.12).rotateX(Math.PI / 2);
+      pend.userData.spin = true; g.add(pend);
+      g.add(mesh(new THREE.BoxGeometry(0.04, 0.8, 0.04), body(), 0, 1.1, 0.12));
+      if (lv5) g.add(mesh(new THREE.TorusGeometry(0.44, 0.03, 6, 20), gem(0xffe6a0), 0, 2.45, 0.05));
+      break;
+    }
+    case 'statue': { // 黄金双人像 / 水晶守护神像
+      const bodyMat = lv5 ? gem(0x9ed4ff) : body();
+      g.add(mesh(new THREE.BoxGeometry(1.2, 0.6, 0.9), mat(0x4a4a52), 0, 0.3, 0));
+      [[-0.32], [0.32]].forEach(([x], k) => {
+        g.add(mesh(new THREE.BoxGeometry(0.3, 0.85, 0.24), bodyMat, x, 1.05, 0));
+        g.add(mesh(new THREE.SphereGeometry(0.15, 8, 6), bodyMat, x, 1.62, 0));
+        const arm = mesh(new THREE.BoxGeometry(0.09, 0.55, 0.09), bodyMat, x + (k ? 0.26 : -0.26), 1.25, 0); arm.rotation.z = k ? -0.7 : 0.7; g.add(arm);
+      });
+      if (lv5) g.add(mesh(new THREE.TorusGeometry(0.6, 0.05, 6, 18), gem(0xffe6a0), 0, 1.9, 0).rotateX(Math.PI / 2));
+      break;
+    }
+    case 'safe': { // 双门金库 / 能量金库
+      g.add(mesh(new THREE.BoxGeometry(2.4, 2.4, 0.5), mat(0x4a4a52), 0, 1.2, 0));
+      [[-0.6], [0.6]].forEach(([x], k) => {
+        const door = mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.5, 16), body(), x, 1.2, 0.05); door.rotation.x = Math.PI / 2; g.add(door);
+        const spoke = mesh(new THREE.BoxGeometry(0.6, 0.08, 0.06), lv5 ? gem(0x6ae0ff) : mat(0x8a6a1a), x, 1.2, 0.28); if (lv5) spoke.userData.spin = true; g.add(spoke);
+        g.add(mesh(new THREE.BoxGeometry(0.06, 0.6, 0.06), lv5 ? gem(0x6ae0ff) : mat(0x8a6a1a), x, 1.2, 0.28));
+      });
+      [[-0.9, 0.4], [0.9, 0.4]].forEach(([x, z]) => g.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.16, 10), gem(GOLD), x, 0.1, z))); // 金币堆
+      break;
+    }
+    case 'piano': { // 白色演奏三角琴 / 水晶发光钢琴
+      const cab = lv5 ? mat(0xf7f2ea, { emissive: 0x9ed4ff, emissiveIntensity: 0.3 }) : mat(0xf5efe2, { roughness: 0.35 });
+      g.add(mesh(new THREE.BoxGeometry(2.4, 0.3, 1.8), cab, 0, 0.85, 0));
+      const lid = mesh(new THREE.BoxGeometry(2.3, 0.06, 1.7), cab, -0.1, 1.5, -0.1); lid.rotation.z = 0.6; g.add(lid);
+      g.add(mesh(new THREE.BoxGeometry(2.1, 0.08, 0.34), mat(0x2a2a30), 0, 0.92, 0.9));
+      for (let k = 0; k < 12; k++) g.add(mesh(new THREE.BoxGeometry(0.06, 0.05, 0.16), mat(0x2a2a30), -0.9 + k * 0.16, 0.97, 0.86));
+      [[-1.0, 0.65], [1.0, 0.65], [0, -0.7]].forEach(([x, z]) => g.add(mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.75, 6), body(), x, 0.4, z)));
+      g.add(mesh(new THREE.BoxGeometry(1.0, 0.28, 0.36), cab, 0, 0.14, 1.5));
+      break;
+    }
+    case 'harp': { // 鎏金大竖琴 / 天使光弦琴
+      const frame = body();
+      const h = 2.4;
+      g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, h, 8), frame, -0.6, h / 2, 0));
+      const arc = mesh(new THREE.TorusGeometry(h * 0.44, 0.08, 8, 14, Math.PI * 0.9), frame, -0.1, h * 0.78, 0); arc.rotation.z = -0.5; g.add(arc);
+      const slant = mesh(new THREE.CylinderGeometry(0.09, 0.13, h * 1.05, 8), frame, 0.34, h * 0.42, 0); slant.rotation.z = 0.55; g.add(slant);
+      g.add(mesh(new THREE.BoxGeometry(1.1, 0.16, 0.6), frame, 0, 0.08, 0));
+      for (let k = 0; k < 9; k++) { const x = -0.5 + k * 0.1; const sh = h * (0.85 - k * 0.075); g.add(mesh(new THREE.BoxGeometry(0.015, sh, 0.015), lv5 ? gem(0xbfe0ff) : mat(0xf5efe2), x, sh / 2 + 0.14, 0)); }
+      break;
+    }
+    case 'table': { // 橡木长桌宴席 / 水晶浮空宴桌
+      const top = lv5 ? mat(0xbfe3f0, { transparent: true, opacity: 0.5, emissive: 0x6ab0d0, emissiveIntensity: 0.4 }) : mat(0x8a5a35);
+      g.add(mesh(new THREE.BoxGeometry(2.8, 0.1, 1.0), top, 0, 0.65, 0));
+      [[1.3], [-1.3]].forEach(([x]) => g.add(mesh(new THREE.BoxGeometry(0.12, 0.6, 0.8), body(), x, 0.32, 0)));
+      [[-0.8, 1.0], [0, 1.0], [0.8, 1.0], [-0.8, -1.0], [0, -1.0], [0.8, -1.0]].forEach(([x, z]) => {
+        g.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.4, 8), body(), x, 0.2, z));
+        g.add(mesh(new THREE.BoxGeometry(0.34, 0.5, 0.08), body(), x, 0.65, z + (z > 0 ? 0.18 : -0.18)));
+      });
+      [[-0.6], [0.6]].forEach(([x]) => g.add(mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.2, 6), body(), x, 0.78, 0)));
+      [[-0.6], [0.6]].forEach(([x]) => { const fl = mesh(new THREE.ConeGeometry(0.04, 0.12, 5), mat(0xffb838, { emissive: 0xff9420, emissiveIntensity: 1 }), x, 0.94, 0); fl.userData.flame = true; g.add(fl); });
+      break;
+    }
+    case 'kitchen': { // 中央厨房岛台 / 未来料理站
+      const w = 3.2;
+      g.add(mesh(new THREE.BoxGeometry(w, 0.9, 1.1), mat(lv5 ? 0xe8e2d6 : 0xd9c9a8), 0, 0.45, 0));
+      g.add(mesh(new THREE.BoxGeometry(w + 0.1, 0.1, 1.2), body(), 0, 0.95, 0));
+      [[-w / 4], [w / 4]].forEach(([x], k) => { g.add(mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.03, 10), mat(0x3a3a40), x, 1.01, -0.15)); if (k === 0) g.add(mesh(new THREE.CylinderGeometry(0.19, 0.16, 0.18, 9), mat(0xd9534f), x, 1.12, -0.15)); });
+      g.add(mesh(new THREE.BoxGeometry(w * 0.7, 0.08, 0.08), mat(0x4a4a52), 0, 2.2, 0));
+      [[-0.6, 0xd9534f], [0, 0x5a5a66], [0.6, 0xe0b64a]].forEach(([x, c]) => g.add(mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.14, 8), lv5 ? gem(c) : mat(c), x, 1.9, 0)));
+      if (lv5) g.add(mesh(new THREE.BoxGeometry(0.6, 0.4, 0.04), mat(0x6ae0a0, { emissive: 0x4ac080, emissiveIntensity: 0.7 }), w / 2 - 0.4, 1.3, 0.5));
+      break;
+    }
+    case 'cabinet': { // 双层玻璃酒柜 / 发光藏酒展柜
+      g.add(mesh(new THREE.BoxGeometry(1.8, 2.6, 0.6), body(), 0, 1.3, 0));
+      g.add(mesh(new THREE.BoxGeometry(1.5, 2.2, 0.1), mat(0xa8d8f0, { transparent: true, opacity: 0.3 }), 0, 1.4, 0.3));
+      for (let row = 0; row < 4; row++) for (let col = 0; col < 4; col++) {
+        const c = [0xc4574e, 0x6aae5e, 0xe0b64a, 0x8a6bbf][(row + col) % 4];
+        g.add(mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.34, 6), lv5 ? gem(c) : mat(c), -0.5 + col * 0.34, 0.5 + row * 0.5, 0.06));
+      }
+      break;
+    }
+    case 'rocker': { // 藤编吊篮椅 / 悬浮云朵椅
+      const frame = body();
+      const pole = mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.8, 8), frame, -0.6, 1.35, 0); pole.rotation.z = -0.42; g.add(pole);
+      g.add(mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.14, 10), frame, -1.15, 0.07, 0));
+      const tipX = -0.6 + Math.sin(0.42) * 1.4;
+      g.add(mesh(new THREE.BoxGeometry(0.03, 0.9, 0.03), mat(0x5a3a22), tipX, 1.7, 0));
+      const basket = mesh(new THREE.SphereGeometry(0.6, 9, 7, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.5), lv5 ? mat(0xf7f2ea, { emissive: 0x9ed4ff, emissiveIntensity: 0.3 }) : mat(0xc9a97e), tipX, 1.2, 0);
+      g.add(basket);
+      g.add(mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.12, 10), gem(lv5 ? 0xff9ad0 : 0xd97a6a), tipX, 1.12, 0));
+      break;
+    }
+    case 'plant': { // 室内棕榈树 / 发光神木
+      g.add(mesh(new THREE.CylinderGeometry(0.4, 0.34, 0.5, 10), body(), 0, 0.25, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.9, 6), mat(0x8a5a35), 0, 1.3, 0));
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        const leaf = mesh(new THREE.ConeGeometry(0.16, 0.9, 4), mat(lv5 ? 0x8fe0a0 : 0x4a9a52, lv5 ? { emissive: 0x2a8a4a, emissiveIntensity: 0.4 } : {}), Math.cos(a) * 0.3, 2.2, Math.sin(a) * 0.3);
+        leaf.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9); g.add(leaf);
+      }
+      if (lv5) for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; g.add(mesh(new THREE.SphereGeometry(0.09, 7, 6), gem(0xffd86a), Math.cos(a) * 0.35, 1.9 + Math.sin(k) * 0.2, Math.sin(a) * 0.35)); }
+      break;
+    }
+    case 'bath': { // 罗马圆浴池 / 温泉月光池
+      const water = mat(0x7ec4e8, { transparent: true, opacity: 0.6, emissive: lv5 ? 0x5a9ad0 : 0x2a6a90, emissiveIntensity: lv5 ? 0.5 : 0.2 });
+      g.add(mesh(new THREE.CylinderGeometry(1.35, 1.2, 0.7, 16), mat(0xe8e2d6), 0, 0.35, 0));
+      g.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 0.1, 16), water, 0, 0.65, 0));
+      g.add(mesh(new THREE.TorusGeometry(1.26, 0.08, 6, 16), body(), 0, 0.72, 0).rotateX(Math.PI / 2));
+      for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2 + 0.4; g.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.1, 8), body(), Math.cos(a) * 1.15, 0.9, Math.sin(a) * 1.15)); }
+      [[0.4, 0.3], [-0.35, -0.2], [0, 0.05]].forEach(([x, z]) => g.add(mesh(new THREE.SphereGeometry(0.1, 6, 5), mat(0xffffff, { transparent: true, opacity: 0.75, ...(lv5 ? { emissive: 0xbfe0ff, emissiveIntensity: 0.5 } : {}) }), x, 0.72, z)));
+      break;
+    }
+    case 'arcade': { // 双人街机厅 / 全息游戏舱
+      [[-0.75], [0.75]].forEach(([x], k) => {
+        g.add(mesh(new THREE.BoxGeometry(1.2, 2.0, 0.85), mat(lv5 ? 0x6a3aa0 : 0x8a4ac2, lv5 ? { emissive: 0x4a1a80, emissiveIntensity: 0.35 } : {}), x, 1.0, 0));
+        g.add(mesh(new THREE.BoxGeometry(0.9, 0.65, 0.06), mat(0x9ecfe8, { emissive: lv5 ? 0x8a6bd0 : 0x6ab8e0, emissiveIntensity: 0.7 }), x, 1.45, 0.44));
+        const panel = mesh(new THREE.BoxGeometry(1.0, 0.08, 0.4), mat(0x5a2a90), x, 1.0, 0.52); panel.rotation.x = 0.3; g.add(panel);
+        g.add(mesh(new THREE.SphereGeometry(0.06, 6, 5), gem(k ? 0x4a90c2 : 0xe0364a), x, 1.08, 0.57));
+      });
+      g.add(mesh(new THREE.BoxGeometry(2.7, 0.35, 0.9), body(), 0, 2.2, 0));
+      break;
+    }
+    case 'telescope': { // 黄铜天文望远镜 / 星象观测台
+      [0, 2.1, 4.2].forEach(a => { const leg = mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.6, 6), body(), Math.cos(a) * 0.45, 0.75, Math.sin(a) * 0.45); leg.rotation.z = Math.cos(a) * 0.3; leg.rotation.x = -Math.sin(a) * 0.3; g.add(leg); });
+      const tube = mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.8, 10), body(), 0, 1.7, 0); tube.rotation.x = Math.PI / 2 - 0.7; g.add(tube);
+      g.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.1, 12), gem(lv5 ? 0x6ae0ff : 0x9ed4f0), 0.5, 2.2, -0.5).rotateX(Math.PI / 2 - 0.7));
+      if (lv5) { const ring = mesh(new THREE.TorusGeometry(0.5, 0.03, 6, 20), gem(0xffe6a0), 0, 1.7, 0); ring.userData.spin = true; g.add(ring); }
+      break;
+    }
+  }
+  if (lv5) legendHalo(g, FURN_HALO_Y[id] ?? 1.9, id === 'rug' || id === 'bath' ? 1.3 : 0.75);
+  return g;
+}
+
 export function createFurnitureMesh(id, lv) {
+  if (lv >= 4) return furnitureLux(id, lv);
   return furnitureBuilders[id](lv);
 }
 

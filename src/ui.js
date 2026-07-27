@@ -1,4 +1,4 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS } from './config.js';
 import { music } from './music.js';
 
@@ -517,8 +517,8 @@ export class UI {
       const el = document.createElement('div');
       el.className = 'fur-row' + (lv ? '' : ' locked');
       const desc = lv
-        ? `已解锁 Lv.${lv}/3 · 正在展示「${d.levelNames[shown - 1]}」`
-        : `${d.levelNames[0]} · ${d.cost}💰（之后可升到 3 级）`;
+        ? `已解锁 Lv.${lv}/${FURNITURE_MAX_LEVEL} · 正在展示「${d.levelNames[shown - 1]}」`
+        : `${d.levelNames[0]} · ${d.cost}💰（之后可升到 ${FURNITURE_MAX_LEVEL} 级）`;
       el.innerHTML = `<div class="icon">${d.emoji}</div>
         <div class="info"><b>${d.name}</b><p>${desc}</p></div>`;
       // 已解锁的外观随便换
@@ -538,7 +538,7 @@ export class UI {
       if (!lv) {
         btn.textContent = `${d.cost}💰`;
         btn.addEventListener('click', () => { g.buyPetDecor(d.id); this.renderPetRoom(); });
-      } else if (lv < 3) {
+      } else if (lv < FURNITURE_MAX_LEVEL) {
         btn.textContent = `升级 ${d.up[lv - 1]}💰`;
         btn.addEventListener('click', () => { g.upgradePetDecor(d.id); this.renderPetRoom(); });
       } else {
@@ -1032,7 +1032,7 @@ export class UI {
       const el = document.createElement('div');
       el.className = 'fur-row' + (lv ? '' : ' locked');
       const desc = lv
-        ? `已解锁 Lv.${lv}/3 · 正在展示「${f.levelNames[shown - 1]}」`
+        ? `已解锁 Lv.${lv}/${FURNITURE_MAX_LEVEL} · 正在展示「${f.levelNames[shown - 1]}」`
         : `未拥有 · 商场「内饰」页 ${f.cost}💰`;
       el.innerHTML = `<div class="icon">${f.emoji}</div>
         <div class="info"><b>${f.name}</b><p>${desc}</p></div>`;
@@ -1063,12 +1063,12 @@ export class UI {
         btn.addEventListener('click', () => { if (g.sleep()) this.renderHouse(); });
         el.appendChild(btn);
       }
-      if (lv && lv < 3) {
+      if (lv && lv < FURNITURE_MAX_LEVEL) {
         const btn = document.createElement('button');
         btn.textContent = `升级 ${f.up[lv - 1]}💰`;
         btn.addEventListener('click', () => { g.upgradeFurniture(f.id); this.renderHouse(); });
         el.appendChild(btn);
-      } else if (lv >= 3) {
+      } else if (lv >= FURNITURE_MAX_LEVEL) {
         const btn = document.createElement('button');
         btn.className = 'maxed';
         btn.textContent = '满级';
@@ -1221,7 +1221,7 @@ export class UI {
       FURNITURE.filter(f => !f.free).forEach(f => {
         const lv = g.furniture[f.id] ?? 0;
         item(f.emoji, f.name,
-          lv ? `已拥有 · Lv.${lv}（去小屋里升级）` : `${f.levelNames[0]} · 之后可升到 3 级`,
+          lv ? `已拥有 · Lv.${lv}（去小屋里升级）` : `${f.levelNames[0]} · 之后可升到 ${FURNITURE_MAX_LEVEL} 级`,
           lv ? '已购买' : `${f.cost}💰`,
           lv ? null : () => { g.buyFurniture(f.id); this.renderMall(); },
           lv ? 'owned' : '');
@@ -1473,8 +1473,8 @@ export class UI {
       },
       {
         icon: '🏭', title: '工坊与料理',
-        html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time} 秒 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
-          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可下锅，<b>${COOK_SLOTS} 个灶位</b>可同时开火，每道菜炒 <b>${COOK_TIME} 秒</b>出锅（离线照常烹饪）。卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
+        html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time / 60} 分钟 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
+          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可下锅，<b>${COOK_SLOTS} 个灶位</b>可同时开火，每道菜炒 <b>${COOK_TIME / 60} 分钟</b>出锅（离线照常烹饪）。卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
           生长不良的作物两边都不收；罐头和料理不能二次加工。<br>
           <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。`,
       },
@@ -1513,7 +1513,7 @@ export class UI {
       {
         icon: '🏠', title: '我的小屋',
         html: `点房子进 3D 房间。🛏 床免费自带，可睡觉跳时间。<br>
-          ${FURNITURE.length} 件家具（商场「内饰」页购买），每件升到 3 级，<b>三种外观解锁后随意切换混搭</b>。<br>
+          ${FURNITURE.length} 件家具（商场「内饰」页购买），每件升到 5 级，<b>五种外观解锁后随意切换混搭</b>。<br>
           「🔧 布置模式」里按住家具拖动摆放、↻ 旋转，打造自己的家。`,
       },
       {
