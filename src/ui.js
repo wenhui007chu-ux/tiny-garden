@@ -1,5 +1,5 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL } from './config.js';
-import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST } from './config.js';
+import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { music } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -46,6 +46,7 @@ export class UI {
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
+    $('#greenhouse-close').addEventListener('click', () => this.exitGreenhouse());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -61,6 +62,7 @@ export class UI {
         this.renderHybrid();
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
       }
+      if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -213,16 +215,17 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
     this.exitFishing(); // 干别的就等于收竿
     this.exitHybridLab();
     this.exitPetRoom();
+    this.exitGreenhouse();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse; }
 
   /* ---------- 主动钓鱼 ---------- */
 
@@ -548,6 +551,152 @@ export class UI {
       el.appendChild(btn);
       body.appendChild(el);
     });
+  }
+
+  /* ---------- 花房温室 ---------- */
+
+  openGreenhouse() {
+    this.closePanels();
+    if (!this.inGreenhouse && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = GREENHOUSE_POS;
+      this.controls.target.set(p.x, p.y + 0.7, p.z - 0.5);
+      this.camera.position.set(p.x + 5, p.y + 5, p.z + 7);
+      this.controls.minDistance = 2.5;
+      this.controls.update();
+      this.inGreenhouse = true;
+    }
+    this.bouquetSel = [];
+    $('#greenhouse').classList.remove('hidden');
+    this.renderGreenhouse();
+  }
+
+  exitGreenhouse() {
+    $('#greenhouse').classList.add('hidden');
+    if (!this.inGreenhouse) return;
+    this.inGreenhouse = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderGreenhouse() {
+    const g = this.game;
+    const body = $('#greenhouse-body');
+    body.innerHTML = '';
+
+    // —— 选花种 ——
+    const seedTitle = document.createElement('div');
+    seedTitle.className = 'gh-title';
+    seedTitle.textContent = '🌱 选花种（点空花圃种下）';
+    body.appendChild(seedTitle);
+    const seedBox = document.createElement('div');
+    seedBox.className = 'gh-seeds';
+    FLOWERS.forEach(f => {
+      const b = document.createElement('button');
+      b.className = 'gh-seed' + (this.selectedFlower === f.id ? ' active' : '');
+      b.style.borderColor = POND_RARITY[f.rarity].color;
+      b.innerHTML = `${f.emoji}<span>${f.name}</span><i>${f.seed}💰</i>`;
+      b.addEventListener('click', () => { this.selectedFlower = f.id; this.renderGreenhouse(); });
+      seedBox.appendChild(b);
+    });
+    body.appendChild(seedBox);
+
+    // —— 花圃 ——
+    const grown = g.flowerPlots.filter(Boolean).length;
+    const plotTitle = document.createElement('div');
+    plotTitle.className = 'gh-title';
+    plotTitle.textContent = `🪴 花圃 ${grown}/${g.flowerPlots.length}`;
+    body.appendChild(plotTitle);
+    const plotBox = document.createElement('div');
+    plotBox.className = 'gh-plots';
+    g.flowerPlots.forEach((p, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'gh-plot';
+      if (!p) {
+        cell.classList.add('empty');
+        const sel = this.selectedFlower ? flowerById(this.selectedFlower) : null;
+        cell.innerHTML = `<span class="gh-empty">空</span>`;
+        if (sel) {
+          const btn = document.createElement('button');
+          btn.innerHTML = `种 ${sel.emoji}`;
+          btn.addEventListener('click', () => { g.plantFlower(i, sel.id); this.renderGreenhouse(); });
+          cell.appendChild(btn);
+        }
+      } else {
+        const fl = flowerById(p.id);
+        if (g.time >= p.readyAt) {
+          cell.innerHTML = `<span>${fl.emoji}</span><b>${fl.name}</b>`;
+          const btn = document.createElement('button');
+          btn.className = 'gh-harvest';
+          btn.textContent = '🌸 收';
+          btn.addEventListener('click', () => { g.harvestFlower(i); this.renderGreenhouse(); });
+          cell.appendChild(btn);
+        } else {
+          cell.innerHTML = `<span>🌱</span><b>${fl.name}</b><i>${fmtTime(p.readyAt - g.time)}</i>`;
+        }
+      }
+      plotBox.appendChild(cell);
+    });
+    body.appendChild(plotBox);
+
+    // —— 扎花台 ——
+    this.bouquetSel = this.bouquetSel || [];
+    const bqTitle = document.createElement('div');
+    bqTitle.className = 'gh-title';
+    bqTitle.textContent = `💐 扎花台（任选 ${BOUQUET_SIZE} 朵 ×${BOUQUET_MULT} 卖出）`;
+    body.appendChild(bqTitle);
+    const bag = document.createElement('div');
+    bag.className = 'gh-seeds';
+    const flowerKeys = Object.keys(g.inventory).filter(k => k.startsWith('f:') && g.inventory[k] > 0);
+    if (!flowerKeys.length) {
+      bag.innerHTML = `<p class="gh-empty">背包里还没有花，先种花收花吧</p>`;
+    } else {
+      flowerKeys.forEach(k => {
+        const info = keyInfo(k);
+        const avail = g.inventory[k] - this.bouquetSel.filter(x => x === k).length;
+        const b = document.createElement('button');
+        b.className = 'gh-seed';
+        b.innerHTML = `${info.icon}<span>${info.label}</span><i>×${avail} · ${info.price}💰</i>`;
+        b.disabled = avail <= 0 || this.bouquetSel.length >= BOUQUET_SIZE;
+        b.addEventListener('click', () => { this.bouquetSel.push(k); this.renderGreenhouse(); });
+        bag.appendChild(b);
+      });
+    }
+    body.appendChild(bag);
+    const basket = document.createElement('div');
+    basket.className = 'gh-basket';
+    basket.innerHTML = `<b>待扎：</b>`;
+    this.bouquetSel.forEach((k, idx) => {
+      const chip = document.createElement('button');
+      chip.textContent = keyInfo(k).icon;
+      chip.title = '点击移除';
+      chip.addEventListener('click', () => { this.bouquetSel.splice(idx, 1); this.renderGreenhouse(); });
+      basket.appendChild(chip);
+    });
+    for (let i = this.bouquetSel.length; i < BOUQUET_SIZE; i++) {
+      const empty = document.createElement('span');
+      empty.className = 'gh-slot-empty';
+      empty.textContent = '➕';
+      basket.appendChild(empty);
+    }
+    body.appendChild(basket);
+    if (this.bouquetSel.length === BOUQUET_SIZE) {
+      const price = Math.floor(this.bouquetSel.reduce((s, k) => s + keyInfo(k).price, 0) * BOUQUET_MULT);
+      const btn = document.createElement('button');
+      btn.className = 'gh-bouquet';
+      btn.textContent = `💐 扎成花束卖出（${price}💰）`;
+      btn.addEventListener('click', () => { g.makeBouquet([...this.bouquetSel]); this.bouquetSel = []; this.renderGreenhouse(); });
+      body.appendChild(btn);
+    }
   }
 
   /* ---------- 杂交室 ---------- */
@@ -1025,6 +1174,29 @@ export class UI {
       reset.addEventListener('click', () => { g.resetFurnitureLayout(); this.renderHouse(); });
       body.appendChild(reset);
     }
+
+    // 房屋外观装修：7 个部位各 5 种样式，点一下就换（扣少量金币）
+    const skinBox = document.createElement('div');
+    skinBox.className = 'skin-box';
+    skinBox.innerHTML = `<div class="skin-title">🎨 房屋外观装修 · 每换一处 ${HOUSE_SKIN_COST}💰</div>`;
+    Object.entries(HOUSE_SKINS).forEach(([part, def]) => {
+      const row = document.createElement('div');
+      row.className = 'skin-row';
+      row.innerHTML = `<span class="skin-part">${def.emoji} ${def.name}</span>`;
+      const chips = document.createElement('div');
+      chips.className = 'style-chips';
+      const cur = g.houseSkin[part] ?? 0;
+      def.options.forEach((opt, i) => {
+        const chip = document.createElement('button');
+        chip.textContent = opt.name;
+        chip.className = i === cur ? 'active' : '';
+        chip.addEventListener('click', () => { g.setHouseSkin(part, i); this.renderHouse(); });
+        chips.appendChild(chip);
+      });
+      row.appendChild(chips);
+      skinBox.appendChild(row);
+    });
+    body.appendChild(skinBox);
 
     FURNITURE.forEach(f => {
       const lv = g.furniture[f.id] ?? 0;

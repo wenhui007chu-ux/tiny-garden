@@ -11,6 +11,8 @@ import {
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
   PETS, petById, PET_DECORS, petDecorById, PET_POS,
   FURNITURE_MAX_LEVEL,
+  HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
+  FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -23,6 +25,7 @@ import {
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
+  createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
 } from './meshes.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
@@ -99,16 +102,18 @@ export class Game {
       this.decorSlots.push({ mesh, decor: null });
     }
 
+    // 房屋外观皮肤（换肤用；load() 会用存档覆盖）
+    this.houseSkin = { ...DEFAULT_HOUSE_SKIN };
     // 我们自己的房子：农田右前方
-    const house = createHouse();
-    house.position.set(10, -0.51, 4.6);
-    house.rotation.y = -0.45;
-    this.group.add(house);
+    this.houseMesh = createHouse(this.houseSkin);
+    this.houseMesh.position.set(10, -0.51, 4.6);
+    this.houseMesh.rotation.y = -0.45;
+    this.group.add(this.houseMesh);
     this.houseMeshes = [];
-    house.traverse(o => { if (o.isMesh) this.houseMeshes.push(o); });
+    this.houseMesh.traverse(o => { if (o.isMesh) this.houseMeshes.push(o); });
 
     // 房子内部的 3D 房间：藏在岛屿下方，进屋时镜头切过去
-    this.interior = createInteriorRoom();
+    this.interior = createInteriorRoom(this.houseSkin);
     this.interior.position.set(INTERIOR_POS.x, INTERIOR_POS.y, INTERIOR_POS.z);
     this.group.add(this.interior);
     this.interiorFurniture = {};
@@ -172,6 +177,19 @@ export class Game {
     this.petHall = createPetInterior();
     this.petHall.position.set(PET_POS.x, PET_POS.y, PET_POS.z);
     this.group.add(this.petHall);
+
+    // 花房温室：菜园左前方的玻璃温室 + 藏在岛下的花房内部
+    const greenhouse = createGreenhouse();
+    greenhouse.position.set(-10, -0.51, 8);
+    greenhouse.rotation.y = 0.5;
+    this.group.add(greenhouse);
+    this.greenhouseMeshes = [];
+    greenhouse.traverse(o => { if (o.isMesh) this.greenhouseMeshes.push(o); });
+    this.greenhouseHall = createGreenhouseInterior();
+    this.greenhouseHall.position.set(GREENHOUSE_POS.x, GREENHOUSE_POS.y, GREENHOUSE_POS.z);
+    this.group.add(this.greenhouseHall);
+    this.flowerPlots = Array(GREENHOUSE_SLOTS).fill(null); // 每格：null 或 { id, readyAt }
+    this.flowerMeshes = {}; // slot -> mesh
     this.petsOwned = {};        // 买下的宠物
     this.petShown = null;       // 当前展示的那只
     this.petDecorsOwned = {};   // 房间装饰：id -> 已解锁最高等级(1~3)
@@ -1174,6 +1192,103 @@ export class Game {
     this.save();
   }
 
+  /* ---------- 花房温室 ---------- */
+
+  // 在花圃里种花：扣花种钱，记下开花时刻
+  plantFlower(slot, flowerId) {
+    const fl = flowerById(flowerId);
+    if (!fl || slot < 0 || slot >= this.flowerPlots.length) return;
+    if (this.flowerPlots[slot]) { this.onToast('这个花圃里已经种着花了'); return; }
+    if (!this.spend(fl.seed)) return;
+    this.flowerPlots[slot] = { id: flowerId, readyAt: this.time + fl.grow };
+    this.refreshGreenhousePlot(slot);
+    this.onToast(`${fl.emoji} 种下了${fl.name}，${fl.grow >= 60 ? Math.round(fl.grow / 60) + ' 分钟' : fl.grow + ' 秒'}后开花`);
+    this.onState();
+    this.save();
+  }
+
+  // 收花：开花后放进背包（key 形如 f:daisy）
+  harvestFlower(slot) {
+    const p = this.flowerPlots[slot];
+    if (!p) return;
+    if (this.time < p.readyAt) { this.onToast('还没开花，再等等'); return; }
+    const fl = flowerById(p.id);
+    const key = 'f:' + p.id;
+    this.inventory[key] = (this.inventory[key] ?? 0) + 1;
+    this.flowerPlots[slot] = null;
+    this.refreshGreenhousePlot(slot);
+    this.onToast(`🌸 收下一朵${fl.name}，进背包了`);
+    this.onState();
+    this.save();
+  }
+
+  // 扎花束：任选 5 朵花（可跨品种），扣花，直接卖钱（总价 × 倍率）
+  makeBouquet(keys) {
+    if (!keys || keys.length !== BOUQUET_SIZE) { this.onToast(`要凑够 ${BOUQUET_SIZE} 朵花才能扎一束`); return; }
+    const need = {};
+    keys.forEach(k => { need[k] = (need[k] ?? 0) + 1; });
+    for (const k in need) { if ((this.inventory[k] ?? 0) < need[k]) { this.onToast('背包里的花不够'); return; } }
+    let sum = 0;
+    keys.forEach(k => { sum += keyInfo(k).price; });
+    const price = Math.floor(sum * BOUQUET_MULT);
+    for (const k in need) { this.inventory[k] -= need[k]; if (this.inventory[k] <= 0) delete this.inventory[k]; }
+    this.coins += price;
+    this.onToast(`💐 扎了一束花，卖了 ${price}💰`);
+    this.onState();
+    this.save();
+  }
+
+  refreshGreenhouse() {
+    for (let i = 0; i < this.flowerPlots.length; i++) this.refreshGreenhousePlot(i);
+  }
+
+  // 单个花圃：空着不显示，生长中显示花苞，开花后显示整朵花
+  refreshGreenhousePlot(i) {
+    const cur = this.flowerMeshes[i];
+    if (cur) { this.greenhouseHall.remove(cur); delete this.flowerMeshes[i]; }
+    const p = this.flowerPlots[i];
+    if (!p) return;
+    const [x, z] = GREENHOUSE_SPOTS[i];
+    const m = this.time >= p.readyAt ? createFlowerMesh(p.id) : createFlowerBud();
+    m.position.set(x, 0.38, z);
+    this.greenhouseHall.add(m);
+    this.flowerMeshes[i] = m;
+  }
+
+  // 换肤：农田里那栋外观房子按当前皮肤重建
+  rebuildHouse() {
+    if (this.houseMesh) this.group.remove(this.houseMesh);
+    this.houseMesh = createHouse(this.houseSkin);
+    this.houseMesh.position.set(10, -0.51, 4.6);
+    this.houseMesh.rotation.y = -0.45;
+    this.group.add(this.houseMesh);
+    this.houseMeshes = [];
+    this.houseMesh.traverse(o => { if (o.isMesh) this.houseMeshes.push(o); });
+  }
+
+  // 换肤：屋内房间壳（地板/墙纸/灯光）按当前皮肤重建，家具随后由 refreshInterior 重新摆
+  rebuildRoomShell() {
+    if (this.interior) this.group.remove(this.interior);
+    this.interior = createInteriorRoom(this.houseSkin);
+    this.interior.position.set(INTERIOR_POS.x, INTERIOR_POS.y, INTERIOR_POS.z);
+    this.group.add(this.interior);
+    this.interiorFurniture = {}; // 旧家具随旧房间移除，清引用让 refreshInterior 重新生成
+  }
+
+  // 挑选一处外观样式：扣少量金币，按内外部位重建对应模型
+  setHouseSkin(part, idx) {
+    const def = HOUSE_SKINS[part];
+    if (!def || !def.options[idx]) return;
+    if ((this.houseSkin[part] ?? 0) === idx) return; // 没变化，不扣钱
+    if (!this.spend(HOUSE_SKIN_COST)) return;        // 金币不足，spend 内部会提示
+    this.houseSkin[part] = idx;
+    if (def.part === 'ext') this.rebuildHouse();
+    else { this.rebuildRoomShell(); this.refreshInterior(); }
+    this.onToast(`🎨 ${def.name}换成了「${def.options[idx].name}」`);
+    this.onState();
+    this.save();
+  }
+
   // 按当前展示外观重建房间里的 3D 模型
   refreshInterior() {
     for (const f of FURNITURE) {
@@ -1482,12 +1597,15 @@ export class Game {
     for (const s of this.decorSlots) {
       if (s.decor && !s.decor.mesh) s.decor.mesh = this.attachDecorMesh(s.decor.id, s);
     }
+    this.rebuildHouse();
+    this.rebuildRoomShell();
     this.refreshInterior();
     this.refreshCodex();
     this.refreshGallery();
     this.refreshPondDecors();
     this.refreshHybridStations();
     this.refreshPetRoom();
+    this.refreshGreenhouse();
   }
 
   /* ---------- 主循环 ---------- */
@@ -1495,6 +1613,11 @@ export class Game {
   tick(dt) {
     if (this.paused) return; // 挂机中：时间、生长、加工全部冻结
     this.time += dt;
+    // 花圃：花开的那一刻把花苞换成整朵花
+    for (let i = 0; i < this.flowerPlots.length; i++) {
+      const p = this.flowerPlots[i];
+      if (p && !p._bloomed && this.time >= p.readyAt) { p._bloomed = true; this.refreshGreenhousePlot(i); }
+    }
     const wrapped = this.clock + dt >= DAY_CYCLE;
     this.clock = (this.clock + dt) % DAY_CYCLE;
     if (wrapped) {
@@ -1572,6 +1695,8 @@ export class Game {
       furniture: this.furniture,
       furnitureStyle: this.furnitureStyle,
       furniturePos: this.furniturePos,
+      houseSkin: this.houseSkin,
+      flowerPlots: this.flowerPlots.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       tiles: this.tiles.map(t => ({
         soil: t.soil,
         lucky: t.lucky,
@@ -1629,6 +1754,7 @@ export class Game {
     if (!this.furniture.bed) this.furniture.bed = 1; // 床永远都在
     this.furnitureStyle = data.furnitureStyle ?? {};
     this.furniturePos = data.furniturePos ?? {};
+    this.houseSkin = { ...DEFAULT_HOUSE_SKIN, ...(data.houseSkin ?? {}) };
     // 旧存档只有 lastLayout 的话，迁移成第一个已保存布局
     this.savedLayouts = data.savedLayouts
       ?? (data.lastLayout?.some(Boolean) ? [{ name: '上次布局', layout: data.lastLayout }] : []);
@@ -1643,6 +1769,10 @@ export class Game {
       : (data.poisonLeft > 0 && offPoison <= 0 ? this.time + Math.max(0, POISON.reviveTime + offPoison) : 0);
     // 挂机状态下关的游戏，离线时间不生效
     const elapsed = this.paused ? 0 : Math.max(0, (Date.now() - (data.savedAt ?? Date.now())) / 1000);
+    // 花圃：离线也照常开花（温室恒温，不受天气影响）
+    this.flowerPlots = (data.flowerPlots ?? []).slice(0, GREENHOUSE_SLOTS).map(p =>
+      p && flowerById(p.id) ? { id: p.id, readyAt: this.time + Math.max(0, (p.remain ?? 0) - elapsed) } : null);
+    while (this.flowerPlots.length < GREENHOUSE_SLOTS) this.flowerPlots.push(null);
     this.drought = data.drought ?? false;
     this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气

@@ -264,6 +264,36 @@ export const itemById = (id) => ITEMS.find(i => i.id === id);
 // recipe 每项 [作物id, 品质档 0普通/1白银/2黄金, 数量]
 export const DISH_MULT = 3;
 export const COOK_TIME = 360;  // 每道菜要炒 6 分钟
+
+// ===== 花房温室：种花 → 收花 → 直接卖 / 扎成花束卖 =====
+// 温室恒温：花种下后不受天气影响、无需浇水，按 grow 秒恒速开花
+export const GREENHOUSE_POS = { x: -60, y: -60, z: -60 }; // 独立花房场景，藏在岛屿下方
+export const GREENHOUSE_SLOTS = 8;   // 花圃格子数
+export const BOUQUET_SIZE = 5;       // 五朵花扎一束
+export const BOUQUET_MULT = 1.5;     // 花束卖价 = 选中 5 朵花卖价之和 × 1.5
+// 15 种花，稀有度沿用 POND_RARITY（普通/稀有/史诗/传说）；seed=花种成本，sell=每朵卖价，grow=开花秒数
+export const FLOWERS = [
+  // —— 普通 ——
+  { id: 'daisy',      name: '雏菊',     emoji: '🌼', rarity: 'common', seed: 8,    sell: 30,   grow: 80 },
+  { id: 'cosmos',     name: '波斯菊',   emoji: '🌺', rarity: 'common', seed: 12,   sell: 45,   grow: 100 },
+  { id: 'pansy',      name: '三色堇',   emoji: '🌸', rarity: 'common', seed: 16,   sell: 60,   grow: 120 },
+  { id: 'marigold',   name: '金盏花',   emoji: '🏵️', rarity: 'common', seed: 20,   sell: 75,   grow: 140 },
+  { id: 'babybreath', name: '满天星',   emoji: '💮', rarity: 'common', seed: 25,   sell: 95,   grow: 160 },
+  // —— 稀有 ——
+  { id: 'tulip',      name: '郁金香',   emoji: '🌷', rarity: 'rare',   seed: 45,   sell: 160,  grow: 220 },
+  { id: 'rose',       name: '玫瑰',     emoji: '🌹', rarity: 'rare',   seed: 65,   sell: 230,  grow: 260 },
+  { id: 'sunflower',  name: '向日葵',   emoji: '🌻', rarity: 'rare',   seed: 90,   sell: 310,  grow: 300 },
+  { id: 'hyacinth',   name: '风信子',   emoji: '💠', rarity: 'rare',   seed: 120,  sell: 420,  grow: 340 },
+  { id: 'lily',       name: '百合',     emoji: '⚜️', rarity: 'rare',   seed: 155,  sell: 540,  grow: 380 },
+  // —— 史诗 ——
+  { id: 'lavender',   name: '薰衣草',   emoji: '🪻', rarity: 'epic',   seed: 230,  sell: 820,  grow: 480 },
+  { id: 'hydrangea',  name: '绣球花',   emoji: '💐', rarity: 'epic',   seed: 320,  sell: 1150, grow: 560 },
+  { id: 'iris',       name: '鸢尾',     emoji: '🌷', rarity: 'epic',   seed: 450,  sell: 1600, grow: 640 },
+  // —— 传说 ——
+  { id: 'bluerose',   name: '蓝色妖姬', emoji: '🌹', rarity: 'legend', seed: 850,  sell: 3000, grow: 900 },
+  { id: 'spiderlily', name: '彼岸花',   emoji: '🔥', rarity: 'legend', seed: 1400, sell: 4800, grow: 1150 },
+];
+export const flowerById = (id) => FLOWERS.find(f => f.id === id);
 export const COOK_SLOTS = 3;   // 3 个灶位可以同时开火
 export const DISHES = [
   // —— 一档：家常小菜（便宜作物·普通品质）——
@@ -332,6 +362,29 @@ export function dishPrice(dish) {
 // 房子内饰：床是白送的，其余去商场「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
 export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
+
+// ===== 房屋外观装修：7 个部位，每个 5 种样式，自由挑选混搭，每次更换扣少量金币 =====
+// part: 'ext' = 菜园里那栋外观房子（墙/顶/门/窗）；'int' = 屋内房间（地板/墙纸/灯光）
+// 每个部位的第 0 种就是游戏原本的默认样式，向后兼容老存档。
+export const HOUSE_SKIN_COST = 50; // 每次更换一处外观扣的金币
+export const HOUSE_SKINS = {
+  wall:      { name: '外墙', emoji: '🧱', part: 'ext', options: [
+    { name: '奶油白', color: 0xfaf0dc }, { name: '暖粉', color: 0xf2c9c9 }, { name: '天空蓝', color: 0xbcd8e8 }, { name: '薄荷绿', color: 0xc2e0c2 }, { name: '原木棕', color: 0xcaa06a } ] },
+  roof:      { name: '屋顶', emoji: '🔺', part: 'ext', options: [
+    { name: '赤陶红', color: 0xc0563f }, { name: '石板灰', color: 0x6b6b73 }, { name: '森林绿', color: 0x4a7a48 }, { name: '藏青蓝', color: 0x3a4a72 }, { name: '暖橙', color: 0xe0913a } ] },
+  door:      { name: '大门', emoji: '🚪', part: 'ext', options: [
+    { name: '原木门', color: 0x9a5f33 }, { name: '朱红门', color: 0xc0433a }, { name: '湖蓝门', color: 0x3a6ea5 }, { name: '墨绿门', color: 0x3a6b4a }, { name: '鎏金门', color: 0xe0b64a } ] },
+  window:    { name: '窗户', emoji: '🪟', part: 'ext', options: [
+    { name: '天蓝窗', color: 0xbfe3f0 }, { name: '暖黄窗', color: 0xf5e6b0 }, { name: '玫瑰窗', color: 0xf2c0d8 }, { name: '薄荷窗', color: 0xc0ecd8 }, { name: '紫晶窗', color: 0xd8c0f0 } ] },
+  floor:     { name: '地板', emoji: '🟫', part: 'int', options: [
+    { name: '暖木地板', color: 0xc9a06a }, { name: '深胡桃木', color: 0x8a5a35 }, { name: '浅枫木', color: 0xe0c89a }, { name: '灰调地板', color: 0xa8a29a }, { name: '红棕实木', color: 0xb0663f } ] },
+  wallpaper: { name: '墙纸', emoji: '🎴', part: 'int', options: [
+    { name: '米色墙', color: 0xf3e6cf }, { name: '淡蓝墙', color: 0xd6e4ee }, { name: '鼠尾草绿', color: 0xd2e0c8 }, { name: '暖杏色', color: 0xf2dcc0 }, { name: '藕粉墙', color: 0xecd6dc } ] },
+  light:     { name: '灯光', emoji: '💡', part: 'int', options: [
+    { name: '暖阳光', color: 0xffd9a0 }, { name: '冷白光', color: 0xdce8ff }, { name: '落日橙', color: 0xffb070 }, { name: '梦幻粉', color: 0xffc0e0 }, { name: '森系绿', color: 0xc8f0c0 } ] },
+};
+export const DEFAULT_HOUSE_SKIN = { wall: 0, roof: 0, door: 0, window: 0, floor: 0, wallpaper: 0, light: 0 };
+export const houseSkinColor = (part, idx) => HOUSE_SKINS[part].options[idx ?? 0].color;
 export const FURNITURE = [
   // —— 卧室区（左后角）——
   {
@@ -504,6 +557,10 @@ export function keyInfo(key) {
   if (key.startsWith('h:')) {
     const hy = hybridById(key.slice(2));
     return { seed: null, quality: undefined, processed: false, stunted: false, hybrid: true, price: hy.sell, label: hy.name, icon: hy.emoji };
+  }
+  if (key.startsWith('f:')) {
+    const fl = flowerById(key.slice(2));
+    return { seed: null, quality: undefined, processed: false, stunted: false, flower: true, price: fl.sell, label: fl.name, icon: fl.emoji };
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');

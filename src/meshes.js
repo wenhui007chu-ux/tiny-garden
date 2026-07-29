@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R } from './config.js';
+import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor } from './config.js';
 
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...opts });
@@ -1612,12 +1612,15 @@ export function createPondDecor(def, slot) {
 
 /* ================= 房子内部：3D 房间与家具 ================= */
 
-export function createInteriorRoom() {
+export function createInteriorRoom(skin = {}) {
+  const c = (part) => houseSkinColor(part, skin[part]);
   const g = new THREE.Group();
-  const wallMat = mat(0xf3e6cf);
+  const wallMat = mat(c('wallpaper')); // 墙纸可换色
+  const floorColor = c('floor');       // 地板可换色
+  const lightColor = c('light');       // 灯光色调可换
   const S = 25.3, half = S / 2; // 又扩了 3 倍的豪宅大厅
   // 木地板 + 拼缝
-  g.add(mesh(new THREE.BoxGeometry(S, 0.3, S), mat(0xc9a06a), 0, -0.15, 0));
+  g.add(mesh(new THREE.BoxGeometry(S, 0.3, S), mat(floorColor), 0, -0.15, 0));
   for (let k = -12; k <= 12; k++) {
     g.add(mesh(new THREE.BoxGeometry(0.04, 0.02, S), mat(0xb08a55), k * 1.02, 0.01, 0));
   }
@@ -1640,9 +1643,9 @@ export function createInteriorRoom() {
   };
   [-8.5, 0, 8.5].forEach(wx => addWindow(wx, -half + 0.25, 0));
   [-6.5, 6.5].forEach(wz => addWindow(-half + 0.25, wz, Math.PI / 2));
-  // 四盏顶灯照亮大厅
+  // 四盏顶灯照亮大厅（灯光色调可换）
   [[-6, -6], [6, -6], [-6, 6], [6, 6]].forEach(([x, z]) => {
-    const lamp = new THREE.PointLight(0xffd9a0, 0.6, 22, 1.8);
+    const lamp = new THREE.PointLight(lightColor, 0.6, 22, 1.8);
     lamp.position.set(x, 4, z);
     g.add(lamp);
   });
@@ -2656,28 +2659,207 @@ export function createMall() {
 
 /* ================= 我们自己的小屋 ================= */
 
-export function createHouse() {
+export function createHouse(skin = {}) {
+  const c = (part) => houseSkinColor(part, skin[part]);
   const g = new THREE.Group();
-  // 主体
-  g.add(mesh(new THREE.BoxGeometry(3.6, 2, 3), mat(0xfaf0dc), 0, 1, 0));
-  // 人字形屋顶
-  const roof = mesh(new THREE.ConeGeometry(2.9, 1.5, 4), mat(0xc0563f), 0, 2.75, 0);
+  // 主体（外墙可换色）
+  g.add(mesh(new THREE.BoxGeometry(3.6, 2, 3), mat(c('wall')), 0, 1, 0));
+  // 人字形屋顶（可换色）
+  const roof = mesh(new THREE.ConeGeometry(2.9, 1.5, 4), mat(c('roof')), 0, 2.75, 0);
   roof.rotation.y = Math.PI / 4;
   g.add(roof);
   // 烟囱
   g.add(mesh(new THREE.BoxGeometry(0.42, 1, 0.42), mat(0xa2705a), 1.1, 3, -0.6));
-  // 门（朝农田）和门口台阶
-  g.add(mesh(new THREE.BoxGeometry(0.8, 1.3, 0.08), mat(0x9a5f33), -0.6, 0.65, 1.53));
+  // 门（朝农田，可换色）和门口台阶
+  g.add(mesh(new THREE.BoxGeometry(0.8, 1.3, 0.08), mat(c('door')), -0.6, 0.65, 1.53));
   g.add(mesh(new THREE.SphereGeometry(0.07, 6, 5), mat(0xf2c94c), -0.28, 0.7, 1.58));
   g.add(mesh(new THREE.BoxGeometry(1.2, 0.16, 0.5), mat(0xd9c9a8), -0.6, 0.08, 1.85));
-  // 窗户
+  // 窗户（可换色）
   [[0.9, 1.53, 0], [1.86, 0, -0.8]].forEach(([x, z, ry], k) => {
-    const win = mesh(new THREE.BoxGeometry(0.75, 0.65, 0.08), mat(0xbfe3f0), x, 1.15, z);
+    const win = mesh(new THREE.BoxGeometry(0.75, 0.65, 0.08), mat(c('window')), x, 1.15, z);
     if (k === 1) { win.rotation.y = Math.PI / 2; }
     win.userData.houseWindow = true; // 夜里透出暖光
     g.add(win);
   });
   g.traverse(o => { if (o.isMesh) o.userData.house = true; });
+  return g;
+}
+
+/* ================= 花房温室：15 种花 + 温室建筑 + 花房内部 ================= */
+
+// 每种花的外观参数：kind 决定花形，petal/center 是花瓣与花心色，glow 传说花发光，big 大花
+const FLOWER_LOOK = {
+  daisy:      { kind: 'daisy',   petal: 0xffffff, center: 0xf2c94c },
+  cosmos:     { kind: 'daisy',   petal: 0xf2a7c3, center: 0xf2c94c },
+  pansy:      { kind: 'daisy',   petal: 0x8a5ec2, center: 0xf2e04c },
+  marigold:   { kind: 'daisy',   petal: 0xf2903a, center: 0xd9702a },
+  babybreath: { kind: 'cluster', petal: 0xffffff, center: 0xeef0e8 },
+  tulip:      { kind: 'tulip',   petal: 0xe0364a, center: 0x6aae5e },
+  rose:       { kind: 'rose',    petal: 0xd63a5a, center: 0x9a2a3a },
+  sunflower:  { kind: 'daisy',   petal: 0xf2c220, center: 0x8a5a2a, big: true },
+  hyacinth:   { kind: 'spike',   petal: 0x6a7ad0, center: 0x4a5ab0 },
+  lily:       { kind: 'lily',    petal: 0xfff0f5, center: 0xf2a7c3 },
+  lavender:   { kind: 'spike',   petal: 0x9a6ec2, center: 0x7a4ea2 },
+  hydrangea:  { kind: 'cluster', petal: 0x6ab0e0, center: 0x9a8ad0, big: true },
+  iris:       { kind: 'lily',    petal: 0x6a5ac2, center: 0xf2c94c },
+  bluerose:   { kind: 'rose',    petal: 0x3a6ad0, center: 0x2a4aa0, glow: 0.5 },
+  spiderlily: { kind: 'spider',  petal: 0xe0203a, center: 0xf2c94c, glow: 0.5 },
+};
+
+const flowerHead = {
+  daisy(pm, cm, look) {
+    const g = new THREE.Group();
+    const s = look.big ? 1.5 : 1, n = 8;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      const petal = mesh(new THREE.SphereGeometry(0.09 * s, 6, 5), pm, Math.cos(a) * 0.13 * s, 0, Math.sin(a) * 0.13 * s);
+      petal.scale.set(1.6, 0.35, 0.9); petal.rotation.y = -a; g.add(petal);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.09 * s, 8, 6), cm, 0, 0.02, 0));
+    return g;
+  },
+  tulip(pm, cm) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      const petal = mesh(new THREE.SphereGeometry(0.1, 6, 6, 0, Math.PI * 2, 0, Math.PI * 0.6), pm, Math.cos(a) * 0.06, 0.1, Math.sin(a) * 0.06);
+      petal.scale.set(0.7, 1.8, 0.7); petal.rotation.set(0.2 * Math.cos(a), -a, 0.2 * Math.sin(a)); g.add(petal);
+    }
+    return g;
+  },
+  rose(pm, cm) {
+    const g = new THREE.Group();
+    for (let ring = 0; ring < 3; ring++) {
+      const rr = 0.14 - ring * 0.04, n = 6 - ring;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + ring * 0.5;
+        const petal = mesh(new THREE.SphereGeometry(0.07, 6, 5), pm, Math.cos(a) * rr, ring * 0.03, Math.sin(a) * rr);
+        petal.scale.set(1, 0.5, 1.2); petal.rotation.y = -a; g.add(petal);
+      }
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.05, 6, 5), cm, 0, 0.08, 0));
+    return g;
+  },
+  spike(pm, cm) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 8; k++) {
+      const y = k * 0.06, r = 0.08 * (1 - k / 12);
+      for (let j = 0; j < 3; j++) {
+        const a = (j / 3) * Math.PI * 2 + k * 0.5;
+        g.add(mesh(new THREE.SphereGeometry(0.04, 5, 4), k % 2 ? pm : cm, Math.cos(a) * r, y, Math.sin(a) * r));
+      }
+    }
+    return g;
+  },
+  lily(pm, cm) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      const petal = mesh(new THREE.ConeGeometry(0.05, 0.22, 4), pm, Math.cos(a) * 0.1, 0.02, Math.sin(a) * 0.1);
+      petal.rotation.set(Math.sin(a) * 1.1, -a, -Math.cos(a) * 1.1); g.add(petal);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.04, 6, 5), cm, 0, 0.04, 0));
+    for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; g.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 4), cm, Math.cos(a) * 0.02, 0.09, Math.sin(a) * 0.02)); }
+    return g;
+  },
+  cluster(pm, cm, look) {
+    const g = new THREE.Group();
+    const s = look.big ? 1.4 : 1;
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 6, rr = 0.04 + (k % 3) * 0.03, y = 0.02 + (k % 4) * 0.03;
+      g.add(mesh(new THREE.SphereGeometry(0.045 * s, 5, 4), k % 2 ? pm : cm, Math.cos(a) * rr * s, y, Math.sin(a) * rr * s));
+    }
+    return g;
+  },
+  spider(pm, cm) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const petal = mesh(new THREE.CylinderGeometry(0.006, 0.015, 0.28, 4), pm, Math.cos(a) * 0.12, 0.05, Math.sin(a) * 0.12);
+      petal.rotation.set(Math.sin(a) * 1.4, -a, -Math.cos(a) * 1.4); g.add(petal);
+      g.add(mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.2, 3), cm, Math.cos(a) * 0.17, 0.14, Math.sin(a) * 0.17).rotateZ(Math.cos(a) * 0.6));
+    }
+    return g;
+  },
+};
+
+// 一朵开好的花：茎 + 叶 + 花头（花头按 kind 生成）
+export function createFlowerMesh(id) {
+  const look = FLOWER_LOOK[id] ?? FLOWER_LOOK.daisy;
+  const g = new THREE.Group();
+  const stemH = 0.5;
+  g.add(mesh(new THREE.CylinderGeometry(0.025, 0.03, stemH, 5), mat(0x4a8a42), 0, stemH / 2, 0));
+  const leaf = mesh(new THREE.SphereGeometry(0.08, 6, 5), mat(0x5aa050), 0.06, stemH * 0.4, 0);
+  leaf.scale.set(1.6, 0.3, 0.8); leaf.rotation.z = -0.5; g.add(leaf);
+  const glowOpt = look.glow ? { emissive: look.petal, emissiveIntensity: look.glow, roughness: 0.4 } : {};
+  const head = flowerHead[look.kind](mat(look.petal, glowOpt), mat(look.center, look.glow ? { emissive: look.center, emissiveIntensity: look.glow * 0.6 } : {}), look);
+  head.position.y = stemH + 0.05;
+  g.add(head);
+  return g;
+}
+
+// 生长中的花苞（还没开花时插在花圃里）
+export function createFlowerBud() {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.3, 5), mat(0x4a8a42), 0, 0.15, 0));
+  const bud = mesh(new THREE.SphereGeometry(0.07, 6, 5, 0, Math.PI * 2, 0, Math.PI * 0.7), mat(0x6aae5e), 0, 0.33, 0);
+  g.add(bud);
+  return g;
+}
+
+// 8 个花圃的站位（花房局部坐标）
+export const GREENHOUSE_SPOTS = [
+  [-4.5, -1], [-1.5, -1], [1.5, -1], [4.5, -1],
+  [-4.5, 2], [-1.5, 2], [1.5, 2], [4.5, 2],
+];
+
+// 菜园里的玻璃温室（点它进花房）
+export function createGreenhouse() {
+  const g = new THREE.Group();
+  const frame = mat(0xeae4d4);
+  const glassM = mat(0xbfe8e0, { transparent: true, opacity: 0.4, roughness: 0.1 });
+  g.add(mesh(new THREE.BoxGeometry(3.2, 0.3, 2.6), mat(0xc9a06a), 0, 0.15, 0));       // 底座
+  g.add(mesh(new THREE.BoxGeometry(3.0, 1.8, 2.4), glassM, 0, 1.2, 0));               // 玻璃墙体
+  [[-1.5, -1.2], [1.5, -1.2], [-1.5, 1.2], [1.5, 1.2]].forEach(([x, z]) =>
+    g.add(mesh(new THREE.BoxGeometry(0.12, 1.8, 0.12), frame, x, 1.2, z)));           // 四角框架柱
+  const roof = mesh(new THREE.CylinderGeometry(1.5, 1.5, 3.0, 12, 1, false, 0, Math.PI), glassM, 0, 2.1, 0);
+  roof.rotation.z = Math.PI / 2; g.add(roof);                                          // 拱形玻璃顶
+  g.add(mesh(new THREE.BoxGeometry(3.0, 0.1, 0.1), frame, 0, 2.1, 0));                // 顶脊
+  g.add(mesh(new THREE.BoxGeometry(0.8, 1.3, 0.08), frame, 0, 0.75, 1.22));           // 门
+  [[-0.7, 0xf2a7c3], [0, 0xf2c94c], [0.7, 0xe0364a]].forEach(([x, c]) =>
+    g.add(mesh(new THREE.SphereGeometry(0.14, 7, 6), mat(c), x, 0.8, 0)));            // 里面透出的花
+  g.traverse(o => { if (o.isMesh) o.userData.greenhouse = true; });
+  return g;
+}
+
+// 花房内部：玻璃暖房 + 8 个花圃 + 扎花台
+export function createGreenhouseInterior() {
+  const g = new THREE.Group();
+  const W = 13, D = 10;
+  const frame = mat(0xeae4d4);
+  const glassM = mat(0xcfeae2, { transparent: true, opacity: 0.32, roughness: 0.1 });
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xcdbb95), 0, -0.15, 0));          // 泥土地面
+  g.add(mesh(new THREE.BoxGeometry(W, 4, 0.2), glassM, 0, 2, -D / 2));                // 玻璃后墙
+  g.add(mesh(new THREE.BoxGeometry(0.2, 4, D), glassM, -W / 2, 2, 0));                // 玻璃左墙
+  // 白框架横竖梁
+  for (let x = -W / 2 + 2; x < W / 2; x += 2.2) g.add(mesh(new THREE.BoxGeometry(0.1, 4, 0.1), frame, x, 2, -D / 2));
+  g.add(mesh(new THREE.BoxGeometry(W, 0.12, 0.12), frame, 0, 4, -D / 2));
+  // 8 个花圃种植台（木框 + 土）
+  GREENHOUSE_SPOTS.forEach(([x, z]) => {
+    g.add(mesh(new THREE.BoxGeometry(1.2, 0.3, 1.2), mat(0x9a6a42), x, 0.15, z));
+    g.add(mesh(new THREE.BoxGeometry(1.0, 0.12, 1.0), mat(0x6a4a30), x, 0.32, z));
+  });
+  // 扎花台（后排中间的工作台）
+  g.add(mesh(new THREE.BoxGeometry(2.2, 0.85, 1.0), mat(0xb98a5a), 0, 0.42, -3.4));
+  g.add(mesh(new THREE.BoxGeometry(2.3, 0.1, 1.1), mat(0xd9c9a8), 0, 0.9, -3.4));
+  [[-0.7, 0xf2a7c3], [0, 0xf2c94c], [0.7, 0x6a7ad0]].forEach(([x, c]) =>
+    g.add(mesh(new THREE.SphereGeometry(0.1, 6, 5), mat(c), x, 1.0, -3.4)));           // 台上摆着几朵花
+  // 顶灯（暖阳）
+  [[-4, 0], [4, 0], [0, 3]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xfff2d8, 0.6, 20, 1.8);
+    l.position.set(x, 3.6, z);
+    g.add(l);
+  });
   return g;
 }
 
