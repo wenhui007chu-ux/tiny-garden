@@ -545,6 +545,136 @@ PET_DECORS.forEach(_extendLevels);
 export const seedById = (id) => SEEDS.find(s => s.id === id);
 export const decorById = (id) => DECORS.find(d => d.id === id);
 
+// ===== 成就系统：30 个成就 + 成就大楼 =====
+// 设计原则：全部用「当前状态」判定，不依赖累计计数器。
+// 好处是老存档一进游戏就能把已经做到的直接点亮，不用从零重新统计。
+// 每条成就：cur(g) 取当前进度，max 是目标值，达成条件统一是 cur >= max。
+// tier 只影响卡片配色：bronze 铜 / silver 银 / gold 金 / legend 传说。
+export const ACHIEVEMENT_POS = { x: 60, y: -60, z: 60 }; // 成就殿堂藏在岛屿下方
+
+const lv5Count = (g) => Object.values(g.furniture).filter(v => v >= FURNITURE_MAX_LEVEL).length;
+const legendPets = (g) => Object.keys(g.petsOwned).filter(id => petById(id)?.rarity === 'legend').length;
+const blackSoil = (g) => g.tiles.filter(t => !t.locked && t.soil >= SOILS.length - 1).length;
+const unlockedTiles = (g) => g.tiles.filter(t => !t.locked).length;
+
+export const ACHIEVEMENTS = [
+  // —— 土地开发 ——
+  { id: 'a01', name: '开垦者',   emoji: '🌱', tier: 'bronze', group: '土地',
+    desc: '解锁 10 块土地', hint: '点未开垦的荒地花 1000💰 开垦',
+    cur: unlockedTiles, max: 10 },
+  { id: 'a02', name: '一层满员', emoji: '🗺️', tier: 'silver', group: '土地',
+    desc: '一层 36 块地全部解锁', hint: '把一层菜地铺满',
+    cur: (g) => g.tiles.slice(0, GRID * GRID).filter(t => !t.locked).length, max: GRID * GRID },
+  { id: 'a03', name: '双层农场', emoji: '🏔️', tier: 'gold', group: '土地',
+    desc: '两层共 72 块地全部解锁', hint: '二层每块也要 1000💰，慢慢来',
+    cur: unlockedTiles, max: GRID * GRID * LEVELS },
+  { id: 'a04', name: '黑土帝国', emoji: '⛏️', tier: 'gold', group: '土地',
+    desc: '把 36 块地升级成黑金土', hint: '商场「土壤」页买黑金土，再用升级模式点地',
+    cur: blackSoil, max: 36 },
+
+  // —— 作物与图鉴 ——
+  { id: 'a05', name: '育苗开始',   emoji: '🌾', tier: 'bronze', group: '作物',
+    desc: '解锁 5 种作物', hint: '商场「种子」页解锁新品种',
+    cur: (g) => g.unlockedSeeds.length, max: 5 },
+  { id: 'a06', name: '种子收藏家', emoji: '🌈', tier: 'gold', group: '作物',
+    desc: `解锁全部 ${SEEDS.length} 种作物`, hint: '彩虹果是最后一种，3000💰',
+    cur: (g) => g.unlockedSeeds.length, max: SEEDS.length },
+  { id: 'a07', name: '图鉴入门', emoji: '📖', tier: 'bronze', group: '作物',
+    desc: '图鉴收录 10 项', hint: '进图鉴大楼，把背包里的作物捐出去',
+    cur: (g) => g.codexCount(), max: 10 },
+  { id: 'a08', name: '图鉴过半', emoji: '📗', tier: 'silver', group: '作物',
+    desc: '图鉴收录 21 项', hint: '同一作物的普通/白银/黄金各算一项',
+    cur: (g) => g.codexCount(), max: 21 },
+  { id: 'a09', name: '图鉴大成', emoji: '📚', tier: 'legend', group: '作物',
+    desc: '图鉴 42 项全部收录', hint: '14 种作物 × 3 种品质，一个都不能少',
+    cur: (g) => g.codexCount(), max: SEEDS.length * CODEX_QUALITIES.length },
+
+  // —— 财富 ——
+  { id: 'a10', name: '万元户',   emoji: '💰', tier: 'bronze', group: '财富',
+    desc: '身上带着 10000💰', hint: '卖作物、做料理都能攒',
+    cur: (g) => g.coins, max: 10000 },
+  { id: 'a11', name: '十万富翁', emoji: '💎', tier: 'silver', group: '财富',
+    desc: '身上带着 100000💰', hint: '高级作物做成料理，卖价 ×3',
+    cur: (g) => g.coins, max: 100000 },
+  { id: 'a12', name: '百万庄园', emoji: '👑', tier: 'legend', group: '财富',
+    desc: '身上带着 1000000💰', hint: '杂交「创世之种」一颗 75000💰',
+    cur: (g) => g.coins, max: 1000000 },
+  { id: 'a13', name: '储蓄习惯', emoji: '🏦', tier: 'bronze', group: '财富',
+    desc: '银行存款达到 1000💰', hint: '点右前方的黑房子存钱',
+    cur: (g) => g.bank, max: 1000 },
+
+  // —— 产线满负荷 ——
+  { id: 'a14', name: '工坊开工', emoji: '🥫', tier: 'bronze', group: '产线',
+    desc: `${WORKSHOP.slots} 个工坊槽位同时加工`, hint: '点右侧工坊小屋，把作物做成罐头',
+    cur: (g) => g.workshop.filter(Boolean).length, max: WORKSHOP.slots },
+  { id: 'a15', name: '灶火通明', emoji: '🍳', tier: 'silver', group: '产线',
+    desc: `${COOK_SLOTS} 个灶位同时开火`, hint: '料理工坊里凑齐配方就能下锅',
+    cur: (g) => g.cookSlots.filter(Boolean).length, max: COOK_SLOTS },
+  { id: 'a16', name: '满罩培养', emoji: '🧬', tier: 'silver', group: '产线',
+    desc: `${HYBRID_SLOTS} 个培养罩同时工作`, hint: '杂交室里两种作物配对培养',
+    cur: (g) => g.hybridSlots.filter(Boolean).length, max: HYBRID_SLOTS },
+  { id: 'a17', name: '花开满园', emoji: '🌸', tier: 'silver', group: '产线',
+    desc: `${GREENHOUSE_SLOTS} 个花圃同时种花`, hint: '花房温室恒温，种下不用浇水',
+    cur: (g) => g.flowerPlots.filter(Boolean).length, max: GREENHOUSE_SLOTS },
+  { id: 'a18', name: '渔网密布', emoji: '🎣', tier: 'silver', group: '产线',
+    desc: `${FISHING.slots} 个鱼网同时下水`, hint: '点水塘下网，不花原料的白捡钱',
+    cur: (g) => g.fishNets.filter(Boolean).length, max: FISHING.slots },
+
+  // —— 设施 ——
+  { id: 'a19', name: '解放双手', emoji: '💧', tier: 'silver', group: '设施',
+    desc: '水利升到「自动灌溉」', hint: '商场「水利」页，500💰 一劳永逸',
+    cur: (g) => g.waterLevel, max: WATER_LEVELS.length - 1 },
+  { id: 'a20', name: '装饰满园', emoji: '🪴', tier: 'bronze', group: '设施',
+    desc: '10 个装饰台全部摆上装饰', hint: '商场「装饰」页买，再点空台子摆',
+    cur: (g) => g.decorSlots.filter(s => s.decor).length, max: 10 },
+  { id: 'a21', name: '风车矩阵', emoji: '🌀', tier: 'gold', group: '设施',
+    desc: '10 个装饰台全部摆成小风车', hint: '风车能离线发电，每台每分钟 +1💰',
+    cur: (g) => g.decorSlots.filter(s => s.decor?.id === 'windmill').length, max: 10 },
+  { id: 'a22', name: '名品陈列', emoji: '🏆', tier: 'gold', group: '设施',
+    desc: '个人图鉴 10 座金台全部摆满', hint: '图鉴大楼「个人图鉴」页，红毯贵宾厅',
+    cur: (g) => g.displaySlots.filter(s => s.item).length, max: 10 },
+
+  // —— 小屋 ——
+  { id: 'a23', name: '添置家当', emoji: '🛋️', tier: 'bronze', group: '小屋',
+    desc: '拥有 10 件家具', hint: '进自己的房子，在家具页购买',
+    cur: (g) => Object.keys(g.furniture).length, max: 10 },
+  { id: 'a24', name: '满室生辉', emoji: '🏠', tier: 'gold', group: '小屋',
+    desc: `集齐全部 ${FURNITURE.length} 件家具`, hint: '一件都不能落下',
+    cur: (g) => Object.keys(g.furniture).length, max: FURNITURE.length },
+  { id: 'a25', name: '极致装修', emoji: '✨', tier: 'gold', group: '小屋',
+    desc: `把 5 件家具升到满级 ${FURNITURE_MAX_LEVEL} 级`, hint: '家具最高 5 级，越升越贵',
+    cur: lv5Count, max: 5 },
+
+  // —— 伙伴 ——
+  { id: 'a26', name: '第一只伙伴', emoji: '🐕', tier: 'bronze', group: '伙伴',
+    desc: '养第一只宠物', hint: '点宠物间小屋，挑一只带回家',
+    cur: (g) => Object.keys(g.petsOwned).length, max: 1 },
+  { id: 'a27', name: '宠物园',     emoji: '🐾', tier: 'gold', group: '伙伴',
+    desc: '收集 10 只宠物', hint: '买断制，买过就一直是你的',
+    cur: (g) => Object.keys(g.petsOwned).length, max: 10 },
+  { id: 'a28', name: '传说饲主',   emoji: '🐲', tier: 'legend', group: '伙伴',
+    desc: '拥有 1 只传说品级宠物', hint: '幼龙 12000💰 是最便宜的传说',
+    cur: legendPets, max: 1 },
+  { id: 'a29', name: '池塘生态',   emoji: '🦢', tier: 'gold', group: '伙伴',
+    desc: '收集 10 种水塘装饰', hint: '商场「水塘」页买，同时最多摆 3 个',
+    cur: (g) => Object.keys(g.pondOwned).length, max: 10 },
+
+  // —— 终极 ——
+  { id: 'a30', name: '园艺大师', emoji: '🌟', tier: 'legend', group: '终极',
+    desc: '达成前面全部 29 个成就', hint: '把上面的都点亮，这个会自己亮',
+    // 数「已经拿到的记录」而不是「此刻是否满足条件」：
+    // 万元户拿到后又把钱花光了也照样算数，不能让它退回去
+    cur: (g) => ACHIEVEMENTS.slice(0, 29).filter(a => g.achievements[a.id]).length, max: 29 },
+];
+
+export const achievementById = (id) => ACHIEVEMENTS.find(a => a.id === id);
+export const ACHIEVEMENT_TIERS = {
+  bronze: { name: '铜',   color: '#c98a4a' },
+  silver: { name: '银',   color: '#8fa4b8' },
+  gold:   { name: '金',   color: '#e0a020' },
+  legend: { name: '传说', color: '#a24ac2' },
+};
+
 // 背包物品 key 解析："tomato" | "tomato:gold" | "p:tomato:gold"（p:=罐头）| "x:tomato"（x:=生长不良）| "egg"
 export function keyInfo(key) {
   if (key === EGG.key) {

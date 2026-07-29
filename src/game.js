@@ -13,6 +13,7 @@ import {
   FURNITURE_MAX_LEVEL,
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
+  ACHIEVEMENTS, ACHIEVEMENT_POS,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -26,7 +27,9 @@ import {
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
+  createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
 } from './meshes.js';
+import { sfx } from './music.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
 
@@ -57,6 +60,7 @@ export class Game {
     this.furniture = { bed: 1 }; // 房子内饰：id -> 已解锁的最高等级(1~3)，床是白送的
     this.furnitureStyle = {};    // 当前展示的外观等级（可在已解锁范围内随意切换）
     this.furniturePos = {};      // 玩家自己摆的位置：id -> { x, z, rotY }
+    this._notices = [];          // 读档时要说的话：那会儿 UI 还没建好，先攒着
     this.onToast = () => {};
     this.onState = () => {};
 
@@ -178,10 +182,11 @@ export class Game {
     this.petHall.position.set(PET_POS.x, PET_POS.y, PET_POS.z);
     this.group.add(this.petHall);
 
-    // 花房温室：菜园左前方的玻璃温室 + 藏在岛下的花房内部
+    // 花房温室：菜园右后方的玻璃温室 + 藏在岛下的花房内部
+    // （原来在左前方，跟水塘挤在一起，挪到后方空地避开水塘和装饰台）
     const greenhouse = createGreenhouse();
-    greenhouse.position.set(-10, -0.51, 8);
-    greenhouse.rotation.y = 0.5;
+    greenhouse.position.set(9.5, -0.51, -7.5);
+    greenhouse.rotation.y = -0.4;
     this.group.add(greenhouse);
     this.greenhouseMeshes = [];
     greenhouse.traverse(o => { if (o.isMesh) this.greenhouseMeshes.push(o); });
@@ -190,6 +195,21 @@ export class Game {
     this.group.add(this.greenhouseHall);
     this.flowerPlots = Array(GREENHOUSE_SLOTS).fill(null); // 每格：null 或 { id, readyAt }
     this.flowerMeshes = {}; // slot -> mesh
+
+    // 成就殿堂：菜园右后方的金顶建筑 + 藏在岛下的 30 座奖杯展厅
+    this.achievements = {};     // 已达成：id -> 达成时的时间戳
+    this.onAchievement = () => {}; // 达成瞬间的回调，由 UI 接管弹横幅
+    const achBuilding = createAchievementBuilding();
+    achBuilding.position.set(16, -0.51, -12);
+    achBuilding.rotation.y = -0.9;
+    this.group.add(achBuilding);
+    this.achievementMeshes = [];
+    achBuilding.traverse(o => { if (o.isMesh) this.achievementMeshes.push(o); });
+    this.achievementHall = createAchievementInterior();
+    this.achievementHall.position.set(ACHIEVEMENT_POS.x, ACHIEVEMENT_POS.y, ACHIEVEMENT_POS.z);
+    this.group.add(this.achievementHall);
+    this.trophyMeshes = {}; // 成就 id -> 展厅里的奖杯
+
     this.petsOwned = {};        // 买下的宠物
     this.petShown = null;       // 当前展示的那只
     this.petDecorsOwned = {};   // 房间装饰：id -> 已解锁最高等级(1~3)
@@ -335,6 +355,7 @@ export class Game {
     this.poisonUntil = 0;
     this.deadUntil = this.time + POISON.reviveTime;
     this.onToast('💀 毒发身亡…等着复活吧');
+    sfx.play('die');
     this.onState();
     this.save();
   }
@@ -350,9 +371,11 @@ export class Game {
     if (Math.random() < POISON.chance) {
       this.poisonUntil = this.time + POISON.timeout;
       this.onToast(`☠️ 拍虫时被咬了！${POISON.timeout} 秒内用 💉 解毒剂，否则死亡`);
+      sfx.play('poison');
       this.onState();
     } else {
       this.onToast(`👏 啪！拍掉了${seed.emoji}${seed.name}上的虫子`);
+      sfx.play('swat');
     }
     this.save();
     return true;
@@ -432,6 +455,7 @@ export class Game {
   spend(amount) {
     if (this.coins < amount) {
       this.onToast(`金币不够，还差 ${amount - this.coins} 💰`);
+      sfx.play('deny');
       return false;
     }
     this.coins -= amount;
@@ -457,6 +481,7 @@ export class Game {
     t.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(t.lucky) };
     if (t.lucky) { t.lucky = false; this.onToast('🧪 幸运加持生效！'); }
     this.updatePlantMesh(t);
+    sfx.play('plant');
     this.save();
   }
 
@@ -481,6 +506,7 @@ export class Game {
     });
     this.gain(total);
     this.onToast(`💰 一键售卖！${count} 件东西卖了 ${total}💰`);
+    sfx.play('coin');
     this.save();
   }
 
@@ -569,6 +595,7 @@ export class Game {
     // 自动灌溉时代，洒水器的使命就是找恐龙虾卵
     this.onToast(this.waterLevel === 2 ? '💦 洒水器出动，找找恐龙虾卵～'
       : this.waterLevel === 1 ? '💧 洒水器浇了 3×3' : '💧 浇水成功');
+    sfx.play('water');
     this.rollEggs(targets.length);
     this.save();
   }
@@ -603,6 +630,10 @@ export class Game {
       : q
         ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
         : `${seed.emoji}${seed.name} ×${count} 放入背包`);
+    // 连着收会一级级升调，一片收完像走完一段音阶
+    this._combo = (this.time - (this._comboAt ?? -9) < 2) ? Math.min((this._combo ?? 0) + 1, 6) : 0;
+    this._comboAt = this.time;
+    sfx.play('harvest', { semitones: this._combo * 2, throttle: 0.03 });
     this.save();
     return true;
   }
@@ -616,6 +647,7 @@ export class Game {
     if (this.inventory[key] === 0) delete this.inventory[key];
     this.gain(info.price * n);
     this.onToast(`卖出${info.icon}${info.label} ×${n} +${info.price * n} 💰`);
+    sfx.play('coin');
     this.save();
   }
 
@@ -733,8 +765,18 @@ export class Game {
   }
 
   donateCodex(key) {
+    // 花不在 42 格体系里（那是 14 作物 × 3 品质），收了也没有对应的展位
+    if (key.startsWith('f:')) {
+      this.onToast('🌸 图鉴收录的是 14 种作物，花可以摆到个人图鉴去');
+      return false;
+    }
     if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) {
       this.onToast('图鉴只收录新鲜的作物本体');
+      return false;
+    }
+    // 兜底：万一还有别的没想到的 key，宁可拒收也不能吃掉玩家的东西
+    if (this.codexKeys().indexOf(key) < 0) {
+      this.onToast('这个东西没有对应的收录台');
       return false;
     }
     if (this.codex[key]) { this.onToast('这个品质的作物已经收录过啦'); return false; }
@@ -745,6 +787,7 @@ export class Game {
     this.buildCodexPedestal(key);
     const info = keyInfo(key);
     this.onToast(`📖 ${info.icon}${info.label} 收录成功！图鉴进度 ${this.codexCount()}/42`);
+    sfx.play('codex');
     this.onState();
     this.save();
     return true;
@@ -783,6 +826,7 @@ export class Game {
     this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
     this.cookSlots[slot] = null;
     this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包`);
+    sfx.play('done');
     this.onState();
     this.save();
   }
@@ -831,6 +875,7 @@ export class Game {
     this.petDecorStyle[id] = lv + 1; // 刚升的新外观先亮出来
     this.refreshPetRoom();
     this.onToast(`${d.emoji} ${d.name}升级成「${d.levelNames[lv]}」！`);
+    sfx.play('upgrade');
     this.onState();
     this.save();
   }
@@ -914,6 +959,7 @@ export class Game {
     this.hybridSlots[slot] = null;
     this.refreshHybridStations();
     this.onToast(`🧬 培养完成！${h.emoji}${h.name}放入背包`);
+    sfx.play('done');
     this.onState();
     this.save();
   }
@@ -1057,6 +1103,7 @@ export class Game {
       this.queueCatch(usingRod ? '🎣 鱼竿' : '🥅 渔网',
         cfg.min + Math.floor(Math.random() * (cfg.max - cfg.min + 1)));
       this.onToast('🐟 有鱼咬钩了！快点收杆！');
+      sfx.play('bite');
     } else {
       this.onToast(usingRod ? '🎣 没咬钩…' : '🥅 空网…');
     }
@@ -1176,6 +1223,7 @@ export class Game {
     this.furnitureStyle[id] = lv + 1; // 刚买的新外观先亮出来
     this.refreshInterior();
     this.onToast(`${f.emoji} ${f.name}升级成「${f.levelNames[lv]}」！`);
+    sfx.play('upgrade');
     this.onState();
     this.save();
   }
@@ -1203,6 +1251,7 @@ export class Game {
     this.flowerPlots[slot] = { id: flowerId, readyAt: this.time + fl.grow };
     this.refreshGreenhousePlot(slot);
     this.onToast(`${fl.emoji} 种下了${fl.name}，${fl.grow >= 60 ? Math.round(fl.grow / 60) + ' 分钟' : fl.grow + ' 秒'}后开花`);
+    sfx.play('plant');
     this.onState();
     this.save();
   }
@@ -1218,6 +1267,7 @@ export class Game {
     this.flowerPlots[slot] = null;
     this.refreshGreenhousePlot(slot);
     this.onToast(`🌸 收下一朵${fl.name}，进背包了`);
+    sfx.play('harvest');
     this.onState();
     this.save();
   }
@@ -1234,6 +1284,7 @@ export class Game {
     for (const k in need) { this.inventory[k] -= need[k]; if (this.inventory[k] <= 0) delete this.inventory[k]; }
     this.coins += price;
     this.onToast(`💐 扎了一束花，卖了 ${price}💰`);
+    sfx.play('bouquet');
     this.onState();
     this.save();
   }
@@ -1313,6 +1364,55 @@ export class Game {
     }
   }
 
+  /* ---------- 成就系统 ---------- */
+
+  // 逐条比对当前状态，把新达成的记下来并回调 UI。
+  // silent=true 只补记不弹提示，读档时用——老存档一进来就点亮一批，
+  // 不静默的话会一口气弹十几条横幅刷屏。
+  checkAchievements(silent = false) {
+    const fresh = [];
+    for (const a of ACHIEVEMENTS) {
+      if (this.achievements[a.id]) continue;
+      // 某条成就的取值函数万一出错，不能连累整个主循环
+      let done = false;
+      try { done = a.cur(this) >= a.max; } catch { done = false; }
+      if (!done) continue;
+      this.achievements[a.id] = Date.now();
+      fresh.push(a);
+    }
+    if (!fresh.length) return fresh;
+    this.refreshTrophies();
+    if (!silent) fresh.forEach(a => this.onAchievement(a));
+    this.save();
+    return fresh;
+  }
+
+  achievementCount() { return Object.keys(this.achievements).length; }
+
+  // 成就进度：已达成 / 未达成都要算，供面板和奖杯展厅用
+  achievementProgress(a) {
+    let cur = 0;
+    try { cur = a.cur(this); } catch { cur = 0; }
+    return { cur: Math.min(cur, a.max), max: a.max, done: !!this.achievements[a.id] };
+  }
+
+  // 展厅里 30 座台子：达成的立起奖杯，没达成的留一个灰底座
+  refreshTrophies() {
+    if (!this.achievementHall) return;
+    ACHIEVEMENTS.forEach((a, k) => {
+      const done = !!this.achievements[a.id];
+      const cur = this.trophyMeshes[a.id];
+      if (cur && cur.userData.done === done) return; // 状态没变就不重建
+      if (cur) this.achievementHall.remove(cur);
+      const spot = ACHIEVEMENT_SPOTS[k];
+      const m = createTrophyMesh(a, done);
+      m.position.set(spot.x, 0, spot.z);
+      m.userData.done = done;
+      this.achievementHall.add(m);
+      this.trophyMeshes[a.id] = m;
+    });
+  }
+
   /* ---------- 自由布置 ---------- */
 
   furnitureMeshes() {
@@ -1380,11 +1480,19 @@ export class Game {
     g.add(createGalleryPedestal(!!s.item));
     if (s.item) {
       const info = keyInfo(s.item.key);
-      const crop = createPlantMesh(info.seed.id, 3);
-      applyPlating(crop, info.quality);
-      crop.position.y = 1.56;
-      crop.scale.setScalar(1.9);
-      g.add(crop);
+      // 花没有 seed 字段，得走花的模型，否则 info.seed.id 直接报错、整座台子都不见了
+      let model;
+      if (info.flower) {
+        // 花带茎，比果实高是自然的，但别高过台座本身，不然头重脚轻
+        model = createFlowerMesh(s.item.key.slice(2));
+        model.scale.setScalar(0.95);
+      } else {
+        model = createPlantMesh(info.seed.id, 3);
+        applyPlating(model, info.quality);
+        model.scale.setScalar(1.9);
+      }
+      model.position.y = 1.56;
+      g.add(model);
     }
     const { x, z } = galleryPedestalPos(k);
     g.position.set(x, 0, z);
@@ -1459,6 +1567,7 @@ export class Game {
     this.workshop[slot] = null;
     const info = keyInfo(pkey);
     this.onToast(`${info.icon} ${info.label}完成！放入背包`);
+    sfx.play('done');
     this.onState();
     this.save();
   }
@@ -1469,6 +1578,7 @@ export class Game {
       const seed = seedById(t.plant.seedId);
       this.removePlant(t);
       this.onToast(`铲掉了${seed.name}`);
+      sfx.play('shovel');
     }
     this.save();
   }
@@ -1480,6 +1590,7 @@ export class Game {
     this.group.remove(s.decor.mesh);
     s.decor = null;
     this.onToast(`收起了${d.name}`);
+    sfx.play('shovel');
     this.save();
   }
 
@@ -1492,6 +1603,7 @@ export class Game {
     this.refreshLockEdge(t);
     const left = this.tiles.filter(x => x.locked).length;
     this.onToast(`🌱 开垦成功！还有 ${left} 块地没解锁`);
+    sfx.play('unlock');
     this.save();
   }
 
@@ -1651,11 +1763,16 @@ export class Game {
     if (this.deadUntil && this.time >= this.deadUntil) {
       this.deadUntil = 0;
       this.onToast('✨ 复活了！以后拍虫小心点');
+      sfx.play('revive');
       this.onState();
       this.save();
     }
 
     this.tickFishing(dt);
+
+    // 成就：每秒统一比对一次，省得在几十个动作里各插一遍钩子
+    this._achTimer = (this._achTimer ?? 0) + dt;
+    if (this._achTimer >= 1) { this._achTimer = 0; this.checkAchievements(); }
 
     const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
     for (const t of this.tiles) {
@@ -1731,6 +1848,7 @@ export class Game {
       deadLeft: Math.max(0, this.deadUntil - this.time),
       bank: this.bank,
       codex: this.codex,
+      achievements: this.achievements,
     };
     const json = JSON.stringify(data);
     localStorage.setItem(SAVE_KEY, json);
@@ -1750,6 +1868,14 @@ export class Game {
     this.inventory = data.inventory ?? {};
     this.items = data.items ?? {};
     this.codex = data.codex ?? {};
+    // 老存档修复：以前花能捐进图鉴，可 42 格里根本没有花的展位，
+    // 结果花被扣掉、台子也不显示。把这类无效收录清掉，东西退回背包。
+    Object.keys(this.codex).forEach(k => {
+      if (this.codexKeys().includes(k)) return;
+      delete this.codex[k];
+      this.inventory[k] = (this.inventory[k] ?? 0) + 1;
+      this._notices.push(`↩️ ${keyInfo(k).icon}${keyInfo(k).label}没有对应的收录台，已退回背包`);
+    });
     this.furniture = data.furniture ?? { bed: 1 };
     if (!this.furniture.bed) this.furniture.bed = 1; // 床永远都在
     this.furnitureStyle = data.furnitureStyle ?? {};
@@ -1876,5 +2002,9 @@ export class Game {
       this._pendingDamage = false;
       this.damageTiles(this.drought ? 'cracked' : 'wet');
     }
+    // 成就：老存档没有这个字段，先静默补记已经做到的，再立起奖杯
+    this.achievements = data.achievements ?? {};
+    this.checkAchievements(true);
+    this.refreshTrophies();
   }
 }

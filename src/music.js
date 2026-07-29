@@ -90,6 +90,21 @@ class MusicBox {
     src.start(when);
   }
 
+  // 成就达成的小号角：大三和弦上行 + 顶音重复一下
+  // 它是操作反馈不是背景乐，所以归「操作音效」开关管
+  achievementJingle() {
+    if (!sfx.enabled) return;
+    try { this.ensureCtx(); } catch { return; }
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    const t0 = this.ctx.currentTime + 0.02;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 1.5; // 盖过背景music，成就要听得见
+    gain.connect(this.master);
+    // C-E-G-C 上行，最后高音 C 补一下
+    [[72, 0], [76, 0.09], [79, 0.18], [84, 0.27], [84, 0.42]].forEach(([midi, off], k) =>
+      this.pluck(midi, t0 + off, k === 4 ? 0.55 : 0.22, 'triangle', 0.32, gain));
+  }
+
   pickTrack() {
     const pool = TRACKS.filter(t => t.id !== this.lastTrackId);
     const t = pool[Math.floor(Math.random() * pool.length)];
@@ -194,3 +209,117 @@ class MusicBox {
 }
 
 export const music = new MusicBox();
+
+/* ================= 操作音效 =================
+ * 和背景音乐共用一个 AudioContext，但挂在自己的音量总线上，
+ * 所以关掉音乐不影响音效，两者各开各的。
+ * 配方说明：notes = [[音高, 起始秒, 时长], ...]，noise = 一段带滤波的噪声爆。
+ * 音高用 MIDI，60=C4 / 72=C5 / 84=C6。 */
+const SFX = {
+  // —— 田间操作 ——
+  plant:    { wave: 'triangle', gain: 0.20, notes: [[72, 0, 0.09], [79, 0.05, 0.13]] },
+  water:    { noise: { dur: 0.20, hp: 1400, lp: 5200, gain: 0.16 } },
+  harvest:  { wave: 'triangle', gain: 0.22, notes: [[76, 0, 0.08], [83, 0.055, 0.09], [88, 0.11, 0.18]] },
+  shovel:   { wave: 'sine', gain: 0.16, notes: [[57, 0.02, 0.14], [50, 0.09, 0.18]],
+              noise: { dur: 0.11, hp: 500, lp: 2600, gain: 0.13 } },
+  unlock:   { wave: 'triangle', gain: 0.24, notes: [[48, 0, 0.22], [60, 0.06, 0.2], [67, 0.14, 0.28]],
+              noise: { dur: 0.16, hp: 300, lp: 1800, gain: 0.16 } },
+  swat:     { noise: { dur: 0.07, hp: 800, lp: 7000, gain: 0.3 } },
+
+  // —— 钱 ——
+  coin:     { wave: 'square', gain: 0.10, notes: [[88, 0, 0.07], [95, 0.06, 0.14]] },
+  spend:    { wave: 'triangle', gain: 0.15, notes: [[79, 0, 0.08], [71, 0.06, 0.14]] },
+  upgrade:  { wave: 'triangle', gain: 0.20, notes: [[72, 0, 0.09], [76, 0.06, 0.09], [79, 0.12, 0.09], [84, 0.18, 0.26]] },
+  deny:     { wave: 'sawtooth', gain: 0.09, notes: [[55, 0, 0.11], [51, 0.09, 0.17]] },
+
+  // —— 设施与收成 ——
+  done:     { wave: 'sine', gain: 0.20, notes: [[81, 0, 0.10], [85, 0.07, 0.10], [88, 0.14, 0.24]] },
+  codex:    { wave: 'sine', gain: 0.22, notes: [[60, 0, 0.16], [84, 0.05, 0.1], [84, 0.16, 0.22]] },
+  bouquet:  { wave: 'triangle', gain: 0.18, notes: [[79, 0, 0.08], [83, 0.055, 0.08], [86, 0.11, 0.08], [91, 0.17, 0.28]] },
+  bite:     { wave: 'sine', gain: 0.26, notes: [[64, 0, 0.10], [71, 0.07, 0.20]] },
+
+  // —— 界面 ——
+  tap:      { wave: 'sine', gain: 0.07, notes: [[86, 0, 0.045]] },
+  open:     { wave: 'sine', gain: 0.13, notes: [[74, 0, 0.07], [81, 0.05, 0.12]] },
+  close:    { wave: 'sine', gain: 0.12, notes: [[81, 0, 0.07], [74, 0.05, 0.12]] },
+  pause:    { wave: 'sine', gain: 0.16, notes: [[72, 0, 0.14], [67, 0.11, 0.14], [60, 0.22, 0.32]] },
+  resume:   { wave: 'sine', gain: 0.16, notes: [[60, 0, 0.12], [67, 0.09, 0.12], [72, 0.18, 0.3]] },
+
+  // —— 状态 ——
+  poison:   { wave: 'sawtooth', gain: 0.12, notes: [[58, 0, 0.2], [56, 0.16, 0.3]] },
+  die:      { wave: 'sawtooth', gain: 0.14, notes: [[60, 0, 0.22], [53, 0.2, 0.26], [45, 0.42, 0.6]] },
+  revive:   { wave: 'triangle', gain: 0.18, notes: [[55, 0, 0.16], [62, 0.13, 0.16], [69, 0.26, 0.16], [76, 0.39, 0.42]] },
+};
+
+class SfxBox {
+  constructor(box) {
+    this.box = box; // 借背景音乐的 AudioContext，不另开一个
+    this.enabled = localStorage.getItem('farm-sfx-on') !== '0';
+    this.last = {}; // 每种音效上次响的时间，用来防连点糊成一片
+  }
+
+  bus() {
+    this.box.ensureCtx();
+    const ctx = this.box.ctx;
+    if (!this._bus) {
+      this._bus = ctx.createGain();
+      this._bus.gain.value = 0.5;
+      this._bus.connect(ctx.destination);
+    }
+    return this._bus;
+  }
+
+  play(name, opts = {}) {
+    const def = SFX[name];
+    if (!this.enabled || !def) return;
+    let ctx, bus;
+    try { bus = this.bus(); ctx = this.box.ctx; } catch { return; }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    // 同一种音效 60ms 内只响一次：一键浇水那种连发不会糊成噪音
+    const now = ctx.currentTime;
+    if (now - (this.last[name] ?? -9) < (opts.throttle ?? 0.06)) return;
+    this.last[name] = now;
+
+    const t0 = now + 0.005;
+    const detune = opts.semitones ?? 0; // 连续收获时逐级升调，手感更爽
+    (def.notes ?? []).forEach(([midi, off, dur]) => {
+      const osc = ctx.createOscillator();
+      osc.type = def.wave;
+      osc.frequency.value = midiHz(midi + detune);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, t0 + off);
+      env.gain.exponentialRampToValueAtTime(def.gain, t0 + off + 0.008);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + off + dur);
+      osc.connect(env).connect(bus);
+      osc.start(t0 + off);
+      osc.stop(t0 + off + dur + 0.03);
+    });
+    const n = def.noise;
+    if (n) {
+      const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * n.dur), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass'; hp.frequency.value = n.hp;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = n.lp;
+      const env = ctx.createGain();
+      env.gain.value = n.gain;
+      src.connect(hp).connect(lp).connect(env).connect(bus);
+      src.start(t0);
+    }
+  }
+
+  toggle() {
+    this.enabled = !this.enabled;
+    localStorage.setItem('farm-sfx-on', this.enabled ? '1' : '0');
+    if (this.enabled) this.play('open');
+    return this.enabled;
+  }
+}
+
+export const sfx = new SfxBox(music);

@@ -3,8 +3,12 @@ import { createScene } from './scene.js';
 import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
 import { INTERIOR_POS } from './config.js';
-import { music } from './music.js';
+import { music, sfx } from './music.js';
 import { startWatchdog } from './watchdog.js';
+
+// 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
+const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -63,7 +67,8 @@ function pickTile(e) {
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
      ...game.mallMeshes, ...game.houseMeshes,
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
-     ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes], false);
+     ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
+     ...game.greenhouseMeshes, ...game.achievementMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -141,6 +146,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const hit = pickTile(e);
   if (!hit) return;
 
+  if (BUILDING_KEYS.some(k => hit.userData[k])) sfx.play('open');
+
   // 工坊小屋：点击打开加工面板
   if (hit.userData.workshop) {
     ui.openWorkshop();
@@ -186,6 +193,18 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 宠物间：点击进屋
   if (hit.userData.petHouse) {
     ui.openPetRoom();
+    return;
+  }
+
+  // 花房温室：点击进花房
+  if (hit.userData.greenhouse) {
+    ui.openGreenhouse();
+    return;
+  }
+
+  // 成就殿堂：点击进展厅
+  if (hit.userData.achievement) {
+    ui.openAchievement();
     return;
   }
 
@@ -360,7 +379,7 @@ function animate() {
 animate();
 
 setInterval(() => game.save(), 10000);
-window.__debug = { renderer, scene, camera, game, ui, music };
+window.__debug = { renderer, scene, camera, game, ui, music, sfx };
 
 startWatchdog(game); // 服务器掉线时提示并自动重连
 window.addEventListener('beforeunload', () => game.save());

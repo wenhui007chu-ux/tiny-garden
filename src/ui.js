@@ -1,6 +1,7 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
-import { music } from './music.js';
+import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
+import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
 const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
@@ -16,12 +17,16 @@ export class UI {
     this.selectedDecor = null;
     this.mallTab = 'items';   // 商场大楼里包揽了原来商店的全部页签
     this.codexTab = 'donate'; // 图鉴大楼：donate 基础图鉴 / gallery 个人图鉴
+    this.achTab = 'all';      // 成就殿堂：all 全部 / done 已达成 / todo 未达成
 
     game.onToast = (msg) => this.toast(msg);
     game.onState = () => this.refresh();
+    game.onAchievement = (a) => this.achievementBanner(a);
 
     this.bindToolbar();
     this.refresh();
+    // 读档时攒下的话，这会儿 UI 才建好，补说给玩家听
+    game._notices.splice(0).forEach((m, i) => setTimeout(() => this.toast(m), 400 + i * 700));
   }
 
   /* ---------- 工具栏 ---------- */
@@ -48,6 +53,7 @@ export class UI {
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
     $('#greenhouse-close').addEventListener('click', () => this.exitGreenhouse());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
+    $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
@@ -105,6 +111,9 @@ export class UI {
       $('#seed-picker').classList.add('hidden');
       if (wasHidden) { menu.classList.remove('hidden'); this.renderMusicMenu(); }
     });
+    // 所有面板的关闭按钮统一来一声，省得在十几处绑定里各加一遍
+    document.querySelectorAll('[id$="-close"]').forEach(btn =>
+      btn.addEventListener('click', () => sfx.play('close')));
     // 挂机模式
     $('#afk-btn').addEventListener('click', () => this.setAfk(true));
     $('#afk-resume').addEventListener('click', () => this.setAfk(false));
@@ -159,6 +168,7 @@ export class UI {
       shovel: '点击作物或装饰铲除',
     };
     if (tips[tool]) this.toast(tips[tool]);
+    sfx.play('tap');
   }
 
   renderSeedPicker() {
@@ -169,7 +179,7 @@ export class UI {
       const chip = document.createElement('div');
       chip.className = 'seed-chip' + (this.selectedSeed === id ? ' selected' : '');
       chip.innerHTML = `<b>${s.emoji}</b>${s.name}<br><small>${s.cost}💰 卖${s.sell}</small>`;
-      chip.addEventListener('click', () => { this.selectedSeed = id; this.renderSeedPicker(); });
+      chip.addEventListener('click', () => { this.selectedSeed = id; this.renderSeedPicker(); sfx.play('tap'); });
       wrap.appendChild(chip);
     });
   }
@@ -223,9 +233,10 @@ export class UI {
     this.exitHybridLab();
     this.exitPetRoom();
     this.exitGreenhouse();
+    this.exitAchievement();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse || this.inAchievement; }
 
   /* ---------- 主动钓鱼 ---------- */
 
@@ -264,6 +275,137 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 成就殿堂 ---------- */
+
+  openAchievement() {
+    this.closePanels();
+    if (!this.inAchievement && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = ACHIEVEMENT_POS;
+      this.controls.target.set(p.x, p.y + 0.8, p.z);
+      this.camera.position.set(p.x + 9, p.y + 11, p.z + 15);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inAchievement = true;
+    }
+    $('#ach').classList.remove('hidden');
+    this.renderAchievement();
+  }
+
+  exitAchievement() {
+    $('#ach').classList.add('hidden');
+    if (!this.inAchievement) return;
+    this.inAchievement = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderAchievement() {
+    const g = this.game;
+    const body = $('#ach-body');
+    const tabsBox = $('#ach-tabs');
+    body.innerHTML = '';
+    tabsBox.innerHTML = '';
+
+    const done = g.achievementCount();
+    const total = ACHIEVEMENTS.length;
+
+    // 三个页签：全部 / 已达成 / 还没拿
+    [['all', `全部 ${total}`], ['done', `✅ 已达成 ${done}`], ['todo', `🔒 还没拿 ${total - done}`]]
+      .forEach(([id, label]) => {
+        const tab = document.createElement('button');
+        tab.className = 'shop-tab' + (this.achTab === id ? ' active' : '');
+        tab.textContent = label;
+        tab.addEventListener('click', () => { this.achTab = id; this.renderAchievement(); });
+        tabsBox.appendChild(tab);
+      });
+
+    // 顶部总进度条
+    const pct = Math.round((done / total) * 100);
+    body.insertAdjacentHTML('beforeend', `
+      <div id="ach-progress">
+        🏅 ${done} / ${total}
+        <small>成就殿堂完成度 ${pct}%</small>
+        <div class="ach-bar"><i style="width:${pct}%"></i></div>
+      </div>`);
+
+    const list = ACHIEVEMENTS.filter(a => {
+      if (this.achTab === 'done') return g.achievements[a.id];
+      if (this.achTab === 'todo') return !g.achievements[a.id];
+      return true;
+    });
+
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend',
+        `<div class="bag-empty">${this.achTab === 'done'
+          ? '还没有拿到任何成就<br>先去种块地吧 🌱'
+          : '全部 30 个成就都拿到了！<br>你就是园艺大师 🌟'}</div>`);
+      return;
+    }
+
+    // 按分组归拢，每组一个小标题
+    let lastGroup = null;
+    list.forEach(a => {
+      if (a.group !== lastGroup) {
+        lastGroup = a.group;
+        body.insertAdjacentHTML('beforeend', `<div class="ach-group">${a.group}</div>`);
+      }
+      const p = g.achievementProgress(a);
+      const tier = ACHIEVEMENT_TIERS[a.tier];
+      const pctA = Math.min(100, Math.round((p.cur / p.max) * 100));
+      const el = document.createElement('div');
+      el.className = 'ach-card' + (p.done ? ' done' : '');
+      el.style.setProperty('--tier', tier.color);
+      el.innerHTML = `
+        <div class="ach-icon">${p.done ? a.emoji : '🔒'}</div>
+        <div class="ach-info">
+          <b>${a.name}<span class="ach-tier">${tier.name}</span></b>
+          <div class="ach-desc">${a.desc}</div>
+          ${p.done
+            ? '<div class="ach-got">✅ 已达成</div>'
+            : `<div class="ach-hint">💡 ${a.hint}</div>
+               <div class="ach-bar small"><i style="width:${pctA}%"></i></div>
+               <div class="ach-num">${this.fmtNum(p.cur)} / ${this.fmtNum(p.max)}</div>`}
+        </div>`;
+      body.appendChild(el);
+    });
+  }
+
+  // 大数字加千分位，10000 这种看着累
+  fmtNum(n) { return n >= 10000 ? n.toLocaleString('en-US') : String(n); }
+
+  // 达成瞬间的横幅：不受「关闭提示」影响，成就是大事
+  achievementBanner(a) {
+    const wrap = $('#ach-banner-wrap');
+    if (!wrap) return;
+    const tier = ACHIEVEMENT_TIERS[a.tier];
+    const el = document.createElement('div');
+    el.className = 'ach-banner';
+    el.style.setProperty('--tier', tier.color);
+    el.innerHTML = `
+      <div class="ach-banner-icon">${a.emoji}</div>
+      <div>
+        <div class="ach-banner-top">🏅 成就达成 · ${tier.name}</div>
+        <div class="ach-banner-name">${a.name}</div>
+        <div class="ach-banner-desc">${a.desc}</div>
+      </div>`;
+    // 点横幅直接进成就殿堂看看
+    el.addEventListener('click', () => { el.remove(); this.openAchievement(); });
+    wrap.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 4200);
+    while (wrap.children.length > 3) wrap.firstChild.remove();
+    music.achievementJingle?.();
   }
 
   /* ---------- 图鉴大楼 ---------- */
@@ -326,8 +468,9 @@ export class UI {
     const g = this.game;
     body.insertAdjacentHTML('beforeend',
       `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42</div>`);
+    // 只列 42 格体系里真正有展位的东西，花/罐头/料理/杂交果都不在其中
     const donatable = Object.entries(g.inventory)
-      .filter(([k, n]) => n > 0 && !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && k !== 'egg');
+      .filter(([k, n]) => n > 0 && g.codexKeys().includes(k));
     if (!donatable.length) {
       body.insertAdjacentHTML('beforeend',
         '<div class="bag-empty">背包里没有可收录的作物<br>去地里收点新鲜的来 🌱</div>');
@@ -1586,8 +1729,10 @@ export class UI {
     $('#afk-overlay').classList.toggle('hidden', !on);
     if (on) {
       this.closePanels();
+      sfx.play('pause');
     } else {
       this.toast('☀️ 解冻！世界继续转动');
+      sfx.play('resume');
       this.refresh();
     }
   }
@@ -1731,6 +1876,7 @@ export class UI {
       menu.appendChild(el);
     };
     row('🎵', '背景音乐', music.enabled, () => music.toggle());
+    row('🔊', '操作音效', sfx.enabled, () => sfx.toggle());
     row('💬', '消息提示', this.tipsOn, () => {
       this.tipsOn = !this.tipsOn;
       localStorage.setItem('farm-tips-on', this.tipsOn ? '1' : '0');
@@ -1818,6 +1964,7 @@ export class UI {
     if (!$('#hybrid').classList.contains('hidden')) this.renderHybrid();
     if (!$('#pet').classList.contains('hidden')) this.renderPetRoom();
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
+    if (!$('#ach').classList.contains('hidden')) this.renderAchievement();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);
     const badge = $('#bag-badge');

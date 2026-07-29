@@ -3212,3 +3212,156 @@ const decorBuilders = {
 export function createDecorMesh(id) {
   return decorBuilders[id]();
 }
+
+/* ================= 成就殿堂：金顶大楼 + 30 座奖杯展厅 ================= */
+
+// 菜园里的成就大楼（点它进展厅）
+export function createAchievementBuilding() {
+  const g = new THREE.Group();
+  const stone = mat(0xf5eee0);
+  const gold = mat(0xe0b64a, { roughness: 0.3, metalness: 0.15 });
+  const deepGold = mat(0xc9932f, { roughness: 0.35, metalness: 0.2 });
+
+  // 三级基座台阶
+  [[4.2, 3.6], [3.8, 3.2], [3.4, 2.8]].forEach(([w, d], k) =>
+    g.add(mesh(new THREE.BoxGeometry(w, 0.22, d), mat(0xe6dcc8), 0, 0.11 + k * 0.22, 0)));
+
+  // 主体：八角形塔身，比图鉴大楼更「殿堂」一点
+  g.add(mesh(new THREE.CylinderGeometry(1.5, 1.62, 2.8, 8), stone, 0, 2.06, 0));
+  // 腰线金环
+  g.add(mesh(new THREE.CylinderGeometry(1.56, 1.56, 0.16, 8), gold, 0, 1.0, 0));
+  g.add(mesh(new THREE.CylinderGeometry(1.54, 1.54, 0.14, 8), gold, 0, 3.32, 0));
+
+  // 八根立柱贴在塔身外围
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    g.add(mesh(new THREE.CylinderGeometry(0.11, 0.13, 2.3, 6), stone,
+      Math.sin(a) * 1.62, 2.05, Math.cos(a) * 1.62));
+  }
+
+  // 金色八角穹顶
+  const dome = mesh(new THREE.ConeGeometry(1.85, 1.5, 8), gold, 0, 4.15, 0);
+  g.add(dome);
+  g.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.5, 6), deepGold, 0, 5.05, 0));
+
+  // 塔尖上会自转的金星
+  const star = new THREE.Group();
+  const starMat = mat(0xffd75e, { emissive: 0xe0a020, emissiveIntensity: 0.55, roughness: 0.25 });
+  for (let k = 0; k < 5; k++) {
+    const spike = mesh(new THREE.ConeGeometry(0.12, 0.44, 4), starMat, 0, 0.22, 0);
+    const holder = new THREE.Group();
+    holder.rotation.z = (k / 5) * Math.PI * 2;
+    holder.add(spike);
+    star.add(holder);
+  }
+  star.position.set(0, 5.5, 0);
+  star.userData.spin = true;
+  g.add(star);
+
+  // 正面大门 + 门口两尊小奖杯
+  g.add(mesh(new THREE.BoxGeometry(1.0, 1.7, 0.12), mat(0x8a5a2b), 0, 1.5, 1.5));
+  g.add(mesh(new THREE.BoxGeometry(1.16, 0.14, 0.16), gold, 0, 2.42, 1.52));
+  [-1.35, 1.35].forEach(x => {
+    g.add(mesh(new THREE.BoxGeometry(0.42, 0.3, 0.42), mat(0xe6dcc8), x, 0.85, 1.5));
+    g.add(mesh(new THREE.CylinderGeometry(0.16, 0.09, 0.3, 8), gold, x, 1.15, 1.5));
+    g.add(mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 6), gold, x, 1.37, 1.5));
+    g.add(mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.05, 8), gold, x, 1.46, 1.5));
+  });
+
+  g.traverse(o => { if (o.isMesh) o.userData.achievement = true; });
+  return g;
+}
+
+// 展厅里 30 座台子的站位：6 列 × 5 排，中间留一条走道
+export const ACHIEVEMENT_SPOTS = Array.from({ length: 30 }, (_, k) => {
+  const col = k % 6, row = Math.floor(k / 6);
+  const x = (col - 2.5) * 2.4 + (col >= 3 ? 1.2 : -1.2); // 中间掰开当走道
+  return { x, z: (row - 2) * 3.2 };
+});
+
+// 展厅内部（藏在岛下，进馆时镜头切过去）
+export function createAchievementInterior() {
+  const g = new THREE.Group();
+  const W = 20, D = 20;
+  const wallMat = mat(0xf2ece0);
+  const gold = mat(0xe0b64a, { roughness: 0.3, metalness: 0.15 });
+
+  // 深色石地面 + 中央金色走道
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xd8cec0), 0, -0.15, 0));
+  g.add(mesh(new THREE.BoxGeometry(2.0, 0.04, D - 1), mat(0xe8d9b0), 0, 0.02, 0));
+  g.add(mesh(new THREE.BoxGeometry(1.7, 0.02, D - 1.4), gold, 0, 0.05, 0));
+
+  // 后墙 + 左右墙
+  g.add(mesh(new THREE.BoxGeometry(W, 6, 0.3), wallMat, 0, 3, -D / 2 + 0.15));
+  g.add(mesh(new THREE.BoxGeometry(0.3, 6, D), wallMat, -W / 2 + 0.15, 3, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.3, 6, D), wallMat, W / 2 - 0.15, 3, 0));
+
+  // 后墙上的巨型金星浮雕
+  const starMat = mat(0xf2c94c, { emissive: 0xd9a020, emissiveIntensity: 0.35, roughness: 0.3 });
+  for (let k = 0; k < 5; k++) {
+    const spike = mesh(new THREE.ConeGeometry(0.5, 1.9, 4), starMat, 0, 0.95, 0);
+    const holder = new THREE.Group();
+    holder.rotation.z = (k / 5) * Math.PI * 2;
+    holder.add(spike);
+    holder.position.set(0, 4.1, -D / 2 + 0.35);
+    g.add(holder);
+  }
+  // 金星两侧的垂幔
+  [-3.4, 3.4].forEach(x =>
+    g.add(mesh(new THREE.BoxGeometry(1.1, 3.6, 0.1), mat(0xa8433a), x, 3.4, -D / 2 + 0.32)));
+
+  // 顶灯：照亮整个展厅
+  [[-5, -6], [5, -6], [-5, 0], [5, 0], [-5, 6], [5, 6], [0, -8]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xfff0d0, 0.55, 24, 1.8);
+    l.position.set(x, 5, z);
+    g.add(l);
+  });
+  return g;
+}
+
+// 单座奖杯台：达成的立金杯并亮灯，没达成的是灰底座 + 半透明问号方碑
+export function createTrophyMesh(a, done) {
+  const g = new THREE.Group();
+  const tierColor = { bronze: 0xc98a4a, silver: 0xb8c4d0, gold: 0xe0b64a, legend: 0xa24ac2 };
+  const c = tierColor[a.tier] ?? 0xe0b64a;
+
+  // 台座：达成的镶金边亮起来，没达成的是暗灰石头
+  const baseMat = mat(done ? 0xf7f2e6 : 0x9a958c);
+  g.add(mesh(new THREE.BoxGeometry(1.0, 0.16, 1.0), baseMat, 0, 0.08, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.66, 0.9, 0.66), baseMat, 0, 0.61, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.94, 0.14, 0.94), baseMat, 0, 1.13, 0));
+  if (done) {
+    g.add(mesh(new THREE.BoxGeometry(1.0, 0.05, 1.0),
+      mat(c, { roughness: 0.3, metalness: 0.2 }), 0, 1.22, 0));
+  }
+
+  if (done) {
+    // 奖杯：杯身 + 双耳 + 杯脚，材质带自发光，远看也亮
+    const cup = mat(c, { roughness: 0.25, metalness: 0.35, emissive: c, emissiveIntensity: 0.25 });
+    g.add(mesh(new THREE.CylinderGeometry(0.26, 0.15, 0.34, 10), cup, 0, 1.48, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.16, 6), cup, 0, 1.73, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), cup, 0, 1.84, 0));
+    [-0.3, 0.3].forEach(x =>
+      g.add(mesh(new THREE.TorusGeometry(0.09, 0.028, 5, 9), cup, x, 1.5, 0)));
+    // 传说级头顶再飘一颗自转的小星
+    if (a.tier === 'legend') {
+      const sm = mat(0xffd75e, { emissive: 0xe0a020, emissiveIntensity: 0.6, roughness: 0.25 });
+      const star = new THREE.Group();
+      for (let k = 0; k < 5; k++) {
+        const spike = mesh(new THREE.ConeGeometry(0.05, 0.18, 4), sm, 0, 0.09, 0);
+        const holder = new THREE.Group();
+        holder.rotation.z = (k / 5) * Math.PI * 2;
+        holder.add(spike);
+        star.add(holder);
+      }
+      star.position.set(0, 2.15, 0);
+      star.userData.spin = true;
+      g.add(star);
+    }
+  } else {
+    // 未达成：半透明问号碑
+    const ghost = mat(0xb8b2a8, { transparent: true, opacity: 0.45 });
+    g.add(mesh(new THREE.BoxGeometry(0.42, 0.56, 0.1), ghost, 0, 1.55, 0));
+  }
+  return g;
+}
