@@ -169,18 +169,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body { padding: 12px; overflow-y: auto; flex: 1; }
 #pet-close, #greenhouse-close, #ach-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 /* 花房温室面板 */
 .gh-title { color: #6b4a24; font-weight: 700; font-size: 13px; margin: 12px 0 6px; }
@@ -483,6 +483,45 @@ body {
   80% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-6px); }
 }
+
+/* ---------- 分拣台 ---------- */
+#sorter-note {
+  background: linear-gradient(135deg, #f7f4ee, #e8ecf2); border: 2px solid #b8c2ce;
+  border-radius: 14px; padding: 12px; color: #5c6470; font-size: 13px; line-height: 1.7;
+  margin-bottom: 12px;
+}
+#sorter-note b { color: #3a4048; }
+.sorter-slot {
+  border: 2px solid #c8d0da; border-radius: 14px; background: #fff;
+  padding: 10px 12px; margin-bottom: 10px;
+}
+.sorter-slot.busy { border-color: #d9b071; background: linear-gradient(135deg, #fff, #fff6e6); }
+.sorter-slot.ready { border-color: #6aae5e; background: linear-gradient(135deg, #fff, #eaf7e4); }
+.sorter-slot .head { display: flex; align-items: center; gap: 8px; }
+.sorter-slot .head b { flex: 1; color: #5c6470; font-size: 14px; }
+.sorter-slot .icon { font-size: 26px; }
+.sorter-slot .out {
+  margin-top: 7px; padding-top: 7px; border-top: 1px dashed #dfe4ea;
+  color: #8a7355; font-size: 12px; line-height: 1.6;
+}
+.sorter-slot .out .bar { color: #c98a12; font-weight: 700; }
+.sorter-slot button {
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 10px; padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px;
+  white-space: nowrap;
+}
+.sorter-slot button:disabled { border-color: #ccc; background: #f0f0f0; color: #aaa; cursor: default; }
+.sorter-pick {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 2px solid #eedcba; border-radius: 12px; background: #fff;
+  padding: 8px 10px; margin-bottom: 8px; cursor: pointer; text-align: left;
+}
+.sorter-pick:hover { border-color: #e09b3d; background: #fffaf0; }
+.sorter-pick .icon { font-size: 24px; }
+.sorter-pick .info { flex: 1; min-width: 0; }
+.sorter-pick .info b { display: block; color: #6b4a24; font-size: 13px; }
+.sorter-pick .info small { color: #a1834f; font-size: 11px; }
+.sorter-pick .gain { color: #2f9e4f; font-weight: 700; font-size: 12px; white-space: nowrap; }
 
 /* ---------- 成就殿堂 ---------- */
 #ach-tabs { display: flex; gap: 6px; padding: 12px 12px 0; flex-shrink: 0; }

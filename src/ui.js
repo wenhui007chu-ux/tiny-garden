@@ -1,6 +1,7 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
+import { SORTER_SLOTS, SORTER_TIME, METAL, metalPrice } from './config.js';
 import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -54,6 +55,7 @@ export class UI {
     $('#greenhouse-close').addEventListener('click', () => this.exitGreenhouse());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
+    $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
@@ -69,6 +71,7 @@ export class UI {
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
       }
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
+      if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -225,7 +228,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -275,6 +278,101 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 分拣台 ---------- */
+
+  openSorter() {
+    this.closePanels();
+    $('#sorter').classList.remove('hidden');
+    this.sorterPicking = null; // 正在给哪个位子挑作物
+    this.renderSorter();
+  }
+
+  renderSorter() {
+    const g = this.game;
+    const body = $('#sorter-body');
+    body.innerHTML = '';
+
+    body.insertAdjacentHTML('beforeend', `
+      <div id="sorter-note">
+        把<b>白银 / 黄金</b>品质的作物丢进来，${SORTER_TIME / 60} 分钟后拆成
+        <b>普通作物</b> + <b>金属条</b>。<br>
+        金属条只算品质那部分的增值，再放大 ${METAL.silver.bars * 10} 倍：
+        银条 = 原价 ×10，金条 = 原价 ×20。
+      </div>`);
+
+    // 正在挑作物：列出背包里所有带品质的作物
+    if (this.sorterPicking !== null) {
+      const slot = this.sorterPicking;
+      const back = document.createElement('button');
+      back.className = 'sorter-pick';
+      back.innerHTML = '<span class="icon">↩️</span><span class="info"><b>返回分拣位</b></span>';
+      back.addEventListener('click', () => { this.sorterPicking = null; this.renderSorter(); });
+      body.appendChild(back);
+
+      const list = Object.entries(g.inventory)
+        .filter(([k, n]) => n > 0 && g.sortableKey(k))
+        .sort(([a], [b]) => keyInfo(b).price - keyInfo(a).price);
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend',
+          '<div class="bag-empty">背包里没有白银或黄金作物<br>种地时有几率开出稀有品质 🥈🥇</div>');
+        return;
+      }
+      list.forEach(([key, n]) => {
+        const { id, quality } = g.sortableKey(key);
+        const info = keyInfo(key);
+        const barPrice = metalPrice(id, quality);
+        const plainPrice = keyInfo(id).price;
+        const btn = document.createElement('button');
+        btn.className = 'sorter-pick';
+        btn.innerHTML = `
+          <span class="icon">${info.icon}</span>
+          <span class="info">
+            <b>${info.label} ×${n}</b>
+            <small>直接卖 ${info.price}💰 → 拆开共 ${plainPrice + barPrice}💰</small>
+          </span>
+          <span class="gain">+${plainPrice + barPrice - info.price}💰</span>`;
+        btn.addEventListener('click', () => {
+          if (g.sortStart(slot, key)) { this.sorterPicking = null; this.renderSorter(); }
+        });
+        body.appendChild(btn);
+      });
+      return;
+    }
+
+    // 两个分拣位
+    g.sorter.forEach((s, k) => {
+      const el = document.createElement('div');
+      const ready = s && g.time >= s.readyAt;
+      el.className = 'sorter-slot' + (ready ? ' ready' : s ? ' busy' : '');
+      if (!s) {
+        el.innerHTML = `<div class="head"><span class="icon">⚙️</span><b>${k + 1} 号分拣位 · 空闲</b></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '放入作物';
+        btn.addEventListener('click', () => { this.sorterPicking = k; this.renderSorter(); });
+        el.querySelector('.head').appendChild(btn);
+      } else {
+        const info = keyInfo(s.key);
+        const { id, quality } = g.sortableKey(s.key);
+        const m = METAL[quality];
+        const left = Math.max(0, s.readyAt - g.time);
+        el.innerHTML = `
+          <div class="head">
+            <span class="icon">${info.icon}</span>
+            <b>${info.label}<br><small>${ready ? '✅ 分拣完成' : `⏳ 还要 ${fmtTime(left)}`}</small></b>
+          </div>
+          <div class="out">产出：${keyInfo(id).icon}${seedById(id).name}
+            ＋ <span class="bar">${m.emoji}${seedById(id).name}${m.name}（${metalPrice(id, quality)}💰）</span>
+          </div>`;
+        const btn = document.createElement('button');
+        btn.textContent = ready ? '取出' : '分拣中';
+        btn.disabled = !ready;
+        btn.addEventListener('click', () => { g.sortCollect(k); this.renderSorter(); });
+        el.querySelector('.head').appendChild(btn);
+      }
+      body.appendChild(el);
+    });
   }
 
   /* ---------- 成就殿堂 ---------- */
@@ -350,7 +448,7 @@ export class UI {
       body.insertAdjacentHTML('beforeend',
         `<div class="bag-empty">${this.achTab === 'done'
           ? '还没有拿到任何成就<br>先去种块地吧 🌱'
-          : '全部 30 个成就都拿到了！<br>你就是园艺大师 🌟'}</div>`);
+          : `全部 ${ACHIEVEMENTS.length} 个成就都拿到了！<br>你就是园艺大师 🌟`}</div>`);
       return;
     }
 
@@ -973,7 +1071,7 @@ export class UI {
     const madeCount = DISHES.filter(d => g.inventory['k:' + d.id]).length;
     const cookableCount = DISHES.filter(d => g.canCook(d.id)).length;
     body.insertAdjacentHTML('beforeend',
-      `<div id="kitchen-progress">🍳 共 50 道料理 · 现在能做 ${cookableCount} 道</div>`);
+      `<div id="kitchen-progress">🍳 共 ${DISHES.length} 道料理 · 现在能做 ${cookableCount} 道</div>`);
 
     // 灶位状态
     g.cookSlots.forEach((s, k) => {
@@ -1592,7 +1690,7 @@ export class UI {
     // 选择要加工的作物
     if (this.wsChoosing !== null) {
       const raw = Object.entries(g.inventory)
-        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && k !== 'egg' && n > 0);
+        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && !k.startsWith('m:') && k !== 'egg' && n > 0);
       if (!raw.length) {
         body.insertAdjacentHTML('beforeend', '<div class="bag-empty">背包里没有可加工的作物<br>先去收获一些吧 🌱</div>');
       }
@@ -2011,6 +2109,7 @@ export class UI {
     if (!$('#pet').classList.contains('hidden')) this.renderPetRoom();
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     if (!$('#ach').classList.contains('hidden')) this.renderAchievement();
+    if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
     $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);
     const badge = $('#bag-badge');

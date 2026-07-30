@@ -14,6 +14,7 @@ import {
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
   ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
+  SORTER_SLOTS, SORTER_TIME, METAL, metalPrice,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -28,6 +29,7 @@ import {
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
+  createSorter, createMetalBar, createSignboard,
 } from './meshes.js';
 import { sfx } from './music.js';
 
@@ -210,6 +212,17 @@ export class Game {
     this.group.add(this.achievementHall);
     this.trophyMeshes = {}; // 成就 id -> 展厅里的奖杯
 
+    // 分拣台：稀有品质作物拆成「普通作物 + 金属条」，摆在工坊旁边
+    this.sorter = Array(SORTER_SLOTS).fill(null); // { key, readyAt } 或 null
+    // 摆右前方空地：盒壁在 ±3.225、二层平台从 z=-3.5 往后、装饰台在 r=6 的弧上，
+    // 这里 r≈9.9 全避开了，从默认视角也不会挡住农田
+    const sorter = createSorter();
+    sorter.position.set(7, -0.51, 7);
+    sorter.rotation.y = -2.36; // 正面朝向菜园
+    this.group.add(sorter);
+    this.sorterMeshes = [];
+    sorter.traverse(o => { if (o.isMesh) this.sorterMeshes.push(o); });
+
     this.petsOwned = {};        // 买下的宠物
     this.petShown = null;       // 当前展示的那只
     this.petDecorsOwned = {};   // 房间装饰：id -> 已解锁最高等级(1~3)
@@ -251,10 +264,40 @@ export class Game {
     this.workshopMeshes = [];
     ws.traverse(o => { if (o.isMesh) this.workshopMeshes.push(o); });
 
+    // 每栋建筑顶上挂一块悬浮名牌：一眼认出是什么，点名牌等于点建筑
+    this.signMeshes = [];
+    this.addSign(ws, '🏭', '工坊', 'workshop');
+    this.addSign(mall, '🛒', '商场', 'mall');
+    this.addSign(this.houseMesh, '🏠', '我的小屋', 'house');
+    this.addSign(this.pond, '🎣', '抓鱼水滩', 'pond');
+    this.addSign(bank, '🏦', '银行', 'bank');
+    this.addSign(kitchen, '🍳', '料理工坊', 'kitchen');
+    this.addSign(lab, '🧬', '杂交室', 'hybridLab');
+    this.addSign(petHouse, '🐾', '宠物间', 'petHouse');
+    this.addSign(greenhouse, '🌸', '花房温室', 'greenhouse');
+    this.addSign(achBuilding, '🏅', '成就殿堂', 'achievement');
+    this.addSign(codexBuilding, '📖', '图鉴大楼', 'codex');
+    this.addSign(sorter, '⚙️', '分拣台', 'sorter');
+
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
     this.refreshAllVisuals();
     this._booting = false;
+  }
+
+  // 名牌自动浮在建筑包围盒顶上；userData 沿用建筑自己的标记，
+  // 这样 main.js 那套点击分发不用改就能直接认。
+  // 注意挂在 group 而不是建筑上：换肤会整个重建 houseMesh，
+  // 挂建筑上的话名牌会跟着旧对象一起被丢掉。
+  addSign(building, emoji, text, key) {
+    const box = new THREE.Box3().setFromObject(building);
+    const sign = createSignboard(emoji, text);
+    sign.position.set(building.position.x, box.max.y + 0.62, building.position.z);
+    sign.userData[key] = true;
+    sign.userData.signBaseY = sign.position.y; // 让它轻轻上下浮
+    this.group.add(sign);
+    this.signMeshes.push(sign);
+    return sign;
   }
 
   /* ---------- 查询 ---------- */
@@ -1369,6 +1412,62 @@ export class Game {
     }
   }
 
+  /* ---------- 分拣台 ---------- */
+
+  // 只有带品质的作物本体能分拣：罐头/料理/杂交/花/蔫作物/金属条都不行
+  sortableKey(key) {
+    if (typeof key !== 'string') return null;
+    if (key.startsWith('p:') || key.startsWith('k:') || key.startsWith('h:')
+      || key.startsWith('f:') || key.startsWith('x:') || key.startsWith('m:')) return null;
+    const [id, quality] = key.split(':');
+    if (!quality || !METAL[quality] || !seedById(id)) return null;
+    return { id, quality };
+  }
+
+  sortStart(slot, key) {
+    if (this.sorter[slot]) { this.onToast('这个分拣位正忙着'); return false; }
+    const parsed = this.sortableKey(key);
+    if (!parsed) {
+      this.onToast('分拣台只收白银/黄金品质的作物本体');
+      sfx.play('deny');
+      return false;
+    }
+    if ((this.inventory[key] ?? 0) <= 0) return false;
+    this.inventory[key] -= 1;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.sorter[slot] = { key, readyAt: this.time + SORTER_TIME };
+    const info = keyInfo(key);
+    this.onToast(`${info.icon}${info.label} 进了分拣台，${SORTER_TIME / 60} 分钟后来取`);
+    sfx.play('plant');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 分拣产物：普通作物 ×1 + 对应的金属条 ×1
+  sortYield(key) {
+    const { id, quality } = this.sortableKey(key);
+    return { plain: id, metal: `m:${id}:${quality}` };
+  }
+
+  sortCollect(slot) {
+    const s = this.sorter[slot];
+    if (!s || this.time < s.readyAt) return;
+    const { plain, metal } = this.sortYield(s.key);
+    this.inventory[plain] = (this.inventory[plain] ?? 0) + 1;
+    this.inventory[metal] = (this.inventory[metal] ?? 0) + 1;
+    this.sorter[slot] = null;
+    const pi = keyInfo(plain), mi = keyInfo(metal);
+    this.onToast(`⚙️ 分拣完成！${pi.icon}${pi.label} + ${mi.icon}${mi.label}（${mi.price}💰）`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+  }
+
+  sortingCount() {
+    return this.sorter.filter(s => s && this.time < s.readyAt).length;
+  }
+
   /* ---------- 成就系统 ---------- */
 
   // 逐条比对当前状态，把新达成的记下来并回调 UI。
@@ -1401,15 +1500,17 @@ export class Game {
     return { cur: Math.min(cur, a.max), max: a.max, done: !!this.achievements[a.id] };
   }
 
-  // 展厅里 30 座台子：达成的立起奖杯，没达成的留一个灰底座
+  // 展厅里每座台子：达成的立起奖杯，没达成的留一个灰底座
+  // 带 spot 的成就自己指定站位（比如金星下的荣誉位），其余按顺序填 6×5 方阵
   refreshTrophies() {
     if (!this.achievementHall) return;
-    ACHIEVEMENTS.forEach((a, k) => {
+    let gridIdx = 0;
+    ACHIEVEMENTS.forEach((a) => {
+      const spot = a.spot ?? ACHIEVEMENT_SPOTS[gridIdx++];
       const done = !!this.achievements[a.id];
       const cur = this.trophyMeshes[a.id];
       if (cur && cur.userData.done === done) return; // 状态没变就不重建
       if (cur) this.achievementHall.remove(cur);
-      const spot = ACHIEVEMENT_SPOTS[k];
       const m = createTrophyMesh(a, done);
       m.position.set(spot.x, 0, spot.z);
       m.userData.done = done;
@@ -1494,6 +1595,9 @@ export class Game {
       } else if (info.hybrid) {
         model = createHybridCrop(s.item.key.slice(2));
         model.scale.setScalar(1.7);
+      } else if (info.metal) {
+        // 金属条也没有 seed 字段，一样得单独走，否则整座台子又不见了
+        model = createMetalBar(info.metal, 1.9);
       } else {
         model = createPlantMesh(info.seed.id, 3);
         applyPlating(model, info.quality);
@@ -1552,6 +1656,7 @@ export class Game {
     if (key.startsWith('p:')) { this.onToast('罐头不能再加工啦'); return; }
     if (key.startsWith('k:')) { this.onToast('料理不能做成罐头'); return; }
     if (key.startsWith('h:')) { this.onToast('杂交作物是稀世珍品，直接卖个好价吧'); return; }
+    if (key.startsWith('m:')) { this.onToast('金属条是分拣出来的，罐头装不下它'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
     const need = WORKSHOP.ingredients;
@@ -1837,6 +1942,7 @@ export class Game {
       decorSlots: this.decorSlots.map(s => s.decor?.id ?? null),
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
       workshop: this.workshop.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
+      sorter: this.sorter.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
@@ -1971,6 +2077,12 @@ export class Game {
     (data.workshop ?? []).forEach((s, k) => {
       if (s && k < this.workshop.length) {
         this.workshop[k] = { key: s.key, readyAt: this.time + Math.max(0, s.remain - elapsed) };
+      }
+    });
+    // 分拣台：离线也照常分拣（老存档没有这个字段，留空即可）
+    (data.sorter ?? []).forEach((s, k) => {
+      if (s && k < this.sorter.length && this.sortableKey(s.key)) {
+        this.sorter[k] = { key: s.key, readyAt: this.time + Math.max(0, s.remain - elapsed) };
       }
     });
     // 鱼网：离线也照常捕鱼

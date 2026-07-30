@@ -73,6 +73,22 @@ export const SILVER_CHANCE = 0.15;
 // 即每个作物做成罐头只增值 50%，远不如凑配方做料理（×3）划算
 export const WORKSHOP = { slots: 3, time: 120, ingredients: 2, bonus: 1.5 };
 
+// 分拣台：把稀有品质作物拆成「普通作物 + 贵金属条」
+// 规则：品质那部分增值单独抽出来，按 10 倍熔成金条/银条，作物本体原样退回。
+//   白银 = 2 倍价，增值 1 份 → 银条 = 原价 × 10
+//   黄金 = 3 倍价，增值 2 份 → 金条 = 原价 × 20
+// 例：红薯卖 1，白银红薯卖 2 → 拆成 普通红薯(1) + 红薯银条(10)
+export const SORTER_SLOTS = 2;     // 两个分拣位
+export const SORTER_TIME = 1800;   // 分拣一次半小时
+export const SORTER_MULT = 10;     // 增值部分熔成金属条的倍率
+export const METAL = {
+  silver: { name: '银条', emoji: '🥈', bars: 1 }, // 增值 1 份
+  gold:   { name: '金条', emoji: '🥇', bars: 2 }, // 增值 2 份
+};
+// 金属条卖价 = 原作物售价 × 增值份数 × 倍率
+export const metalPrice = (seedId, quality) =>
+  Math.max(1, Math.floor(seedById(seedId).sell * METAL[quality].bars * SORTER_MULT));
+
 // 昼夜循环：现实 20 分钟 = 游戏一天（白天/夜晚各 10 分钟），夜晚生长减半
 export const DAY_CYCLE = 1200;      // 秒
 export const NIGHT_SLOW = 0.5;
@@ -202,6 +218,12 @@ export const HYBRIDS = [
   { id: 'h18', name: '星虹晶',   emoji: '🌠', a: ['starfruit', 0], b: ['rainbow', 0],   sell: 20000 },
   { id: 'h19', name: '神辉结晶', emoji: '💎', a: ['crystal', 2],  b: ['starfruit', 2],  sell: 40000 },
   { id: 'h20', name: '创世之种', emoji: '🌟', a: ['rainbow', 2],  b: ['rainbow', 2],    sell: 75000 },
+  // —— 特殊种子配对：卖价梯度接在原有配方之间，最高仍够不着创世之种 ——
+  { id: 'h21', name: '翠玉椒',   emoji: '🫑', a: ['pepper', 0],   b: ['broccoli', 0],   sell: 1100 },
+  { id: 'h22', name: '莓香葡',   emoji: '🍇', a: ['grape', 0],    b: ['strawberry', 0], sell: 2600 },
+  { id: 'h23', name: '金油瓜',   emoji: '🥑', a: ['avocado', 0],  b: ['pumpkin', 0],    sell: 4600 },
+  { id: 'h24', name: '桃樱蜜',   emoji: '🍑', a: ['peach', 0],    b: ['cherry', 0],     sell: 14000 },
+  { id: 'h25', name: '绯樱晶',   emoji: '💗', a: ['cherry', 2],   b: ['peach', 2],      sell: 42000 },
 ];
 export const hybridById = (id) => HYBRIDS.find(h => h.id === id);
 // 宠物间：买断制，同时只能展示一只；房间装饰另计
@@ -274,7 +296,7 @@ export const CODEX_POS = { x: 60, y: -60, z: 0 };
 export const CODEX_QUALITIES = [undefined, 'silver', 'gold'];
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
-// 料理工坊：50 种料理，凑齐指定品质的作物就能做，卖价是原料单卖的 3 倍
+// 料理工坊：凑齐指定品质的作物就能做，卖价是原料单卖的 3 倍（d51 起是特殊种子专属）
 // recipe 每项 [作物id, 品质档 0普通/1白银/2黄金, 数量]
 export const DISH_MULT = 3;
 export const COOK_TIME = 360;  // 每道菜要炒 6 分钟
@@ -365,6 +387,17 @@ export const DISHES = [
   { id: 'd48', name: '彩虹蛋糕',       emoji: '🎂', recipe: [['rainbow', 1, 2]] },
   { id: 'd49', name: '满汉全席',       emoji: '👑', recipe: [['rainbow', 1, 1], ['starfruit', 1, 1], ['crystal', 1, 1]] },
   { id: 'd50', name: '传说彩虹盛宴',   emoji: '🌈', recipe: [['rainbow', 2, 3]] },
+  // —— 特殊档：只有特殊种子才做得出的菜（价格照旧 = 原料总价 ×3，天花板压在彩虹果系列之下）——
+  { id: 'd51', name: '虎皮青椒',     emoji: '🫑', recipe: [['pepper', 0, 3]] },
+  { id: 'd52', name: '青椒肉丝',     emoji: '🥢', recipe: [['pepper', 0, 2], ['tomato', 0, 1]] },
+  { id: 'd53', name: '清炒西兰花',   emoji: '🥦', recipe: [['broccoli', 0, 3]] },
+  { id: 'd54', name: '西兰花浓汤',   emoji: '🍵', recipe: [['broccoli', 0, 2], ['potato', 0, 2]] },
+  { id: 'd55', name: '葡萄果盘',     emoji: '🍇', recipe: [['grape', 0, 3]] },
+  { id: 'd56', name: '牛油果沙拉',   emoji: '🥑', recipe: [['avocado', 0, 2], ['broccoli', 0, 1]] },
+  { id: 'd57', name: '牛油果吐司',   emoji: '🍞', recipe: [['avocado', 0, 2], ['corn', 0, 2]] },
+  { id: 'd58', name: '蜜桃冰沙',     emoji: '🍑', recipe: [['peach', 0, 2]] },
+  { id: 'd59', name: '樱桃塔',       emoji: '🍒', recipe: [['cherry', 0, 2]] },
+  { id: 'd60', name: '缤纷果盛宴',   emoji: '🎇', recipe: [['cherry', 1, 2], ['peach', 1, 1], ['grape', 1, 1]] },
 ];
 export const dishById = (id) => DISHES.find(d => d.id === id);
 // 配方原料对应的背包 key
@@ -559,7 +592,7 @@ PET_DECORS.forEach(_extendLevels);
 export const seedById = (id) => SEEDS.find(s => s.id === id);
 export const decorById = (id) => DECORS.find(d => d.id === id);
 
-// ===== 成就系统：30 个成就 + 成就大楼 =====
+// ===== 成就系统：成就大楼 + 成就表 =====
 // 设计原则：全部用「当前状态」判定，不依赖累计计数器。
 // 好处是老存档一进游戏就能把已经做到的直接点亮，不用从零重新统计。
 // 每条成就：cur(g) 取当前进度，max 是目标值，达成条件统一是 cur >= max。
@@ -676,12 +709,29 @@ export const ACHIEVEMENTS = [
     cur: (g) => Object.keys(g.pondOwned).length, max: 10 },
 
   // —— 终极 ——
+  // —— 特殊种子（单独站在成就殿堂金星正下方的荣誉位）——
+  { id: 'a31', name: '特殊种子收藏家', emoji: '✨', tier: 'legend', group: '特殊',
+    desc: `集齐全部 ${SPECIAL_SEEDS.length} 种特殊种子`,
+    hint: '商场种子页的「✨ 特殊种子」区，樱桃 2580💰 是最后一种',
+    cur: (g) => g.unlockedSeeds.filter(id => seedById(id)?.special).length, max: SPECIAL_SEEDS.length,
+    // 不占 6×5 的方阵，单独摆在展厅金星浮雕正下方的金毯上
+    spot: { x: 0, z: -8.6 } },
+
+  // —— 终极 ——
   { id: 'a30', name: '园艺大师', emoji: '🌟', tier: 'legend', group: '终极',
-    desc: '达成前面全部 29 个成就', hint: '把上面的都点亮，这个会自己亮',
+    desc: '达成其余全部成就', hint: '把上面的都点亮，这个会自己亮',
     // 数「已经拿到的记录」而不是「此刻是否满足条件」：
-    // 万元户拿到后又把钱花光了也照样算数，不能让它退回去
-    cur: (g) => ACHIEVEMENTS.slice(0, 29).filter(a => g.achievements[a.id]).length, max: 29 },
+    // 万元户拿到后又把钱花光了也照样算数，不能让它退回去。
+    // 排除自己来数，以后再加成就也不用改这里。
+    cur: (g) => ACHIEVEMENTS.filter(a => a.id !== 'a30' && g.achievements[a.id]).length,
+    max: 30 },
 ];
+// 园艺大师要求「除自己外全部达成」，成就表增删时自动跟上，免得忘了改数字
+{
+  const master = ACHIEVEMENTS.find(a => a.id === 'a30');
+  master.max = ACHIEVEMENTS.length - 1;
+  master.desc = `达成其余全部 ${master.max} 个成就`;
+}
 
 export const achievementById = (id) => ACHIEVEMENTS.find(a => a.id === id);
 export const ACHIEVEMENT_TIERS = {
@@ -691,10 +741,20 @@ export const ACHIEVEMENT_TIERS = {
   legend: { name: '传说', color: '#a24ac2' },
 };
 
-// 背包物品 key 解析："tomato" | "tomato:gold" | "p:tomato:gold"（p:=罐头）| "x:tomato"（x:=生长不良）| "egg"
+// 背包物品 key 解析："tomato" | "tomato:gold" | "p:tomato:gold"（p:=罐头）| "x:tomato"（x:=生长不良）
+//                  | "m:tomato:gold"（m:=分拣出的金属条）| "egg"
 export function keyInfo(key) {
   if (key === EGG.key) {
     return { seed: null, quality: undefined, processed: false, stunted: false, price: EGG.sell, label: EGG.name, icon: EGG.emoji };
+  }
+  if (key.startsWith('m:')) {
+    const [id, quality] = key.slice(2).split(':');
+    const seed = seedById(id), m = METAL[quality];
+    return {
+      seed: null, quality: undefined, processed: false, stunted: false, metal: quality,
+      metalSeed: seed, price: metalPrice(id, quality),
+      label: `${seed.name}${m.name}`, icon: m.emoji,
+    };
   }
   if (key.startsWith('k:')) {
     const dish = dishById(key.slice(2));

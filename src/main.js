@@ -8,7 +8,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -68,7 +68,8 @@ function pickTile(e) {
      ...game.mallMeshes, ...game.houseMeshes,
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
-     ...game.greenhouseMeshes, ...game.achievementMeshes], false);
+     ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
+     ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -101,9 +102,10 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     return;
   }
   const hit = pickTile(e);
-  if (hovered && hovered !== hit) hovered.material.emissive.setHex(0x000000);
+  // 名牌是 Sprite，材质上没有 emissive，照旧写会直接抛错
+  if (hovered && hovered !== hit && hovered.material.emissive) hovered.material.emissive.setHex(0x000000);
   hovered = hit;
-  if (hovered) hovered.material.emissive.setHex(0x332200);
+  if (hovered?.material.emissive) hovered.material.emissive.setHex(0x332200);
   renderer.domElement.style.cursor = hovered ? 'pointer' : 'default';
 });
 
@@ -214,6 +216,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
 
+  // 分拣台：点击打开分拣面板
+  if (hit.userData.sorter) {
+    ui.openSorter();
+    return;
+  }
+
   // 装饰台：只认摆放和铲除
   if (hit.userData.slotIndex !== undefined) {
     const k = hit.userData.slotIndex;
@@ -258,6 +266,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 /* ---------- 主循环 ---------- */
 
 const clock = new THREE.Clock();
+const signPos = new THREE.Vector3(); // 名牌距离补偿的临时向量，别每帧新建
 const DAY_BG = new THREE.Color(0xfdf3e3);
 const NIGHT_BG = new THREE.Color(0x2b3050);
 const DROUGHT_BG = new THREE.Color(0xf6ddb0); // 旱天泛黄的天色
@@ -310,6 +319,20 @@ function animate() {
     if (obj.userData.spin) obj.rotation.y = t * 1.2;
     if (obj.userData.windmill) obj.rotation.z = t * 3; // 风力发电，转起来
     if (obj.userData.gear && game.processingCount() > 0) obj.rotation.x = t * 2.5; // 加工时齿轮转动
+    if (obj.userData.sorterDrum && game.sortingCount() > 0) obj.rotation.x = t * 2; // 分拣时滚筒转动
+    if (obj.userData.signBaseY !== undefined) {                                     // 建筑名牌轻轻上下浮
+      obj.position.y = obj.userData.signBaseY + Math.sin(t * 1.5 + obj.id) * 0.07;
+      // 距离补偿：屏幕上大小大致恒定，镜头拉近不糊脸、拉远也读得清
+      const d = camera.position.distanceTo(obj.getWorldPosition(signPos));
+      const k = Math.min(1.9, Math.max(0.5, d / 22));
+      obj.scale.set(obj.userData.signW * k, obj.userData.signH * k, 1);
+    }
+    if (obj.userData.sorterLamp !== undefined) {                                    // 分拣位指示灯：忙黄闲绿，好了就闪
+      const s = game.sorter[obj.userData.sorterLamp];
+      const done = s && game.time >= s.readyAt;
+      obj.material.emissive.setHex(done ? 0xf2c94c : s ? 0xc98a12 : 0x2a8a5a);
+      obj.material.emissiveIntensity = done ? 0.5 + Math.sin(t * 5) * 0.35 : 0.5;
+    }
     if (obj.userData.lampLight) obj.intensity = (1 - f) * 0.9;               // 小灯夜里才亮
     if (obj.userData.houseWindow) {                                          // 夜里窗户透暖光
       obj.material.emissive.setHex(0xffc94a);

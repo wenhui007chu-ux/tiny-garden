@@ -1224,7 +1224,7 @@ export function createHybridInterior() {
   return g;
 }
 
-// 20 种杂交作物的 3D 模型（参数化生成）
+// 杂交作物的 3D 模型（参数化生成）；漏配一条就会 fallback 成 h1 的样子
 const HYBRID_MODELS = {
   h1:  { kind: 'blob',   c1: 0xf07338, c2: 0x5ea25a },
   h2:  { kind: 'bulb',   c1: 0xb0895a, c2: 0xf07338 },
@@ -1246,6 +1246,12 @@ const HYBRID_MODELS = {
   h18: { kind: 'star',   c1: 0xb35de0, c2: 0x4a90c2, glow: 0.6 },
   h19: { kind: 'gem',    c1: 0xf7f2e0, c2: 0xe0b64a, glow: 0.8, big: true },
   h20: { kind: 'seed',   c1: 0xfff4d8, c2: 0xb35de0, glow: 1 },
+  // 特殊种子配对：不加这几条就会 fallback 成 h1 的样子，五个长得一模一样
+  h21: { kind: 'blob',    c1: 0x4a9e4a, c2: 0x8fbf6a },
+  h22: { kind: 'cluster', c1: 0x8a4ac2, c2: 0xe8483f },
+  h23: { kind: 'melon',   c1: 0x5a7a3a, c2: 0xe8842f },
+  h24: { kind: 'bulb',    c1: 0xf7a8b8, c2: 0xe0364a },
+  h25: { kind: 'gem',     c1: 0xf2557a, c2: 0xffd0dc, glow: 0.6 },
 };
 
 export function createHybridCrop(id) {
@@ -3488,4 +3494,137 @@ export function createTrophyMesh(a, done) {
     g.add(mesh(new THREE.BoxGeometry(0.42, 0.56, 0.1), ghost, 0, 1.55, 0));
   }
   return g;
+}
+
+/* ================= 分拣台：稀有作物拆成普通作物 + 金属条 ================= */
+
+// 岛上的分拣台（点它开分拣面板）
+export function createSorter() {
+  const g = new THREE.Group();
+  const metalM = mat(0x9aa4b0, { roughness: 0.45, metalness: 0.3 });
+  const darkM = mat(0x5c6470);
+  const woodM = mat(0xc9a06a);
+
+  // 底座平台 + 四条腿
+  g.add(mesh(new THREE.BoxGeometry(2.8, 0.24, 2.0), woodM, 0, 0.12, 0));
+  [[-1.2, -0.8], [1.2, -0.8], [-1.2, 0.8], [1.2, 0.8]].forEach(([x, z]) =>
+    g.add(mesh(new THREE.BoxGeometry(0.18, 0.5, 0.18), darkM, x, -0.14, z)));
+
+  // 中间的滚筒分拣机身
+  g.add(mesh(new THREE.BoxGeometry(1.9, 0.9, 1.3), metalM, 0, 0.72, 0));
+  const drum = mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 12), mat(0xb8c2ce, { roughness: 0.35, metalness: 0.35 }), 0, 1.28, 0);
+  drum.rotation.z = Math.PI / 2;
+  drum.userData.sorterDrum = true; // 有活干的时候滚起来（别蹭工坊的 gear 标记）
+  g.add(drum);
+  // 滚筒上的分隔环
+  [-0.45, 0, 0.45].forEach(x =>
+    g.add(mesh(new THREE.TorusGeometry(0.44, 0.045, 5, 10), darkM, x, 1.28, 0)));
+
+  // 进料斗（上方敞口漏斗）
+  const hopper = mesh(new THREE.CylinderGeometry(0.62, 0.3, 0.55, 6, 1, true), mat(0xd9b071, { side: THREE.DoubleSide }), 0, 2.0, 0);
+  g.add(hopper);
+
+  // 两条出料槽：左边吐普通作物（木色），右边吐金属条（金色）
+  const chuteL = mesh(new THREE.BoxGeometry(0.7, 0.1, 0.5), woodM, -1.15, 0.5, 0.45);
+  chuteL.rotation.z = 0.32;
+  g.add(chuteL);
+  const chuteR = mesh(new THREE.BoxGeometry(0.7, 0.1, 0.5), mat(0xe0b64a, { roughness: 0.3, metalness: 0.3 }), 1.15, 0.5, 0.45);
+  chuteR.rotation.z = -0.32;
+  g.add(chuteR);
+
+  // 出料口下各堆一点成品当招牌：左边一颗菜，右边两根金属条
+  g.add(mesh(new THREE.SphereGeometry(0.16, 7, 6), mat(0x6aae5e), -1.45, 0.28, 0.62));
+  g.add(createMetalBar('gold', 0.75).translateX(1.42).translateY(0.2).translateZ(0.55));
+  g.add(createMetalBar('silver', 0.65).translateX(1.5).translateY(0.2).translateZ(0.3));
+
+  // 两个分拣位的指示灯
+  [-0.55, 0.55].forEach((x, k) => {
+    const lamp = mesh(new THREE.SphereGeometry(0.09, 7, 6),
+      mat(0x6ae0a0, { emissive: 0x2a8a5a, emissiveIntensity: 0.5 }), x, 1.25, 0.68);
+    lamp.userData.sorterLamp = k;
+    g.add(lamp);
+  });
+
+  g.traverse(o => { if (o.isMesh) o.userData.sorter = true; });
+  return g;
+}
+
+// 一根金属条：上窄下宽的梯形块，金/银两色
+export function createMetalBar(quality, scale = 1) {
+  const g = new THREE.Group();
+  const gold = quality === 'gold';
+  const m = mat(gold ? 0xe0b64a : 0xc0cad6, {
+    roughness: 0.25, metalness: 0.5,
+    emissive: gold ? 0x8a6a10 : 0x5a6470, emissiveIntensity: 0.25,
+  });
+  // 梯形锭身：用 4 边圆柱压扁当棱台
+  const bar = mesh(new THREE.CylinderGeometry(0.16, 0.24, 0.16, 4), m, 0, 0.08, 0);
+  bar.rotation.y = Math.PI / 4;
+  bar.scale.set(1, 1, 1.7);
+  g.add(bar);
+  // 顶面高光条
+  g.add(mesh(new THREE.BoxGeometry(0.14, 0.02, 0.34),
+    mat(gold ? 0xf7d97a : 0xe8eef4, { roughness: 0.2, metalness: 0.4 }), 0, 0.17, 0));
+  g.scale.setScalar(scale);
+  return g;
+}
+
+/* ================= 建筑悬浮名牌 ================= */
+
+// 用 canvas 现画一张气泡贴图，贴到 Sprite 上（Sprite 天然始终面向相机）
+// 仍然是纯代码生成，不引外部图片或字体文件
+export function createSignboard(emoji, text) {
+  const FS = 34, PAD = 14, TAIL = 14, R = 14, RATIO = 3; // RATIO 提分辨率，免得糊
+  const font = `700 ${FS}px "PingFang SC","Microsoft YaHei","Segoe UI Emoji",sans-serif`;
+  const label = `${emoji} ${text}`;
+
+  // 先量一次文字宽度，气泡按文字长短自适应
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.font = font;
+  const w = Math.ceil(probe.measureText(label).width) + PAD * 2;
+  const h = FS + PAD * 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w * RATIO;
+  canvas.height = (h + TAIL) * RATIO;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(RATIO, RATIO);
+
+  // 圆角气泡 + 底部小三角，配色跟界面上的奶油木牌一致
+  ctx.beginPath();
+  ctx.moveTo(R, 0);
+  ctx.lineTo(w - R, 0);          ctx.quadraticCurveTo(w, 0, w, R);
+  ctx.lineTo(w, h - R);          ctx.quadraticCurveTo(w, h, w - R, h);
+  ctx.lineTo(w / 2 + 11, h);     ctx.lineTo(w / 2, h + TAIL); ctx.lineTo(w / 2 - 11, h);
+  ctx.lineTo(R, h);              ctx.quadraticCurveTo(0, h, 0, h - R);
+  ctx.lineTo(0, R);              ctx.quadraticCurveTo(0, 0, R, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#fff8ecf2';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#e0b071';
+  ctx.stroke();
+
+  ctx.font = font;
+  ctx.fillStyle = '#8a5a2b';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, w / 2, h / 2 + 1);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex, transparent: true,
+    depthTest: false,  // 不被建筑/农田挡住，始终看得见才点得到
+  }));
+  sprite.renderOrder = 999;
+  const H = 1.0; // 统一高度，宽度按文字比例撑开。配合主循环的距离补偿，
+                 // 这个值在默认视角下字够大又不至于盖住建筑
+  sprite.scale.set(H * (w / (h + TAIL)), H, 1);
+  sprite.userData.sign = true;
+  // 记下基准尺寸，主循环按镜头远近做补偿：
+  // 不补的话拉近了糊一脸、拉远了小得看不清字
+  sprite.userData.signW = sprite.scale.x;
+  sprite.userData.signH = H;
+  return sprite;
 }
