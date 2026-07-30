@@ -1292,6 +1292,23 @@ export function createHybridCrop(id) {
       g.add(mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.2, 5), mat(0x6b8f3e), 0, 0.1, 0));
       break;
     }
+    // 菠西蜜（菠萝×西瓜）：拉长的果身 + 菠萝式冠叶 + 西瓜纹，之前漏了这个分支，模型一直是空的
+    case 'crown': {
+      const body = mesh(new THREE.SphereGeometry(0.19, 9, 7), m1, 0, 0.22, 0);
+      body.scale.set(1, 1.25, 1);
+      g.add(body);
+      for (let k = 0; k < 6; k++) { // 冠叶
+        const a = (k / 6) * Math.PI * 2;
+        const leaf = mesh(new THREE.ConeGeometry(0.05, 0.24, 4), m2, Math.cos(a) * 0.06, 0.46, Math.sin(a) * 0.06);
+        leaf.rotation.set(Math.sin(a) * 0.5, -a, -Math.cos(a) * 0.5);
+        g.add(leaf);
+      }
+      for (let k = 0; k < 4; k++) { // 西瓜纹
+        const a = (k / 4) * Math.PI * 2;
+        g.add(mesh(new THREE.BoxGeometry(0.025, 0.34, 0.025), m2, Math.cos(a) * 0.17, 0.22, Math.sin(a) * 0.17));
+      }
+      break;
+    }
     case 'gem': {
       const size = p.big ? 0.26 : 0.2;
       const gem = mesh(new THREE.OctahedronGeometry(size), m1, 0, size + 0.1, 0);
@@ -3107,6 +3124,113 @@ const builders = {
     });
     cluster.userData.spin = true;
     g.add(cluster, leafCrown(0.75, 0x6fae9e));
+    return g;
+  },
+
+  /* —— 后期扩充的 6 种作物（价值全部卡在彩虹果之下）—— */
+
+  pepper(stage) { // 青椒：灯笼形，四瓣鼓起
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.8, GREEN)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.85, GREEN));
+    const skin = stage === 2 ? 0x8fbf5a : 0x4a9e3a;
+    const body = mesh(new THREE.SphereGeometry(0.13 * s, 8, 6), mat(skin), 0, 0.16 * s + 0.06, 0);
+    body.scale.set(1, 1.3, 1);
+    g.add(body);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      const lobe = mesh(new THREE.SphereGeometry(0.055 * s, 6, 5), mat(stage === 2 ? 0x8fbf5a : 0x3f8f32),
+        Math.cos(a) * 0.09 * s, 0.14 * s + 0.06, Math.sin(a) * 0.09 * s);
+      lobe.scale.y = 1.5;
+      g.add(lobe);
+    }
+    g.add(mesh(new THREE.CylinderGeometry(0.022, 0.03, 0.07, 5), mat(DARKGREEN), 0, 0.31 * s + 0.06, 0));
+    return g;
+  },
+
+  broccoli(stage) { // 西兰花：粗茎 + 一簇疙瘩花球
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.9, 0x5c9b52)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.95, 0x5c9b52));
+    g.add(mesh(new THREE.CylinderGeometry(0.05 * s, 0.065 * s, 0.18 * s, 6), mat(0xa8c88a), 0, 0.11 * s, 0));
+    const floret = stage === 2 ? 0x4a8a42 : 0x2f6e2a;
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2;
+      const r = k % 3 === 0 ? 0 : 0.085 * s;
+      g.add(mesh(new THREE.SphereGeometry(0.06 * s, 6, 5), mat(floret),
+        Math.cos(a) * r, 0.23 * s + (k % 3) * 0.02 * s, Math.sin(a) * r));
+    }
+    return g;
+  },
+
+  grape(stage) { // 葡萄：倒锥形串，上宽下窄
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.9, 0x6a9e4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.9, 0x6a9e4a));
+    const color = stage === 2 ? 0x9a7ab8 : 0x6a3d9e;
+    [[4, 0.095, 0.3], [3, 0.06, 0.2], [1, 0, 0.1]].forEach(([n, r, y], layer) => {
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + layer * 0.7;
+        g.add(mesh(new THREE.SphereGeometry(0.05 * s, 6, 5), mat(color),
+          Math.cos(a) * r * s, y * s + 0.05, Math.sin(a) * r * s));
+      }
+    });
+    return g;
+  },
+
+  avocado(stage) { // 牛油果：梨形深绿果身
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.85, 0x4a7a42)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.8, 0x4a7a42));
+    const body = mesh(new THREE.SphereGeometry(0.12 * s, 8, 7), mat(stage === 2 ? 0x7a9e52 : 0x3a5e2a), 0, 0.18 * s + 0.05, 0);
+    body.scale.set(1, 1.45, 1);
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.075 * s, 7, 6), mat(stage === 2 ? 0x8aae62 : 0x46702f), 0, 0.09 * s + 0.05, 0));
+    if (stage === 3) g.add(mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.06, 5), mat(0x6a4a2a), 0, 0.37 * s, 0));
+    return g;
+  },
+
+  peach(stage) { // 水蜜桃：带桃缝和小叶子
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.85, 0x6aae5e)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.8, 0x6aae5e));
+    const body = mesh(new THREE.SphereGeometry(0.14 * s, 9, 7), mat(stage === 2 ? 0xf2d0a8 : 0xf2a0a0), 0, 0.16 * s + 0.06, 0);
+    body.scale.set(1.05, 1, 1);
+    g.add(body);
+    g.add(mesh(new THREE.BoxGeometry(0.014, 0.22 * s, 0.03 * s),
+      mat(stage === 2 ? 0xd9b48a : 0xd97a86), 0, 0.16 * s + 0.06, 0.13 * s));
+    if (stage === 3) {
+      const leaf = mesh(new THREE.SphereGeometry(0.06, 6, 5), mat(0x5c9b52), 0.07, 0.31 * s + 0.06, 0);
+      leaf.scale.set(1.5, 0.3, 0.7);
+      leaf.rotation.z = -0.5;
+      g.add(leaf);
+    }
+    return g;
+  },
+
+  cherry(stage) { // 樱桃：一对果 + 细梗
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.8, 0x5c9b52)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.85, 0x5c9b52));
+    const color = stage === 2 ? 0xe08a8a : 0xd0243a;
+    [[-0.07, 1], [0.07, -1]].forEach(([x, dir]) => {
+      g.add(mesh(new THREE.SphereGeometry(0.075 * s, 8, 6), mat(color, { roughness: 0.45 }), x * s, 0.12 * s + 0.05, 0));
+      const stem = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.2 * s, 4), mat(0x5a8a3a), x * s * 0.6, 0.25 * s + 0.05, 0);
+      stem.rotation.z = dir * 0.45;
+      g.add(stem);
+    });
     return g;
   },
 

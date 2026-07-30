@@ -37,6 +37,23 @@ body {
 }
 #clock-badge.night { background: #2b3050; border-color: #4a5580; color: #cfd8f5; }
 
+/* 金币/存款变动时飘一个 +N，1 秒后消失。牌子上方只有 16px 放不下，所以飘在紧右侧 */
+#coin-bar, #bank-bar { position: relative; }
+.coin-pop {
+  position: absolute; left: 100%; top: 4px; margin-left: 8px;
+  font-size: 19px; font-weight: 800; color: #2f9e4f; white-space: nowrap;
+  pointer-events: none; opacity: 0;
+  text-shadow: 0 2px 0 #fff, 0 0 8px #fff, 0 0 3px #fff;
+}
+.coin-pop.minus { color: #d9534f; }
+.coin-pop.run { animation: coinPop 1s ease-out forwards; }
+@keyframes coinPop {
+  0%   { opacity: 0; transform: translateY(10px) scale(.8); }
+  15%  { opacity: 1; transform: translateY(0) scale(1.18); }
+  35%  { opacity: 1; transform: translateY(-3px) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
+
 /* ---------- toolbar ---------- */
 #toolbar {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);

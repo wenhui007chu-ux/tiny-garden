@@ -1,4 +1,4 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST } from './config.js';
+import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { music, sfx } from './music.js';
@@ -518,7 +518,7 @@ export class UI {
       note.textContent = `选一个作物摆上 ${k + 1} 号金台：`;
       body.appendChild(note);
       const crops = Object.entries(g.inventory)
-        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && !key.startsWith('h:') && key !== 'egg');
+        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && key !== 'egg');
       if (!crops.length) {
         body.insertAdjacentHTML('beforeend',
           '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来吧 🌱</div>');
@@ -1469,14 +1469,20 @@ export class UI {
     }
 
     if (this.mallTab === 'seeds') {
-      SEEDS.forEach(s => {
+      const seedRow = (s) => {
         const owned = g.unlockedSeeds.includes(s.id);
         item(s.emoji, s.name,
           `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${fmtTime(s.growTime)}`,
           owned ? '已解锁' : `解锁 ${s.unlock}💰`,
           owned ? null : () => { g.unlockSeed(s.id); this.renderMall(); },
           owned ? 'owned' : '');
-      });
+      };
+      body.insertAdjacentHTML('beforeend', `<div class="ach-group">🌱 基础种子 · ${CODEX_SEEDS.length} 种</div>`);
+      CODEX_SEEDS.forEach(seedRow);
+      body.insertAdjacentHTML('beforeend', `<div class="ach-group">✨ 特殊种子 · ${SPECIAL_SEEDS.length} 种</div>`);
+      body.insertAdjacentHTML('beforeend',
+        `<p class="shop-note">收获物只能摆进<b>个人展台</b>，不进基础图鉴，也与「种子收藏家」无关。</p>`);
+      SPECIAL_SEEDS.forEach(seedRow);
     }
 
     if (this.mallTab === 'soil') {
@@ -1762,8 +1768,18 @@ export class UI {
       },
       {
         icon: '🥕', title: '作物一览',
-        html: `<table class="wtable"><tr><th>作物</th><th>种子</th><th>卖价</th><th>生长</th><th>解锁</th></tr>
-          ${SEEDS.map(s => `<tr><td>${s.emoji}${s.name}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || '默认'}</td></tr>`).join('')}</table>`,
+        html: `带 ✨ 的是<b>特殊种子</b>，规则见下一条。<br>
+          <table class="wtable"><tr><th>作物</th><th>种子</th><th>卖价</th><th>生长</th><th>解锁</th></tr>
+          ${SEEDS.map(s => `<tr><td>${s.emoji}${s.name}${s.special ? ' ✨' : ''}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || '默认'}</td></tr>`).join('')}</table>`,
+      },
+      {
+        icon: '✨', title: '特殊种子',
+        html: `商场「种子」页下半区的 <b>${SPECIAL_SEEDS.length} 种</b>：${SPECIAL_SEEDS.map(s => s.emoji + s.name).join('、')}。<br>
+          种植、浇水、稀有品质、加工、料理、扎花束<b>一切照常</b>，价值全部低于 🌈 彩虹果——彩虹果始终是最强的一种。<br>
+          <b>三条专属规则：</b><br>
+          · 收获物只能摆进 <b>🏆 个人展台</b>（图鉴大楼贵宾区 10 座金台）<br>
+          · <b>不能</b>收录进 📖 基础图鉴（那 42 格只属于 ${CODEX_SEEDS.length} 种基础作物）<br>
+          · 与 <b>🌈 种子收藏家</b>、<b>📚 图鉴大成</b> 两条成就<b>完全无关</b>，不影响已有的收集进度`,
       },
       {
         icon: '✨', title: '稀有品质',
@@ -1824,8 +1840,9 @@ export class UI {
       },
       {
         icon: '📖', title: '图鉴大楼',
-        html: `<b>基础图鉴</b>：${SEEDS.length} 作物 × 3 品质 = 42 个说明台。捐一个对应品质的新鲜作物即可收录（重复不收，罐头/生长不良/料理不收），台上立起模型和数据说明牌。<br>
-          <b>个人图鉴</b>：红毯贵宾区 10 座金台，摆你最得意的作物，随摆随收。`,
+        html: `<b>基础图鉴</b>：${CODEX_SEEDS.length} 种基础作物 × 3 品质 = ${CODEX_SEEDS.length * 3} 个说明台。捐一个对应品质的新鲜作物即可收录（重复不收，罐头/生长不良/料理不收），台上立起模型和数据说明牌。<br>
+          <b>✨ 特殊种子的收获物不在这 ${CODEX_SEEDS.length * 3} 格里</b>，只能摆到下面的个人展台。<br>
+          <b>个人图鉴</b>：红毯贵宾区 10 座金台，摆你最得意的作物——基础作物、✨ 特殊种子、🌸 花、🧬 杂交作物都能摆，随摆随收。`,
       },
       {
         icon: '🏠', title: '我的小屋',
@@ -1956,7 +1973,36 @@ export class UI {
 
   /* ---------- 状态刷新 ---------- */
 
+  // 金币/存款变动时在牌子旁飘一个 +N / -N，1 秒后消失
+  // 统一在 refresh 里比对差值：售卖、花束、风车、银行、成就奖励、买东西等所有路径都自动覆盖
+  popDelta(barSel, value, memo) {
+    const prev = this[memo];
+    this[memo] = value;
+    if (prev === undefined) return;      // 首次进游戏/读档不飘
+    const delta = value - prev;
+    if (!delta) return;
+    const bar = $(barSel);
+    let el = bar.querySelector('.coin-pop');
+    if (!el) {                            // 1 秒内的连续变动累加进同一个飘字，避免连点刷屏
+      el = document.createElement('span');
+      el.className = 'coin-pop';
+      el._sum = 0;
+      bar.appendChild(el);
+    }
+    el._sum += delta;
+    if (el._sum === 0) { clearTimeout(el._t); el.remove(); return; } // 一进一出正好抵消
+    el.textContent = (el._sum > 0 ? '+' : '') + el._sum;
+    el.classList.toggle('minus', el._sum < 0);
+    el.classList.remove('run');
+    void el.offsetWidth;                  // 强制重排，让动画能重新播
+    el.classList.add('run');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.remove(), 1000);
+  }
+
   refresh() {
+    this.popDelta('#coin-bar', this.game.coins, '_lastCoins');
+    this.popDelta('#bank-bar', this.game.bank, '_lastBank');
     $('#coin-count').textContent = this.game.coins;
     $('#bank-count').textContent = this.game.bank;
     if (!$('#bank').classList.contains('hidden')) this.renderBank();

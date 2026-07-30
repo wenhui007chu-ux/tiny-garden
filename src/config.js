@@ -9,22 +9,36 @@ export const WET_DURATION = 45; // 浇一次水保持湿润的秒数
 export const START_COINS = 20;
 
 // 慢动作田园：生长时间统一放慢 5 倍，削一削经济
+// special: true 的是「特殊种子」，在商场种子页单独成一区。规则：
+//   · 照常种、卖、出稀有品质，价值全部卡在彩虹果之下（彩虹果始终是最贵最强的）
+//   · 收获物只能摆到「个人展台」，不能收录进 42 格基础图鉴
+//   · 与「种子收藏家 / 图鉴大成」两条成就完全无关，不会打扰已有的收集进度
 export const SEEDS = [
   { id: 'sweetpot',   name: '红薯',   emoji: '🍠', cost: 0,   sell: 1,    growTime: 50,   unlock: 0 },
   { id: 'radish',     name: '萝卜',   emoji: '🥕', cost: 5,   sell: 12,   growTime: 100,  unlock: 0 },
   { id: 'potato',     name: '土豆',   emoji: '🥔', cost: 8,   sell: 22,   growTime: 140,  unlock: 30 },
   { id: 'cabbage',    name: '白菜',   emoji: '🥬', cost: 15,  sell: 40,   growTime: 200,  unlock: 60 },
   { id: 'tomato',     name: '番茄',   emoji: '🍅', cost: 20,  sell: 55,   growTime: 225,  unlock: 100 },
+  { id: 'pepper',     name: '青椒',   emoji: '🫑', cost: 26,  sell: 75,   growTime: 260,  unlock: 150,  special: true },
   { id: 'corn',       name: '玉米',   emoji: '🌽', cost: 35,  sell: 105,  growTime: 300,  unlock: 200 },
   { id: 'strawberry', name: '草莓',   emoji: '🍓', cost: 55,  sell: 170,  growTime: 375,  unlock: 320 },
+  { id: 'broccoli',   name: '西兰花', emoji: '🥦', cost: 66,  sell: 200,  growTime: 410,  unlock: 360,  special: true },
   { id: 'pumpkin',    name: '南瓜',   emoji: '🎃', cost: 80,  sell: 240,  growTime: 450,  unlock: 400 },
   { id: 'eggplant',   name: '茄子',   emoji: '🍆', cost: 120, sell: 380,  growTime: 550,  unlock: 650 },
+  { id: 'grape',      name: '葡萄',   emoji: '🍇', cost: 145, sell: 460,  growTime: 600,  unlock: 770,  special: true },
   { id: 'watermelon', name: '西瓜',   emoji: '🍉', cost: 170, sell: 560,  growTime: 650,  unlock: 900 },
   { id: 'pineapple',  name: '菠萝',   emoji: '🍍', cost: 230, sell: 780,  growTime: 750,  unlock: 1200 },
+  { id: 'avocado',    name: '牛油果', emoji: '🥑', cost: 265, sell: 880,  growTime: 820,  unlock: 1340, special: true },
   { id: 'crystal',    name: '水晶果', emoji: '🔮', cost: 300, sell: 1000, growTime: 900,  unlock: 1500 },
+  { id: 'peach',      name: '水蜜桃', emoji: '🍑', cost: 370, sell: 1250, growTime: 1050, unlock: 1820, special: true },
   { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 1200, unlock: 2200 },
+  { id: 'cherry',     name: '樱桃',   emoji: '🍒', cost: 550, sell: 2000, growTime: 1350, unlock: 2580, special: true },
   { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 1500, unlock: 3000 },
 ];
+
+// 图鉴与作物收集类成就只认这 14 种基础作物，特殊种子不参与，保证老进度不被打扰
+export const CODEX_SEEDS = SEEDS.filter(s => !s.special);
+export const SPECIAL_SEEDS = SEEDS.filter(s => s.special);
 
 export const SOILS = [
   { name: '普通土', speed: 1,    yield: 1, cost: 0,   color: 0x9a7355 },
@@ -576,9 +590,11 @@ export const ACHIEVEMENTS = [
   { id: 'a05', name: '育苗开始',   emoji: '🌾', tier: 'bronze', group: '作物',
     desc: '解锁 5 种作物', hint: '商场「种子」页解锁新品种',
     cur: (g) => g.unlockedSeeds.length, max: 5 },
+  // 只认 14 种基础作物（特殊种子不算），后续再加作物也不会把这条已达成的成就顶回未完成
   { id: 'a06', name: '种子收藏家', emoji: '🌈', tier: 'gold', group: '作物',
-    desc: `解锁全部 ${SEEDS.length} 种作物`, hint: '彩虹果是最后一种，3000💰',
-    cur: (g) => g.unlockedSeeds.length, max: SEEDS.length },
+    desc: `解锁全部 ${CODEX_SEEDS.length} 种基础作物`, hint: '彩虹果是最后一种，3000💰',
+    cur: (g) => g.unlockedSeeds.filter(id => CODEX_SEEDS.some(s => s.id === id)).length,
+    max: CODEX_SEEDS.length },
   { id: 'a07', name: '图鉴入门', emoji: '📖', tier: 'bronze', group: '作物',
     desc: '图鉴收录 10 项', hint: '进图鉴大楼，把背包里的作物捐出去',
     cur: (g) => g.codexCount(), max: 10 },
@@ -587,7 +603,7 @@ export const ACHIEVEMENTS = [
     cur: (g) => g.codexCount(), max: 21 },
   { id: 'a09', name: '图鉴大成', emoji: '📚', tier: 'legend', group: '作物',
     desc: '图鉴 42 项全部收录', hint: '14 种作物 × 3 种品质，一个都不能少',
-    cur: (g) => g.codexCount(), max: SEEDS.length * CODEX_QUALITIES.length },
+    cur: (g) => g.codexCount(), max: CODEX_SEEDS.length * CODEX_QUALITIES.length },
 
   // —— 财富 ——
   { id: 'a10', name: '万元户',   emoji: '💰', tier: 'bronze', group: '财富',

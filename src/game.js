@@ -13,7 +13,7 @@ import {
   FURNITURE_MAX_LEVEL,
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
-  ACHIEVEMENTS, ACHIEVEMENT_POS,
+  ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -716,9 +716,9 @@ export class Game {
   /* ---------- 图鉴大楼 ---------- */
 
   codexKeys() {
-    // 42 个展位：14 作物 × 3 品质
+    // 42 个展位：最初 14 种基础作物 × 3 品质（bonus 作物不占展位，展馆布局也就不用动）
     const keys = [];
-    SEEDS.forEach(s => CODEX_QUALITIES.forEach(q => keys.push(q ? `${s.id}:${q}` : s.id)));
+    CODEX_SEEDS.forEach(s => CODEX_QUALITIES.forEach(q => keys.push(q ? `${s.id}:${q}` : s.id)));
     return keys;
   }
 
@@ -772,6 +772,11 @@ export class Game {
     }
     if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) {
       this.onToast('图鉴只收录新鲜的作物本体');
+      return false;
+    }
+    // 特殊种子的收获物不占 42 格展位，只能摆到个人展台
+    if (seedById(key.split(':')[0])?.special) {
+      this.onToast('✨ 特殊种子的收获物只能摆到个人展台');
       return false;
     }
     // 兜底：万一还有别的没想到的 key，宁可拒收也不能吃掉玩家的东西
@@ -1480,12 +1485,15 @@ export class Game {
     g.add(createGalleryPedestal(!!s.item));
     if (s.item) {
       const info = keyInfo(s.item.key);
-      // 花没有 seed 字段，得走花的模型，否则 info.seed.id 直接报错、整座台子都不见了
+      // 花和杂交作物都没有 seed 字段，得各走各的模型，否则 info.seed.id 直接报错、整座台子都不见了
       let model;
       if (info.flower) {
         // 花带茎，比果实高是自然的，但别高过台座本身，不然头重脚轻
         model = createFlowerMesh(s.item.key.slice(2));
         model.scale.setScalar(0.95);
+      } else if (info.hybrid) {
+        model = createHybridCrop(s.item.key.slice(2));
+        model.scale.setScalar(1.7);
       } else {
         model = createPlantMesh(info.seed.id, 3);
         applyPlating(model, info.quality);
@@ -1507,7 +1515,8 @@ export class Game {
   placeDisplay(k, key) {
     const s = this.displaySlots[k];
     if (s.item) { this.onToast('这个展台已经摆着东西了'); return false; }
-    if (key.startsWith('p:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
+    // 杂交作物是玩家自己配出来的珍品，个人展台是它唯一的展示位（基础图鉴那 42 格照旧不收）
+    if (key.startsWith('p:') || key.startsWith('k:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
