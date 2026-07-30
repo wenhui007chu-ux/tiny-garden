@@ -46,6 +46,50 @@ npm run preview # 预览构建产物
 - **存档兼容** → 修改存档结构时注意向后兼容，`save-backup.json` 是硬盘保险箱。
 - 保持现有中文注释风格与命名习惯。
 
+## 多机同步：功能做完就提交并推送
+
+我在三台电脑上轮流玩／开发，靠 GitHub 同步（`origin/main`）。
+**每完成一个功能（或修完一个 bug）并验证通过后，主动提交并推送，不用每次问我。**
+
+### 每次的固定动作
+
+```bash
+git add <改动的源码文件>   # 明确列出，别用 git add -A
+git commit -m "..."      # 中文提交信息，说清楚改了什么、为什么
+git pull --rebase        # 再拉：把另一台的提交接到自己下面，避免分叉
+git push origin main
+```
+
+> 顺序别反：`git pull --rebase` 在工作区有未提交改动时会直接拒绝
+> （`cannot pull with rebase: You have unstaged changes`），所以必须**先 commit 再 pull**。
+
+### 提交怎么切分
+
+- **代码和存档分两个提交**，方便以后翻历史时区分「功能改动」和「进度快照」：
+  - `feat:` / `fix:` —— 只含 `src/`、`index.html` 等源码
+  - `chore: 存档备份 —— 金币 X，成就 Y/Z` —— 只含 `save-backup.json`
+- 存档不必每次功能都提交；玩到一段落或我说「备份」时再提。
+
+### 什么情况下不要推
+
+- 控制台有报错、或改动根本没验证过 → 先修好再说
+- 功能只做了一半 → 攒着，别推半成品
+- 我明确说了「先别提交」
+
+### `save-backup.json` 的冲突风险（已经踩过一次）
+
+这是个「谁后写谁覆盖」的单文件，三台机器轮着玩迟早撞。规矩：
+
+- **开玩前先 `git pull`，收工后立刻 `git push`**，任何时候只允许一台处于「玩过但没推」的状态。
+- `git pull` 之前**先停掉 dev server**。否则游戏在后台自动存档，会把刚拉下来的新进度覆盖回旧的。
+- 真撞上冲突时，**先把两边存档的 `coins`/`achievements`/解锁地块数摊出来比对**，确认哪份更新，再决定取舍——绝不闭眼 `--ours` / `--theirs`。
+- 丢弃任何一份存档前，先复制一份到临时目录留底。
+
+### 认证
+
+推送凭据已存在 Windows 凭据管理器（`git:https://github.com`），本仓库的 `user.name` / `user.email`
+也已写进 `.git/config`（`--local`，不影响其他项目）。正常情况下 `git push` 不需要再登录。
+
 ## Vite 自定义中间件（`vite.config.js`）
 
 - `POST /__shot` —— 保存画布截图到 `debug-shot.png`，便于无头环境检查画面。
