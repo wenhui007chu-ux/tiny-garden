@@ -63,6 +63,15 @@ git push origin main
 > 顺序别反：`git pull --rebase` 在工作区有未提交改动时会直接拒绝
 > （`cannot pull with rebase: You have unstaged changes`），所以必须**先 commit 再 pull**。
 
+**dev server 开着时 `save-backup.json` 会被反复写入**，刚提交完几百毫秒又变脏，
+`pull --rebase` 照样拒绝。所以拉取那一步要把它先隔离出去：
+
+```bash
+git stash push -q -- save-backup.json   # 没变脏时这条会空转，无害
+git pull --rebase
+git stash pop                            # 没 stash 到东西就会报错，忽略即可
+```
+
 ### 提交怎么切分
 
 - **代码和存档分两个提交**，方便以后翻历史时区分「功能改动」和「进度快照」：
