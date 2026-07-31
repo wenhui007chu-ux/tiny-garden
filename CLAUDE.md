@@ -64,13 +64,33 @@ git push origin main
 > （`cannot pull with rebase: You have unstaged changes`），所以必须**先 commit 再 pull**。
 
 **dev server 开着时 `save-backup.json` 会被反复写入**，刚提交完几百毫秒又变脏，
-`pull --rebase` 照样拒绝。所以拉取那一步要把它先隔离出去：
+`pull --rebase` 照样拒绝。用 git 内置的 `--autostash`，别手动 stash：
 
 ```bash
-git stash push -q -- save-backup.json   # 没变脏时这条会空转，无害
-git pull --rebase
-git stash pop                            # 没 stash 到东西就会报错，忽略即可
+git pull --rebase --autostash
 ```
+
+> 手动 `git stash push -- save-backup.json` → `pull` → `stash pop` 这套**不可靠**：
+> 两条命令之间存档又被写脏，pull 照样报 unstaged changes，pop 还会撞车留下垃圾 stash。
+> 实测踩过两次。`--autostash` 是 git 进程内完成的，窗口小得多。
+
+真要万无一失，就在拉取前**把存档也提交掉**（工作区干净就没有 stash 的事），
+或者干脆先停 dev server。
+
+### stash 冲突了怎么办
+
+`stash pop` 报 `Your local changes would be overwritten` 时，**别急着 pop**。
+先把三份摊出来比：
+
+```bash
+git show stash@{0}:save-backup.json | ConvertFrom-Json   # stash 里的
+Get-Content save-backup.json | ConvertFrom-Json          # 工作区的
+git show origin/main:save-backup.json | ConvertFrom-Json # 远程的
+```
+
+**工作区那份通常才是对的**——它跟浏览器 localStorage 同步，
+而 stash 往往是几分钟前的旧快照。强行 pop 会把旧存档写回硬盘，
+反而和 localStorage 打架。确认后 `git stash drop` 即可（丢弃前先复制一份留底）。
 
 ### 提交怎么切分
 
@@ -90,7 +110,19 @@ git stash pop                            # 没 stash 到东西就会报错，忽
 这是个「谁后写谁覆盖」的单文件，三台机器轮着玩迟早撞。规矩：
 
 - **开玩前先 `git pull`，收工后立刻 `git push`**，任何时候只允许一台处于「玩过但没推」的状态。
-- `git pull` 之前**先停掉 dev server**。否则游戏在后台自动存档，会把刚拉下来的新进度覆盖回旧的。
+- **`git pull` 之前必须先停掉 dev server**（这是流程第一步，不是可选项）。
+  否则游戏在后台自动存档，会把刚拉下来的新进度覆盖回旧的——已经真实发生过一次。
+- **拉到新存档后，要先把它灌进 localStorage 再让页面重载**：
+
+  ```js
+  const backup = await fetch('/__save').then(r => r.json());
+  localStorage.setItem('farming-mini-game-save-v1', JSON.stringify(backup));
+  location.reload();
+  ```
+
+  顺序反了（先重载再改）没用：新 game 实例一初始化就会拿旧 localStorage 覆盖硬盘。
+  也别指望 `main.js` 的自动恢复兜底——它的判据是 `backup.savedAt > local.savedAt`，
+  而本地挂机会把时间戳顶得更晚。**时间戳新 ≠ 进度多**，这是那套机制的盲区。
 - 真撞上冲突时，**先把两边存档的 `coins`/`achievements`/解锁地块数摊出来比对**，确认哪份更新，再决定取舍——绝不闭眼 `--ours` / `--theirs`。
 - 丢弃任何一份存档前，先复制一份到临时目录留底。
 
