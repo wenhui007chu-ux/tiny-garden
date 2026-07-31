@@ -25,17 +25,23 @@
   <div id="settings-menu" class="hidden"></div>
 
   <div id="toolbar">
-    <button class="tool-btn active" data-tool="hand" title="点击成熟作物收获">🖐<span>收获</span></button>
-    <button class="tool-btn" data-tool="plant" title="选择种子后点击空地种植">🌱<span>种植</span></button>
-    <button class="tool-btn" data-tool="water" title="点击土地浇水">💧<span>浇水</span></button>
-    <button class="tool-btn" data-tool="shovel" title="铲除作物或装饰">🧹<span>铲除</span></button>
-    <button class="tool-btn" id="save-layout-btn" title="保存当前种植布局">💾<span>保存</span></button>
-    <button class="tool-btn" id="quick-btn" title="快捷操作">⚡<span>快捷</span></button>
-    <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span>挂机</span></button>
-    <button class="tool-btn" id="music-pick-btn" title="选一首曲子点播或循环">🎶<span>选曲</span></button>
-    <button class="tool-btn" id="settings-btn" title="设置">⚙️<span>设置</span></button>
-    <button class="tool-btn" id="bag-btn" title="背包">🎒<span>背包</span><i id="bag-badge" class="hidden"></i></button>
-    <button class="tool-btn" id="items-btn" title="道具背包">🧰<span>道具</span><i id="items-badge" class="hidden"></i></button>
+    <!-- 上排：种田工具 5 个 -->
+    <div class="tb-row">
+      <button class="tool-btn active" data-tool="hand" title="点击成熟作物收获">🖐<span>收获</span></button>
+      <button class="tool-btn" data-tool="plant" title="选择种子后点击空地种植">🌱<span>种植</span></button>
+      <button class="tool-btn" data-tool="water" title="点击土地浇水">💧<span>浇水</span></button>
+      <button class="tool-btn" data-tool="shovel" title="铲除作物或装饰">🧹<span>铲除</span></button>
+      <button class="tool-btn" id="save-layout-btn" title="保存当前种植布局">💾<span>保存</span></button>
+    </div>
+    <!-- 下排：菜单与背包 6 个 -->
+    <div class="tb-row">
+      <button class="tool-btn" id="quick-btn" title="快捷操作">⚡<span>快捷</span></button>
+      <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span>挂机</span></button>
+      <button class="tool-btn" id="music-pick-btn" title="选一首曲子点播或循环">🎶<span>选曲</span></button>
+      <button class="tool-btn" id="settings-btn" title="设置">⚙️<span>设置</span></button>
+      <button class="tool-btn" id="bag-btn" title="背包">🎒<span>背包</span><i id="bag-badge" class="hidden"></i></button>
+      <button class="tool-btn" id="items-btn" title="道具背包">🧰<span>道具</span><i id="items-badge" class="hidden"></i></button>
+    </div>
   </div>
 
   <div id="bag" class="hidden">

@@ -1,7 +1,7 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
-import { SORTER_SLOTS, SORTER_TIME, METAL, metalPrice } from './config.js';
+import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice } from './config.js';
 import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -1883,7 +1883,7 @@ export class UI {
         icon: '✨', title: '稀有品质',
         html: `种下的一刻暗中判定品质：<b>黄金 ${pct(GOLD_CHANCE)}（卖价 ×3）、白银 ${pct(SILVER_CHANCE)}（×2）</b>，整株带淡金/淡银镀层。<br>
           商场买不到，纯看脸。🧪 幸运药剂可让指定空地下次播种概率<b>翻倍</b>。<br>
-          稀有作物可以：直接卖 / 进工坊 / 做料理 / 收录图鉴 / 摆上个人金台。`,
+          稀有作物可以：直接卖 / 进工坊 / 做料理 / 收录图鉴 / 摆上个人金台 / <b>拆进 ⚙️ 分拣台熔金属条</b>（最赚，见下）。`,
       },
       {
         icon: '⏰', title: '时间与天气',
@@ -1907,14 +1907,27 @@ export class UI {
         html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time / 60} 分钟 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
           <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可下锅，<b>${COOK_SLOTS} 个灶位</b>可同时开火，每道菜炒 <b>${COOK_TIME / 60} 分钟</b>出锅（离线照常烹饪）。卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
           生长不良的作物两边都不收；罐头和料理不能二次加工。<br>
-          <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。`,
+          <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。<br>
+          稀有品质的作物另有一条更赚的路：⚙️ 分拣台，见下条。`,
+      },
+      {
+        icon: '⚙️', title: '分拣台',
+        html: `把<b>稀有品质</b>的作物拆成「普通作物 + 贵金属条」，是稀有作物<b>最赚的变现方式</b>。<br>
+          <b>${SORTER_SLOTS} 个分拣位</b>，每次 <b>${SORTER_TIME / 60} 分钟</b>，离线照常分拣。<br>
+          原理：品质带来的<b>增值部分</b>被单独抽出来，按 <b>${SORTER_MULT} 倍</b>熔成金属条，作物本体原样退回。<br>
+          · 🥈 白银（${QUALITIES.silver.mult}× 价）→ 增值 ${METAL.silver.bars} 份 → 银条 = 原价 × ${METAL.silver.bars * SORTER_MULT}<br>
+          · 🥇 黄金（${QUALITIES.gold.mult}× 价）→ 增值 ${METAL.gold.bars} 份 → 金条 = 原价 × ${METAL.gold.bars * SORTER_MULT}<br>
+          <b>举例</b>：一个黄金🍅番茄直接卖 ${seedById('tomato').sell * QUALITIES.gold.mult}💰；
+          拆开则得 普通番茄 ${seedById('tomato').sell}💰 + 番茄金条 ${metalPrice('tomato', 'gold')}💰
+          ＝ <b>${seedById('tomato').sell + metalPrice('tomato', 'gold')}💰</b>，翻了约 ${Math.round((seedById('tomato').sell + metalPrice('tomato', 'gold')) / (seedById('tomato').sell * QUALITIES.gold.mult))} 倍。<br>
+          金属条只能卖钱，不能加工、不能收录、不能上展台。<b>攒着稀有作物别急着卖，先拆。</b>`,
       },
       {
         icon: '🧬', title: '杂交室',
         html: `点击玻璃穹顶实验室进入 3D 大厅，<b>${HYBRID_SLOTS} 个培养罩</b>可同时培养 ${HYBRID_SLOTS} 个杂交作物。<br>
           流程：<b>选配方 → 消耗两种指定品质的作物 → 培养 ${HYBRID_TIME / 60} 分钟 → 取出进背包</b>。离线照常培养，罩里的作物会随进度慢慢长大。<br>
           共 <b>${HYBRIDS.length} 种</b>杂交作物，卖价约为原料总价的 <b>5 倍</b>，是全游戏最高倍率的变现方式。<br>
-          杂交作物不能做罐头、不能收录图鉴、不能上展示台——生来就是为了卖大钱。<br>
+          杂交作物不能做罐头、不能收录基础图鉴，但<b>可以摆上 🏆 个人展台</b>——那是它唯一的展示位。<br>
           <table class="wtable"><tr><th>杂交作物</th><th>配方</th><th>卖价</th></tr>
           ${HYBRIDS.map(h => {
             const nameOf = ([sid, q]) => `${['', '白银', '黄金'][q]}${seedById(sid).name}`;
@@ -1923,12 +1936,23 @@ export class UI {
           }).join('')}</table>`,
       },
       {
+        icon: '🌸', title: '花房温室',
+        html: `点菜园里的玻璃温室进花房。<b>${GREENHOUSE_SLOTS} 个花圃</b>，种 <b>${FLOWERS.length} 种花</b>。<br>
+          <b>温室恒温</b>：花<b>不受天气影响、也不用浇水</b>，种下后按固定时间开花（离线照常开），是最省心的一条产线。<br>
+          <b>💐 扎花台</b>：任选 <b>${BOUQUET_SIZE} 朵</b>花（<b>没有固定配方</b>，随便搭）扎成一束，按 ${BOUQUET_SIZE} 朵总价 <b>×${BOUQUET_MULT}</b> 直接卖出。<br>
+          花可以直接卖、扎花束、摆上 🏆 个人展台；不进基础图鉴、不能做罐头料理。<br>
+          <table class="wtable"><tr><th>花</th><th>稀有度</th><th>花种</th><th>卖价</th><th>开花</th></tr>
+          ${FLOWERS.map(f => `<tr><td>${f.emoji}${f.name}</td><td>${POND_RARITY[f.rarity].name}</td><td>${f.seed}</td><td>${f.sell}</td><td>${fmtTime(f.grow)}</td></tr>`).join('')}</table>`,
+      },
+      {
         icon: '🎣', title: '水塘钓鱼',
         html: `<b>🕸️ 抓鱼网</b>（${itemById('net').cost}💰/张）：摆进水塘 ${FISHING.time / 60} 分钟，随机开出 ${FISHING.rewardMin}~${FISHING.rewardMax}💰，最多同时 ${FISHING.slots} 张，是亏是赚看脸。<br>
           主动钓鱼要<b>二选一带装备下水</b>（钓鱼中可随时切换）：<br>
           <b>🎣 鱼竿</b>（${itemById('rod').cost}💰，永久）：每分钟 ${pct(ROD.chance)} 咬钩，鱼值 ${ROD.min}~${ROD.max}💰——求稳。<br>
           <b>🥅 渔网</b>（${itemById('castnet').cost}💰，永久）：每分钟 ${pct(CASTNET.chance)} 咬钩，鱼值 ${CASTNET.min}~${CASTNET.max}💰——搏大的。<br>
-          咬钩后要狂点收杆：<b>点击次数 = 鱼价 + 5</b>。钓鱼时干别的 = 收竿，钩上的鱼会跑。`,
+          咬钩后要狂点收杆：<b>点击次数 = 鱼价 + 5</b>。钓鱼时干别的 = 收竿，钩上的鱼会跑。<br>
+          <b>🪷 水塘装饰</b>：${POND_DECORS.length} 种按稀有度定价（${Object.values(POND_RARITY).map(r => r.name).join('/')}），买断制，
+          最多同时摆 <b>${POND_MAX_PLACED}</b> 个，全部<b>会动</b>——鸭子绕圈游、蜻蜓空中盘旋、荷花水面起伏。纯观赏，不影响钓鱼收益。`,
       },
       {
         icon: '🏦', title: '银行',
@@ -1945,8 +1969,29 @@ export class UI {
       {
         icon: '🏠', title: '我的小屋',
         html: `点房子进 3D 房间。🛏 床免费自带，可睡觉跳时间。<br>
-          ${FURNITURE.length} 件家具（商场「内饰」页购买），每件升到 5 级，<b>五种外观解锁后随意切换混搭</b>。<br>
-          「🔧 布置模式」里按住家具拖动摆放、↻ 旋转，打造自己的家。`,
+          <b>${FURNITURE.length} 件家具</b>（商场「内饰」页购买），每件可升到 <b>${FURNITURE_MAX_LEVEL} 级</b>，
+          <b>${FURNITURE_MAX_LEVEL} 种外观解锁后随意切换混搭</b>（第 4、5 级是鎏金 / 传说顶配，带发光与光环）。<br>
+          「🔧 布置模式」里按住家具拖动摆放、↻ 旋转，打造自己的家。<br>
+          <b>🎨 房屋外观装修</b>：小屋面板顶部，<b>${Object.keys(HOUSE_SKINS).length} 个部位</b>各
+          ${Object.values(HOUSE_SKINS)[0].options.length} 种样式自由混搭，每换一处 <b>${HOUSE_SKIN_COST}💰</b>：<br>
+          · <b>${Object.values(HOUSE_SKINS).filter(v => v.part === 'ext').map(v => v.name).join('、')}</b> 改的是<b>菜园里那栋房子</b>的外观——要出门才看得到<br>
+          · <b>${Object.values(HOUSE_SKINS).filter(v => v.part === 'int').map(v => v.name).join('、')}</b> 改的是<b>屋内</b>，当场就变`,
+      },
+      {
+        icon: '🐾', title: '宠物间',
+        html: `点粉屋顶的小房子进宠物间。共 <b>${PETS.length} 只宠物</b>（各含独立 3D 模型，按稀有度定价），
+          买下后可随时切换<b>展示台上的那一只</b>，它会有待机小动作。<br>
+          <b>${PET_DECORS.length} 种房间装饰</b>（宠物窝、猫爬架、饮水机、暖光灯等），
+          每种同样能升到 <b>${FURNITURE_MAX_LEVEL} 级</b>，已解锁的外观随时切换。<br>
+          宠物与装饰纯观赏，不影响种田收益——这里是纯粹的养成与布置乐趣。`,
+      },
+      {
+        icon: '🏅', title: '成就殿堂',
+        html: `点菜园里的奖杯建筑进展厅。共 <b>${ACHIEVEMENTS.length} 个成就</b>，
+          分 ${[...new Set(ACHIEVEMENTS.map(a => a.group))].length} 组：${[...new Set(ACHIEVEMENTS.map(a => a.group))].join(' / ')}。<br>
+          展厅里每个成就一座台子：<b>达成的立起奖杯，没达成的留灰底座</b>，一眼看出还差哪些。<br>
+          面板里每条都有<b>进度条和提示</b>，达成瞬间会弹横幅 + 音效。<br>
+          <b>已达成的成就不会被撤销</b>——后续版本新增内容也不会把它顶回未完成。`,
       },
       {
         icon: '🧰', title: '道具一览',

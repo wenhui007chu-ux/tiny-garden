@@ -55,33 +55,48 @@ body {
 }
 
 /* ---------- toolbar ---------- */
+/* 两行：上排 5 个种田工具，下排 6 个菜单。11 个挤一行在手机上必然溢出。
+   居中同样不能用 left:50%+translateX——那会把可用宽度砍成视口的一半 */
 #toolbar {
-  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 10px; z-index: 10;
+  position: fixed; bottom: 18px; left: 0; right: 0; margin: 0 auto;
+  width: fit-content; max-width: 98vw;
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(4px, 1vw, 8px); z-index: 10;
 }
+.tb-row { display: flex; justify-content: center; gap: clamp(4px, 1.2vw, 10px); }
+/* 尺寸随屏宽伸缩：桌面维持原来的 64px，窄屏自动缩到能塞下 6 个 */
 .tool-btn {
-  width: 64px; height: 64px; border-radius: 18px; border: 3px solid #d9b071;
-  background: #fff8ec; font-size: 24px; cursor: pointer;
+  width: clamp(46px, 13vw, 64px); height: clamp(46px, 13vw, 64px);
+  border-radius: 18px; border: 3px solid #d9b071;
+  background: #fff8ec; font-size: clamp(18px, 5vw, 24px); cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   box-shadow: 0 4px 0 #d9b071; transition: transform .08s;
+  flex: 0 0 auto;
 }
-.tool-btn span { font-size: 11px; color: #8a5a2b; font-weight: 600; margin-top: 2px; }
+.tool-btn span { font-size: clamp(9px, 2.4vw, 11px); color: #8a5a2b; font-weight: 600; margin-top: 2px; }
 .tool-btn:hover { transform: translateY(-2px); }
 .tool-btn.active { background: #ffe9b8; border-color: #e09b3d; box-shadow: 0 4px 0 #e09b3d; }
 
 /* ---------- seed picker ---------- */
+/* 一行 10 个、20 种种子正好两行。格子定宽，长名字（水蜜桃/彩虹果）才不会把行挤成 9 个。
+   10×68 + 9×6 + padding16 = 750，所以 max-width 给 780 刚好卡住第 11 个 */
+/* 用 left:0/right:0 + margin:auto 居中，不能用 left:50%+translateX——
+   那样元素可用宽度只剩视口的一半，max-width 根本够不着，10 个一行排不下 */
 #seed-picker {
-  position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 8px; z-index: 10;
-  flex-wrap: wrap; justify-content: center; max-width: min(90vw, 620px);
+  position: fixed; bottom: 96px; left: 0; right: 0; margin: 0 auto;
+  width: fit-content; max-width: min(94vw, 780px);
+  display: flex; gap: 6px; z-index: 10;
+  flex-wrap: wrap; justify-content: center;
   background: #fff8ecdd; border: 2px solid #e8c68f; border-radius: 16px; padding: 8px;
 }
 .seed-chip {
+  width: 68px; flex: 0 0 68px;
   border: 2px solid #cbb08a; border-radius: 12px; background: #fff;
-  padding: 6px 10px; cursor: pointer; text-align: center; font-size: 13px; color: #6b4a24;
+  padding: 4px 2px; cursor: pointer; text-align: center; font-size: 12px; color: #6b4a24;
+  line-height: 1.25;
 }
-.seed-chip b { display: block; font-size: 20px; }
-.seed-chip small { color: #a1834f; }
+.seed-chip b { display: block; font-size: 19px; line-height: 1.1; }
+.seed-chip small { color: #a1834f; font-size: 10px; }
 .seed-chip.selected { background: #dff3d8; border-color: #6aae5e; }
 
 /* ---------- shop ---------- */

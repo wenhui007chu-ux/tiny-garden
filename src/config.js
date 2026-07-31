@@ -108,11 +108,11 @@ export const RAIN = { chance: 0.2 };
 // 商场道具：存在独立的道具背包里，和作物背包分开
 export const ITEMS = [
   {
-    id: 'fertilizer', name: '肥料', emoji: '💊', cost: 50,
+    id: 'fertilizer', name: '肥料', emoji: '💊', cost: 150,
     desc: '随机挑 2 块地里的作物，让它们立刻成熟',
   },
   {
-    id: 'luck', name: '幸运药剂', emoji: '🧪', cost: 100,
+    id: 'luck', name: '幸运药剂', emoji: '🧪', cost: 220,
     desc: '随机挑 2 块地施法，下次在这里播种时白银/黄金概率翻倍',
   },
   {
@@ -120,11 +120,11 @@ export const ITEMS = [
     desc: '拿到水滩摆放，20 分钟后收网，随机捞到 50~150💰',
   },
   {
-    id: 'restorer', name: '恢复器', emoji: '🔧', cost: 250,
+    id: 'restorer', name: '恢复器', emoji: '🔧', cost: 120,
     desc: '当场修好一块受灾的地（不修的话，天气转好后也会自然恢复）',
   },
   {
-    id: 'pesticide', name: '杀虫剂', emoji: '🧴', cost: 70,
+    id: 'pesticide', name: '杀虫剂', emoji: '🧴', cost: 35,
     desc: '一键清光全场虫害（也可以直接点作物上的虫子免费拍掉）',
   },
   {
