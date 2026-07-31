@@ -3628,3 +3628,15 @@ export function createSignboard(emoji, text) {
   sprite.userData.signH = H;
   return sprite;
 }
+
+// 打过药的作物头上飘一个小药瓶，方便一眼认出哪株是赌过的
+export function createSprayMark() {
+  const g = new THREE.Group();
+  const glass = mat(0x8ae06a, { transparent: true, opacity: 0.9, emissive: 0x3a8a2a, emissiveIntensity: 0.35 });
+  g.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.17, 6), glass, 0, 0.085, 0));   // 瓶身
+  g.add(mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.06, 6), mat(0x6a6a76), 0, 0.2, 0)); // 瓶口
+  g.add(mesh(new THREE.BoxGeometry(0.11, 0.05, 0.05), mat(0x6a6a76), 0.06, 0.22, 0));    // 喷嘴
+  g.position.y = 0.82;
+  g.userData.sprayMark = true;
+  return g;
+}

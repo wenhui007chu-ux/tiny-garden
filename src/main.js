@@ -251,6 +251,9 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     case 'water':
       game.waterAt(idx);
       break;
+    case 'spray':
+      game.sprayAt(idx);
+      break;
     case 'shovel':
       game.shovelAt(idx);
       break;
@@ -338,6 +341,7 @@ function animate() {
       obj.material.emissive.setHex(0xffc94a);
       obj.material.emissiveIntensity = (1 - f) * 0.85;
     }
+    if (obj.userData.sprayMark) obj.position.y = 0.82 + Math.sin(t * 2.2 + obj.id) * 0.05; // 药瓶轻轻浮
     if (obj.userData.pestBug) {                                              // 虫子绕着作物打转
       obj.rotation.y = t * 1.6;
       obj.position.y = 0.75 + Math.sin(t * 3 + obj.id) * 0.06;

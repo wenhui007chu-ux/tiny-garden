@@ -1,7 +1,7 @@
 import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
-import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice } from './config.js';
+import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -168,6 +168,7 @@ export class UI {
       soil: `点击地块升级为${SOILS[this.selectedSoil].name}（每格 ${SOILS[this.selectedSoil].cost}💰）`,
       decor: '点击盒子四周的装饰台摆放',
       water: this.game.waterLevel === 2 ? '自动灌溉包生长，浇水专门找🦐卵' : '点击土地浇水',
+      spray: `点作物打药：${PESTICIDE.cost}💰 一株，卖价 +${PESTICIDE.bonus}💰，但有 ${Math.round(PESTICIDE.ruinChance * 100)}% 概率卖不出去`,
       shovel: '点击作物或装饰铲除',
     };
     if (tips[tool]) this.toast(tips[tool]);
@@ -1690,7 +1691,7 @@ export class UI {
     // 选择要加工的作物
     if (this.wsChoosing !== null) {
       const raw = Object.entries(g.inventory)
-        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && !k.startsWith('m:') && k !== 'egg' && n > 0);
+        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && !k.startsWith('m:') && !k.startsWith('y:') && k !== 'egg' && n > 0);
       if (!raw.length) {
         body.insertAdjacentHTML('beforeend', '<div class="bag-empty">背包里没有可加工的作物<br>先去收获一些吧 🌱</div>');
       }

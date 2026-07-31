@@ -73,6 +73,12 @@ export const SILVER_CHANCE = 0.15;
 // 即每个作物做成罐头只增值 50%，远不如凑配方做料理（×3）划算
 export const WORKSHOP = { slots: 3, time: 120, ingredients: 2, bonus: 1.5 };
 
+// 打药：给地里的作物单独打一次，赌一把卖价
+//   花 cost 打一格 → 收获物卖价 +bonus，但卖出时每个有 ruinChance 的概率变成 0💰
+//   打过药的只能直接卖，不能做罐头/料理/杂交/收录，免得把风险洗掉
+//   期望收益：(base + bonus) × (1 - ruinChance) - cost，便宜作物划算，贵作物赌不起
+export const PESTICIDE = { cost: 3, bonus: 10, ruinChance: 0.15 };
+
 // 分拣台：把稀有品质作物拆成「普通作物 + 贵金属条」
 // 规则：品质那部分增值单独抽出来，按 10 倍熔成金条/银条，作物本体原样退回。
 //   白银 = 2 倍价，增值 1 份 → 银条 = 原价 × 10
@@ -770,17 +776,19 @@ export function keyInfo(key) {
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');
-  const raw = processed || stunted ? key.slice(2) : key;
+  const sprayed = key.startsWith('y:'); // y: = 打过药，卖价 +bonus 但有概率颗粒无收
+  const raw = processed || stunted || sprayed ? key.slice(2) : key;
   const [id, quality] = raw.split(':');
   const seed = seedById(id);
   const q = QUALITIES[quality];
   // 罐头 = 2 个原料总价 × 1.5，向下取整
   const base = seed.sell * (q?.mult ?? 1);
   const price = Math.max(1, Math.floor(
-    (processed ? base * WORKSHOP.ingredients * WORKSHOP.bonus : base) * (stunted ? DROUGHT.sellMult : 1)));
+    (processed ? base * WORKSHOP.ingredients * WORKSHOP.bonus : base) * (stunted ? DROUGHT.sellMult : 1)
+    + (sprayed ? PESTICIDE.bonus : 0)));
   return {
-    seed, quality, processed, stunted, price,
-    label: `${stunted ? '生长不良的' : ''}${q ? q.name : ''}${seed.name}${processed ? '罐头' : ''}`,
-    icon: `${stunted ? '🥀' : ''}${q ? q.emoji : ''}${processed ? '🥫' : ''}${seed.emoji}`,
+    seed, quality, processed, stunted, sprayed, price,
+    label: `${stunted ? '生长不良的' : ''}${sprayed ? '打过药的' : ''}${q ? q.name : ''}${seed.name}${processed ? '罐头' : ''}`,
+    icon: `${stunted ? '🥀' : ''}${sprayed ? '🧪' : ''}${q ? q.emoji : ''}${processed ? '🥫' : ''}${seed.emoji}`,
   };
 }

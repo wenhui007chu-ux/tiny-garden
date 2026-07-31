@@ -14,7 +14,7 @@ import {
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
   ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
-  SORTER_SLOTS, SORTER_TIME, METAL, metalPrice,
+  SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -29,7 +29,7 @@ import {
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
-  createSorter, createMetalBar, createSignboard,
+  createSorter, createMetalBar, createSignboard, createSprayMark,
 } from './meshes.js';
 import { sfx } from './music.js';
 
@@ -528,6 +528,23 @@ export class Game {
     this.save();
   }
 
+  // 打药：赌一把卖价。收获时把标记转成 y: 前缀带进背包
+  sprayAt(idx) {
+    const t = this.tiles[idx];
+    if (t.locked) { this.onToast('这块地还没解锁'); return; }
+    if (!t.plant) { this.onToast('这块地上没有作物，打药没用'); sfx.play('deny'); return; }
+    if (t.plant.sprayed) { this.onToast('这株已经打过药了'); sfx.play('deny'); return; }
+    if (!this.spend(PESTICIDE.cost)) return;
+    t.plant.sprayed = true;
+    // updatePlantMesh 只在生长阶段变化时才重建，这里得自己把标记挂上去
+    if (t.plant.mesh) t.plant.mesh.add(createSprayMark());
+    const seed = seedById(t.plant.seedId);
+    this.onToast(`🧪 给${seed.emoji}${seed.name}打了药，卖价 +${PESTICIDE.bonus}💰（${Math.round(PESTICIDE.ruinChance * 100)}% 概率报废）`);
+    sfx.play('water');
+    this.onState();
+    this.save();
+  }
+
   // 种下的一刻就暗中决定品质，幼苗起就带镀层；幸运药剂让稀有概率翻倍
   rollQuality(lucky = false) {
     const m = lucky ? 2 : 1;
@@ -541,14 +558,19 @@ export class Game {
   sellAll() {
     const entries = Object.entries(this.inventory).filter(([, n]) => n > 0);
     if (!entries.length) { this.onToast('背包里没有东西可以卖'); return; }
-    let total = 0, count = 0;
+    let total = 0, count = 0, ruined = 0;
     entries.forEach(([key, n]) => {
-      total += keyInfo(key).price * n;
+      const info = keyInfo(key);
+      const bad = info.sprayed ? this.rollSprayed(n) : 0;
+      ruined += bad;
+      total += info.price * (n - bad);
       count += n;
       delete this.inventory[key];
     });
     this.gain(total);
-    this.onToast(`💰 一键售卖！${count} 件东西卖了 ${total}💰`);
+    this.onToast(ruined
+      ? `💰 一键售卖！${count} 件卖了 ${total}💰（${ruined} 个打过药的报废了）`
+      : `💰 一键售卖！${count} 件东西卖了 ${total}💰`);
     sfx.play('coin');
     this.save();
   }
@@ -662,23 +684,36 @@ export class Game {
     if (t.plant.stage < 3) { this.onToast(`${seed.name}还没成熟`); return false; }
     const count = SOILS[t.soil].yield;
     const quality = t.plant.quality;
-    const key = (this.badWeather() || t.plant.pest ? 'x:' : '') + (quality ? `${seed.id}:${quality}` : seed.id);
+    // 生长不良优先于打药：都蔫了，药钱就当白花了，不叠加两个前缀
+    const bad = this.badWeather() || t.plant.pest;
+    const prefix = bad ? 'x:' : t.plant.sprayed ? 'y:' : '';
+    const key = prefix + (quality ? `${seed.id}:${quality}` : seed.id);
     const wasPest = t.plant.pest;
+    const wasSprayed = !bad && t.plant.sprayed; // 蔫了的话药就白打了，提示别再说打过药
     this.removePlant(t);
     this.inventory[key] = (this.inventory[key] ?? 0) + count;
     this.onState();
     const q = QUALITIES[quality];
     this.onToast(wasPest
       ? `🐛 被虫啃过的${seed.name} ×${count} 放入背包（生长不良）`
-      : q
-        ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
-        : `${seed.emoji}${seed.name} ×${count} 放入背包`);
+      : wasSprayed
+        ? `🧪 打过药的${q ? q.name : ''}${seed.name} ×${count} 放入背包（卖价 +${PESTICIDE.bonus}，${Math.round(PESTICIDE.ruinChance * 100)}% 会砸手里）`
+        : q
+          ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
+          : `${seed.emoji}${seed.name} ×${count} 放入背包`);
     // 连着收会一级级升调，一片收完像走完一段音阶
     this._combo = (this.time - (this._comboAt ?? -9) < 2) ? Math.min((this._combo ?? 0) + 1, 6) : 0;
     this._comboAt = this.time;
     sfx.play('harvest', { semitones: this._combo * 2, throttle: 0.03 });
     this.save();
     return true;
+  }
+
+  // 打过药的逐个掷骰子，运气不好的那些一分钱卖不出去
+  rollSprayed(n) {
+    let ruined = 0;
+    for (let i = 0; i < n; i++) if (Math.random() < PESTICIDE.ruinChance) ruined++;
+    return ruined;
   }
 
   sellCrop(key, count) {
@@ -688,9 +723,13 @@ export class Game {
     const info = keyInfo(key);
     this.inventory[key] = have - n;
     if (this.inventory[key] === 0) delete this.inventory[key];
-    this.gain(info.price * n);
-    this.onToast(`卖出${info.icon}${info.label} ×${n} +${info.price * n} 💰`);
-    sfx.play('coin');
+    const ruined = info.sprayed ? this.rollSprayed(n) : 0;
+    const total = info.price * (n - ruined);
+    this.gain(total);
+    this.onToast(ruined
+      ? `卖出${info.icon}${info.label} ×${n}，其中 ${ruined} 个药坏了没人要 +${total} 💰`
+      : `卖出${info.icon}${info.label} ×${n} +${total} 💰`);
+    sfx.play(ruined === n ? 'deny' : 'coin');
     this.save();
   }
 
@@ -1418,7 +1457,8 @@ export class Game {
   sortableKey(key) {
     if (typeof key !== 'string') return null;
     if (key.startsWith('p:') || key.startsWith('k:') || key.startsWith('h:')
-      || key.startsWith('f:') || key.startsWith('x:') || key.startsWith('m:')) return null;
+      || key.startsWith('f:') || key.startsWith('x:') || key.startsWith('m:')
+      || key.startsWith('y:')) return null;
     const [id, quality] = key.split(':');
     if (!quality || !METAL[quality] || !seedById(id)) return null;
     return { id, quality };
@@ -1622,6 +1662,7 @@ export class Game {
     // 杂交作物是玩家自己配出来的珍品，个人展台是它唯一的展示位（基础图鉴那 42 格照旧不收）
     if (key.startsWith('p:') || key.startsWith('k:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
+    if (key.startsWith('y:')) { this.onToast('打过药的不适合摆出来展示'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
     if (this.inventory[key] === 0) delete this.inventory[key];
@@ -1659,6 +1700,7 @@ export class Game {
     if (key.startsWith('m:')) { this.onToast('金属条是分拣出来的，罐头装不下它'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
+    if (key.startsWith('y:')) { this.onToast('打过药的只能直接卖，加工不了'); return; }
     const need = WORKSHOP.ingredients;
     if ((this.inventory[key] ?? 0) < need) {
       this.onToast(`${need} 个才能加工成 1 个罐头，数量不够`);
@@ -1810,6 +1852,7 @@ export class Game {
     mesh.userData.plantRoot = true;
     if (this.badWeather()) this.applyWeatherTint(mesh);
     if (t.plant.pest) mesh.add(createPestBug());
+    if (t.plant.sprayed) mesh.add(createSprayMark());
     t.plant.mesh = this.attachMesh(mesh, t);
   }
 
