@@ -499,6 +499,14 @@ body {
   100% { opacity: 0; transform: translateY(-6px); }
 }
 
+/* 图鉴还没收录的作物：背包里高亮一下，一键售卖也会跳过 */
+.bag-item.keep { border-color: #7a9ee0; background: linear-gradient(135deg, #fff, #eef3fd); }
+.keep-tag {
+  display: inline-block; font-style: normal; margin-left: 6px;
+  font-size: 10px; font-weight: 700; color: #fff; background: #7a9ee0;
+  border-radius: 6px; padding: 1px 6px; vertical-align: middle;
+}
+
 /* ---------- 分拣台 ---------- */
 #sorter-note {
   background: linear-gradient(135deg, #f7f4ee, #e8ecf2); border: 2px solid #b8c2ce;

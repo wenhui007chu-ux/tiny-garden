@@ -211,10 +211,12 @@ export class UI {
     entries.forEach(([key, n]) => {
       const info = keyInfo(key);
       const quality = info.quality;
+      const keep = g.worthKeeping(key); // 图鉴还没收录的，标出来别手滑卖了
       const el = document.createElement('div');
-      el.className = 'bag-item' + (quality ? ` quality-${quality}` : '');
+      el.className = 'bag-item' + (quality ? ` quality-${quality}` : '') + (keep ? ' keep' : '');
       el.innerHTML = `<div class="icon">${info.icon}</div>
-        <div class="info"><b>${info.label} ×${n}</b><p>单价 ${info.price}💰 · 全卖 ${info.price * n}💰</p></div>`;
+        <div class="info"><b>${info.label} ×${n}${keep ? '<i class="keep-tag">📖 图鉴未收录</i>' : ''}</b>
+          <p>单价 ${info.price}💰 · 全卖 ${info.price * n}💰${keep ? ' · 一键售卖会跳过它' : ''}</p></div>`;
       const sellOne = document.createElement('button');
       sellOne.textContent = '卖1个';
       sellOne.addEventListener('click', () => { g.sellCrop(key, 1); this.renderBag(); });

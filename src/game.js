@@ -555,9 +555,25 @@ export class Game {
 
   /* ---------- 快捷操作 ---------- */
 
+  // 图鉴还没收录的作物：一键售卖要绕开它，否则辛苦刷出来的稀有品质
+  // 会跟着白菜萝卜一起被 s 键卖光，而且没有任何提示（真出过这事）
+  worthKeeping(key) {
+    return this.codexKeys().includes(key) && !this.codex[key];
+  }
+
   sellAll() {
-    const entries = Object.entries(this.inventory).filter(([, n]) => n > 0);
-    if (!entries.length) { this.onToast('背包里没有东西可以卖'); return; }
+    const kept = [];
+    const entries = Object.entries(this.inventory).filter(([key, n]) => {
+      if (n <= 0) return false;
+      if (this.worthKeeping(key)) { kept.push(key); return false; }
+      return true;
+    });
+    if (!entries.length) {
+      this.onToast(kept.length
+        ? `背包里只剩 ${kept.length} 样图鉴没收录的，帮你留着了`
+        : '背包里没有东西可以卖');
+      return;
+    }
     let total = 0, count = 0, ruined = 0;
     entries.forEach(([key, n]) => {
       const info = keyInfo(key);
@@ -568,9 +584,11 @@ export class Game {
       delete this.inventory[key];
     });
     this.gain(total);
-    this.onToast(ruined
-      ? `💰 一键售卖！${count} 件卖了 ${total}💰（${ruined} 个打过药的报废了）`
-      : `💰 一键售卖！${count} 件东西卖了 ${total}💰`);
+    const tail = [
+      ruined ? `${ruined} 个打过药的报废了` : '',
+      kept.length ? `📖 ${kept.length} 样图鉴没收录的帮你留着了` : '',
+    ].filter(Boolean).join('，');
+    this.onToast(`💰 一键售卖！${count} 件东西卖了 ${total}💰${tail ? `（${tail}）` : ''}`);
     sfx.play('coin');
     this.save();
   }
