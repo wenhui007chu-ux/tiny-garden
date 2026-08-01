@@ -10,7 +10,9 @@ export const START_COINS = 20;
 
 // 慢动作田园：生长时间统一放慢 5 倍，削一削经济
 // special: true 的是「特殊种子」，在商场种子页单独成一区。规则：
-//   · 照常种、卖、出稀有品质，价值全部卡在彩虹果之下（彩虹果始终是最贵最强的）
+//   · 照常种、卖、出稀有品质
+//   · 前 6 种（青椒~樱桃）价值都卡在彩虹果之下，插在原有梯度的空档里
+//   · 最后两种（月光果/星云果）是唯一越过彩虹果的档位，专门给后期玩家花钱
 //   · 收获物只能摆到「个人展台」，不能收录进 42 格基础图鉴
 //   · 与「种子收藏家 / 图鉴大成」两条成就完全无关，不会打扰已有的收集进度
 export const SEEDS = [
@@ -34,6 +36,9 @@ export const SEEDS = [
   { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 1200, unlock: 2200 },
   { id: 'cherry',     name: '樱桃',   emoji: '🍒', cost: 550, sell: 2000, growTime: 1350, unlock: 2580, special: true },
   { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 1500, unlock: 3000 },
+  // —— 两种「天价」特殊种子：唯一越过彩虹果的档位，给后期玩家花钱的地方 ——
+  { id: 'moonfruit',  name: '月光果', emoji: '🌙', cost: 1500, sell: 6000,  growTime: 2200, unlock: 8000,  special: true },
+  { id: 'nebula',     name: '星云果', emoji: '🌌', cost: 4200, sell: 16000, growTime: 3400, unlock: 25000, special: true },
 ];
 
 // 图鉴与作物收集类成就只认这 14 种基础作物，特殊种子不参与，保证老进度不被打扰

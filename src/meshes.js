@@ -3132,6 +3132,63 @@ const builders = {
     g.add(cluster, leafCrown(0.75, 0x6fae9e));
     return g;
   },
+  // 月光果：一弯冷白月牙悬在叶冠上，旁边跟一颗小星
+  moonfruit(stage) {
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.95);
+    if (stage === 1) { g.add(leafCrown(0.9, 0x7a8ca8)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.6 : 0.22;
+    const moonM = mat(0xf2f5ff, { emissive: 0xa8c0f0, emissiveIntensity: glow, roughness: 0.3 });
+    const halo = new THREE.Group();
+    // 月牙：截一段粗圆环就是 C 形，比拿小球排弧线像得多（排球看着只是一团）
+    const moon = mesh(new THREE.TorusGeometry(0.17 * s, 0.062 * s, 6, 12, Math.PI * 1.3), moonM);
+    moon.rotation.z = -0.35;
+    halo.add(moon);
+    // 两端各补一颗球，把切口磨圆成月牙尖
+    [0, Math.PI * 1.3].forEach(a => {
+      halo.add(mesh(new THREE.SphereGeometry(0.062 * s, 6, 5), moonM,
+        Math.cos(a - 0.35) * 0.17 * s, Math.sin(a - 0.35) * 0.17 * s, 0));
+    });
+    halo.position.y = 0.32 * s;
+    halo.userData.spin = true;
+    g.add(halo);
+    // 陪衬的小星
+    g.add(mesh(new THREE.OctahedronGeometry(0.045 * s),
+      mat(0xfff4c0, { emissive: 0xf2c94c, emissiveIntensity: glow, roughness: 0.3 }),
+      0.16 * s, 0.5 * s, 0.04 * s));
+    g.add(leafCrown(0.78, 0x7a8ca8));
+    return g;
+  },
+  // 星云果：紫蓝双层球体，外层套一圈斜置的星环
+  nebula(stage) {
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x6a5a9e)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.75 : 0.25;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.IcosahedronGeometry(0.14 * s),
+      mat(0x8a4ac2, { emissive: 0x6a2ab2, emissiveIntensity: glow, roughness: 0.25 })));
+    core.add(mesh(new THREE.IcosahedronGeometry(0.2 * s),
+      mat(0x4a6ae0, { emissive: 0x2a4ac0, emissiveIntensity: glow * 0.55,
+        roughness: 0.2, transparent: true, opacity: 0.45 })));
+    // 斜环 + 环上散落的星点
+    const ring = mesh(new THREE.TorusGeometry(0.29 * s, 0.018 * s, 5, 16),
+      mat(0xc0a8f0, { emissive: 0x8a6ae0, emissiveIntensity: glow, roughness: 0.3 }));
+    ring.rotation.set(1.15, 0, 0.35);
+    core.add(ring);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      core.add(mesh(new THREE.OctahedronGeometry(0.035 * s),
+        mat(0xfff0ff, { emissive: 0xd0b0ff, emissiveIntensity: glow, roughness: 0.3 }),
+        Math.cos(a) * 0.29 * s, Math.sin(a) * 0.1 * s, Math.sin(a) * 0.24 * s));
+    }
+    core.position.y = 0.34 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.82, 0x6a5a9e));
+    return g;
+  },
 
   /* —— 后期扩充的 6 种作物（价值全部卡在彩虹果之下）—— */
 
