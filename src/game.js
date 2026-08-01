@@ -748,10 +748,48 @@ export class Game {
     this.save();
   }
 
+  // 升变道具能吃哪些作物：白银只收普通，黄金普通和白银都收
+  upgradeCandidates(quality) {
+    return Object.keys(this.inventory).filter(k => {
+      if ((this.inventory[k] ?? 0) <= 0) return false;
+      if (['p:', 'k:', 'h:', 'f:', 'x:', 'y:', 'm:'].some(p => k.startsWith(p))) return false;
+      if (k === EGG.key) return false;
+      const [, q] = k.split(':');
+      return quality === 'silver' ? !q : (!q || q === 'silver');
+    });
+  }
+
+  // 把一个作物升成指定品质，扣掉对应道具
+  upgradeQuality(itemId, key) {
+    const item = itemById(itemId);
+    if (!item?.pick) return false;
+    if ((this.items[itemId] ?? 0) <= 0) return false;
+    if (!this.upgradeCandidates(item.pick).includes(key)) {
+      this.onToast('这个东西没法升变');
+      sfx.play('deny');
+      return false;
+    }
+    const [seedId] = key.split(':');
+    const target = `${seedId}:${item.pick}`;
+    this.inventory[key] -= 1;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.inventory[target] = (this.inventory[target] ?? 0) + 1;
+    this.items[itemId] -= 1;
+    if (this.items[itemId] === 0) delete this.items[itemId];
+    const from = keyInfo(key), to = keyInfo(target);
+    this.onToast(`${item.emoji} ${from.icon}${from.label} → ${to.icon}${to.label}（${from.price} → ${to.price}💰）`);
+    sfx.play('upgrade');
+    this.onState();
+    this.save();
+    return true;
+  }
+
   useItem(id) {
     if ((this.items[id] ?? 0) <= 0) return;
     if (id === 'net') { this.onToast('🕸️ 抓鱼网要拿到水滩去摆（点击左前方的水塘）'); return; }
     if (id === 'rod' || id === 'castnet') { this.onToast('🎣 渔具带在身上就行，点击水塘开始钓鱼'); return; }
+    // 升变要先挑目标作物，由 UI 接管，这里不直接消耗
+    if (itemById(id)?.pick) return;
     const ok = id === 'fertilizer' ? this.useFertilizer()
       : id === 'restorer' ? this.useRestorer()
       : id === 'pesticide' ? this.usePesticide()

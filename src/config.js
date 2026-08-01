@@ -138,6 +138,14 @@ export const ITEMS = [
     desc: '徒手拍虫有 5% 中毒风险，中毒后 60 秒内必须用它解毒，否则死亡',
   },
   {
+    id: 'silverup', name: '白银升变', emoji: '🥈', cost: 200, pick: 'silver',
+    desc: '把背包里一个普通作物变成白银品质（卖价 ×2）。越贵的作物越划算',
+  },
+  {
+    id: 'goldup', name: '黄金升变', emoji: '🥇', cost: 350, pick: 'gold',
+    desc: '把背包里一个普通或白银作物变成黄金品质（卖价 ×3）。越贵的作物越划算',
+  },
+  {
     id: 'rod', name: '鱼竿', emoji: '🎣', cost: 100, once: true,
     desc: '永久渔具：点击水塘进入钓鱼模式安心垂钓，每分钟 90% 概率钓到 5~10💰',
   },

@@ -60,6 +60,7 @@ export class UI {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
       this.closePanels();
+      this.itemPicking = null; // 每次重新打开都回到道具列表，别停在上次的挑选界面
       if (wasHidden) { panel.classList.remove('hidden'); this.renderItems(); }
     });
     // 工坊/鱼网倒计时刷新
@@ -1655,6 +1656,48 @@ export class UI {
     const body = $('#items-body');
     const g = this.game;
     body.innerHTML = '';
+
+    // 升变道具要先挑一个作物当目标
+    if (this.itemPicking) {
+      const item = itemById(this.itemPicking);
+      const back = document.createElement('button');
+      back.className = 'sorter-pick';
+      back.innerHTML = '<span class="icon">↩️</span><span class="info"><b>返回道具背包</b></span>';
+      back.addEventListener('click', () => { this.itemPicking = null; this.renderItems(); });
+      body.appendChild(back);
+
+      const list = g.upgradeCandidates(item.pick)
+        .sort((a, b) => keyInfo(b).price - keyInfo(a).price);
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend',
+          `<div class="bag-empty">背包里没有能升成${item.name.slice(0, 2)}的作物<br>${
+            item.pick === 'silver' ? '需要普通品质的作物' : '需要普通或白银品质的作物'}</div>`);
+        return;
+      }
+      list.forEach(key => {
+        const from = keyInfo(key);
+        const to = keyInfo(`${key.split(':')[0]}:${item.pick}`);
+        const btn = document.createElement('button');
+        btn.className = 'sorter-pick';
+        btn.innerHTML = `
+          <span class="icon">${from.icon}</span>
+          <span class="info">
+            <b>${from.label} ×${g.inventory[key]}</b>
+            <small>${from.price}💰 → ${to.price}💰</small>
+          </span>
+          <span class="gain">+${to.price - from.price}💰</span>`;
+        btn.addEventListener('click', () => {
+          if (g.upgradeQuality(this.itemPicking, key)) {
+            // 用光了就退回道具列表，还有就留在这继续升
+            if ((g.items[this.itemPicking] ?? 0) <= 0) this.itemPicking = null;
+            this.renderItems();
+          }
+        });
+        body.appendChild(btn);
+      });
+      return;
+    }
+
     const owned = ITEMS.filter(i => (g.items[i.id] ?? 0) > 0);
     if (!owned.length) {
       body.innerHTML = '<div class="bag-empty">道具背包空空的<br>去菜园后面的 🛒 商场逛逛吧</div>';
@@ -1667,8 +1710,12 @@ export class UI {
       el.innerHTML = `<div class="icon">${item.emoji}</div>
         <div class="info"><b>${item.name} ×${n}</b><p>${item.desc}</p></div>`;
       const btn = document.createElement('button');
-      btn.textContent = '使用';
-      btn.addEventListener('click', () => { g.useItem(item.id); this.renderItems(); });
+      btn.textContent = item.pick ? '选作物' : '使用';
+      btn.addEventListener('click', () => {
+        if (item.pick) { this.itemPicking = item.id; this.renderItems(); return; }
+        g.useItem(item.id);
+        this.renderItems();
+      });
       el.appendChild(btn);
       body.appendChild(el);
     });
