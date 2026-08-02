@@ -3825,6 +3825,44 @@ const seafoodShapes = {
       g.add(mesh(new THREE.SphereGeometry(0.03, 5, 4), mat(0x1a1a22), 0.14, 0.08, z)));
     return g;
   },
+  // 贝类：两片扇形壳合在一起，壳面带放射棱
+  shell(m1, m2, sf) {
+    const g = new THREE.Group();
+    [-1, 1].forEach(s => {
+      const half = mesh(new THREE.SphereGeometry(0.19, 8, 6, 0, Math.PI), m1, 0, 0.02, s * 0.035);
+      half.scale.set(1, 0.55, 0.9);
+      half.rotation.x = s * 0.28;
+      half.rotation.y = s > 0 ? 0 : Math.PI;
+      g.add(half);
+    });
+    for (let k = 0; k < 5; k++) {                         // 壳面棱线
+      const a = -0.5 + (k / 4) * 1.0;
+      const rib = mesh(new THREE.BoxGeometry(0.015, 0.02, 0.17), m2,
+        Math.sin(a) * 0.11, 0.09, Math.cos(a) * 0.02);
+      rib.rotation.y = a;
+      g.add(rib);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.05, 6, 5), m2, 0, -0.03, -0.14)); // 壳顶
+    return g;
+  },
+  // 头足类：锥形身子 + 一圈触手，鱿鱼章鱼共用
+  squid(m1, m2, sf) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.ConeGeometry(0.15, 0.34, 8), m1, 0, 0.1, 0);
+    body.rotation.x = Math.PI; // 尖头朝上
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.14, 8, 6), m1, 0, 0.02, 0));       // 头部
+    for (let k = 0; k < 6; k++) {                                            // 六条触手
+      const a = (k / 6) * Math.PI * 2;
+      const arm = mesh(new THREE.CylinderGeometry(0.022, 0.012, 0.26, 5), m2,
+        Math.cos(a) * 0.08, -0.14, Math.sin(a) * 0.08);
+      arm.rotation.set(Math.sin(a) * 0.45, 0, -Math.cos(a) * 0.45);
+      g.add(arm);
+    }
+    [-0.07, 0.07].forEach(x =>
+      g.add(mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(0x1a1a22), x, 0.05, 0.11)));
+    return g;
+  },
   crab(m1, m2, sf) {
     const g = new THREE.Group();
     const shell = mesh(new THREE.SphereGeometry(0.2, 8, 6), m1, 0, 0.06, 0);

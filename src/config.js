@@ -168,18 +168,52 @@ export const CASTNET = { chance: 0.7, min: 10, max: 30 };
 
 // ===== 水产：钓鱼/收网的产物，背包 key 形如 s:carp =====
 // 每样都能摆进水族馆（最多 15 个），摆不下的留在背包照常卖
+// 定价刻意做成「每个价位都有对应的一种」：
+//   5~30 每 1 块一种（26 种）——鱼竿(5~20)、撒网(10~30) 的抽取范围
+//   50~150 每 10 块一种（11 种）——捕捞网的抽取范围
+// 这样不管抽到哪个价位，都有货可给，不会出现某个价钱抽空
 export const SEAFOOD = [
-  { id: 'minnow',  name: '小鱼',   emoji: '🐟', kind: 'fish',  sell: 8,   c1: 0x8fb8d8, c2: 0xd8e8f0 },
-  { id: 'shrimp',  name: '小虾',   emoji: '🦐', kind: 'shrimp', sell: 12,  c1: 0xf0a080, c2: 0xf8d0b8 },
-  { id: 'crab',    name: '河蟹',   emoji: '🦀', kind: 'crab',  sell: 18,  c1: 0xd06848, c2: 0xf0a888 },
-  { id: 'carp',    name: '鲤鱼',   emoji: '🐠', kind: 'fish',  sell: 30,  c1: 0xe89040, c2: 0xf8d090 },
-  { id: 'prawn',   name: '青虾',   emoji: '🦐', kind: 'shrimp', sell: 45,  c1: 0x5aa890, c2: 0xa8d8c8 },
-  { id: 'swimcrab',name: '梭子蟹', emoji: '🦀', kind: 'crab',  sell: 65,  c1: 0x7088c0, c2: 0xb0c0e8 },
-  { id: 'grouper', name: '石斑鱼', emoji: '🐡', kind: 'fish',  sell: 95,  c1: 0x9a7ab8, c2: 0xd0b8e0 },
-  { id: 'lobster', name: '龙虾',   emoji: '🦞', kind: 'shrimp', sell: 130, c1: 0xd83c3c, c2: 0xf08878 },
-  { id: 'king',    name: '帝王蟹', emoji: '🦀', kind: 'crab',  sell: 180, c1: 0xe0603c, c2: 0xf8b090 },
+  // —— 小河小溪：鱼竿与撒网的范围 ——
+  { id: 'fry',      name: '鱼苗',   emoji: '🐟', kind: 'fish',   sell: 5,  c1: 0xa8c8d8, c2: 0xe0eef4 },
+  { id: 'ricesh',   name: '米虾',   emoji: '🦐', kind: 'shrimp', sell: 6,  c1: 0xf0c0a0, c2: 0xf8e0d0 },
+  { id: 'mussel',   name: '河蚌',   emoji: '🐚', kind: 'shell',  sell: 7,  c1: 0x8a8a78, c2: 0xc8c8b0 },
+  { id: 'minnow',   name: '小鱼',   emoji: '🐟', kind: 'fish',   sell: 8,  c1: 0x8fb8d8, c2: 0xd8e8f0 },
+  { id: 'loach',    name: '泥鳅',   emoji: '🐟', kind: 'fish',   sell: 9,  c1: 0x6a5a48, c2: 0xa08868 },
+  { id: 'shrimp',   name: '小虾',   emoji: '🦐', kind: 'shrimp', sell: 10, c1: 0xf0a080, c2: 0xf8d0b8 },
+  { id: 'snail',    name: '田螺',   emoji: '🐚', kind: 'shell',  sell: 11, c1: 0x5a6a4a, c2: 0x98a878 },
+  { id: 'sardine',  name: '沙丁鱼', emoji: '🐟', kind: 'fish',   sell: 12, c1: 0x9ab8c8, c2: 0xdce8ee },
+  { id: 'crab',     name: '河蟹',   emoji: '🦀', kind: 'crab',   sell: 13, c1: 0xd06848, c2: 0xf0a888 },
+  { id: 'whitebait',name: '白条鱼', emoji: '🐟', kind: 'fish',   sell: 14, c1: 0xd8e0e8, c2: 0xf0f4f8 },
+  { id: 'prawn',    name: '青虾',   emoji: '🦐', kind: 'shrimp', sell: 15, c1: 0x5aa890, c2: 0xa8d8c8 },
+  { id: 'clam',     name: '蛤蜊',   emoji: '🐚', kind: 'shell',  sell: 16, c1: 0xc8b898, c2: 0xe8dcc8 },
+  { id: 'crucian',  name: '鲫鱼',   emoji: '🐟', kind: 'fish',   sell: 17, c1: 0x9a9a80, c2: 0xd0d0b8 },
+  { id: 'hairycrab',name: '毛蟹',   emoji: '🦀', kind: 'crab',   sell: 18, c1: 0x6a5a4a, c2: 0xa89880 },
+  { id: 'icefish',  name: '银鱼',   emoji: '🐟', kind: 'fish',   sell: 19, c1: 0xe8eef4, c2: 0xf8fafc },
+  { id: 'grasssh',  name: '草虾',   emoji: '🦐', kind: 'shrimp', sell: 20, c1: 0x88a860, c2: 0xc0d898 },
+  { id: 'scallop',  name: '扇贝',   emoji: '🐚', kind: 'shell',  sell: 21, c1: 0xe0a888, c2: 0xf4d4bc },
+  { id: 'carp',     name: '鲤鱼',   emoji: '🐠', kind: 'fish',   sell: 22, c1: 0xe89040, c2: 0xf8d090 },
+  { id: 'streamcr', name: '溪蟹',   emoji: '🦀', kind: 'crab',   sell: 23, c1: 0x88a0a8, c2: 0xc0d0d8 },
+  { id: 'bass',     name: '鲈鱼',   emoji: '🐠', kind: 'fish',   sell: 24, c1: 0x788898, c2: 0xb8c8d4 },
+  { id: 'kingprawn',name: '明虾',   emoji: '🦐', kind: 'shrimp', sell: 25, c1: 0xf08868, c2: 0xf8c0a8 },
+  { id: 'oyster',   name: '生蚝',   emoji: '🐚', kind: 'shell',  sell: 26, c1: 0x9a9a8a, c2: 0xd8d8c8 },
+  { id: 'bream',    name: '鳊鱼',   emoji: '🐠', kind: 'fish',   sell: 27, c1: 0xb0b8b0, c2: 0xdce4dc },
+  { id: 'flowercr', name: '花蟹',   emoji: '🦀', kind: 'crab',   sell: 28, c1: 0xd88860, c2: 0xf4c0a0 },
+  { id: 'cuttle',   name: '乌贼',   emoji: '🦑', kind: 'squid',  sell: 29, c1: 0xe0d0c0, c2: 0xf4e8dc },
+  { id: 'seabream', name: '鲷鱼',   emoji: '🐠', kind: 'fish',   sell: 30, c1: 0xe8a0a0, c2: 0xf8d0d0 },
+  // —— 深水：捕捞网的范围，每 10 块一档 ——
+  { id: 'yellowcr', name: '黄鱼',   emoji: '🐠', kind: 'fish',   sell: 50,  c1: 0xe8c850, c2: 0xf8e8a0 },
+  { id: 'swimcrab', name: '梭子蟹', emoji: '🦀', kind: 'crab',   sell: 60,  c1: 0x7088c0, c2: 0xb0c0e8 },
+  { id: 'octopus',  name: '章鱼',   emoji: '🐙', kind: 'squid',  sell: 70,  c1: 0xc85878, c2: 0xf0a0b8 },
+  { id: 'squid',    name: '鱿鱼',   emoji: '🦑', kind: 'squid',  sell: 80,  c1: 0xf0c8b0, c2: 0xf8e4d8 },
+  { id: 'seacucum', name: '海参',   emoji: '🐚', kind: 'shell',  sell: 90,  c1: 0x4a3a30, c2: 0x8a6a50 },
+  { id: 'grouper',  name: '石斑鱼', emoji: '🐡', kind: 'fish',   sell: 100, c1: 0x9a7ab8, c2: 0xd0b8e0 },
+  { id: 'mittencr', name: '大闸蟹', emoji: '🦀', kind: 'crab',   sell: 110, c1: 0x4a5a3a, c2: 0x8aa070 },
+  { id: 'lobster',  name: '龙虾',   emoji: '🦞', kind: 'shrimp', sell: 120, c1: 0xd83c3c, c2: 0xf08878 },
+  { id: 'abalone',  name: '鲍鱼',   emoji: '🐚', kind: 'shell',  sell: 130, c1: 0x7a6a58, c2: 0xc0a888 },
+  { id: 'king',     name: '帝王蟹', emoji: '🦀', kind: 'crab',   sell: 140, c1: 0xe0603c, c2: 0xf8b090 },
+  { id: 'tuna',     name: '蓝鳍金枪鱼', emoji: '🐟', kind: 'fish', sell: 150, c1: 0x3a6a9a, c2: 0x88b8d8 },
   // 恐龙虾只能从恐龙虾卵在水族馆里孵，钓不到
-  { id: 'dino',    name: '恐龙虾', emoji: '🦞', kind: 'shrimp', sell: 260, c1: 0x6ac0a0, c2: 0xe0f0a0, hatchOnly: true, glow: 0.35 },
+  { id: 'dino',     name: '恐龙虾', emoji: '🦞', kind: 'shrimp', sell: 260, c1: 0x6ac0a0, c2: 0xe0f0a0, hatchOnly: true, glow: 0.35 },
 ];
 export const seafoodById = (id) => SEAFOOD.find(s => s.id === id);
 // 按价值区间抽一种（恐龙虾除外，它只能孵）
