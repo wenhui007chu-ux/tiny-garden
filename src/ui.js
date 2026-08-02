@@ -2,6 +2,7 @@ import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyI
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
+import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -63,6 +64,7 @@ export class UI {
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
+    $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
@@ -318,9 +320,10 @@ export class UI {
     this.exitPetRoom();
     this.exitGreenhouse();
     this.exitAchievement();
+    this.exitAquarium();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse || this.inAchievement; }
+  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium; }
 
   /* ---------- 主动钓鱼 ---------- */
 
@@ -359,6 +362,111 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 水族馆 ---------- */
+
+  openAquarium() {
+    this.closePanels();
+    if (!this.inAquarium && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = AQUARIUM_POS;
+      this.controls.target.set(p.x, p.y + 1, p.z + 1);
+      this.camera.position.set(p.x + 5, p.y + 6, p.z + 11);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inAquarium = true;
+    }
+    this.aquaPicking = false;
+    $('#aqua').classList.remove('hidden');
+    this.renderAquarium();
+  }
+
+  exitAquarium() {
+    $('#aqua').classList.add('hidden');
+    if (!this.inAquarium) return;
+    this.inAquarium = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderAquarium() {
+    const g = this.game;
+    const body = $('#aqua-body');
+    body.innerHTML = '';
+    const used = g.aquariumCount();
+
+    body.insertAdjacentHTML('beforeend',
+      `<div id="aqua-progress">🐠 ${used} / ${AQUARIUM_SLOTS}
+        <small>钓上来的水产可以养在这儿，养不下的留在背包照常卖</small></div>`);
+
+    // 挑一样放进去
+    if (this.aquaPicking) {
+      const back = document.createElement('button');
+      back.className = 'sorter-pick';
+      back.innerHTML = '<span class="icon">↩️</span><span class="info"><b>返回鱼缸列表</b></span>';
+      back.addEventListener('click', () => { this.aquaPicking = false; this.renderAquarium(); });
+      body.appendChild(back);
+
+      const list = g.aquariumCandidates().sort((a, b) => keyInfo(b).price - keyInfo(a).price);
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend',
+          '<div class="bag-empty">背包里没有水产<br>去左边的抓鱼水滩钓几条 🎣</div>');
+        return;
+      }
+      list.forEach(key => {
+        const info = keyInfo(key);
+        const isEgg = key === EGG.key;
+        const btn = document.createElement('button');
+        btn.className = 'sorter-pick';
+        btn.innerHTML = `
+          <span class="icon">${info.icon}</span>
+          <span class="info">
+            <b>${info.label} ×${g.inventory[key]}</b>
+            <small>${isEgg ? '放进去会孵化成 🦞恐龙虾' : `值 ${info.price}💰`}</small>
+          </span>`;
+        btn.addEventListener('click', () => {
+          if (g.addToAquarium(key)) this.renderAquarium();
+        });
+        body.appendChild(btn);
+      });
+      return;
+    }
+
+    if (used < AQUARIUM_SLOTS) {
+      const add = document.createElement('button');
+      add.id = 'aqua-add';
+      add.textContent = '＋ 放一只进来';
+      add.addEventListener('click', () => { this.aquaPicking = true; this.renderAquarium(); });
+      body.appendChild(add);
+    }
+
+    g.aquarium.forEach((id, k) => {
+      const el = document.createElement('div');
+      el.className = 'aqua-tank' + (id ? '' : ' empty');
+      if (id) {
+        const sf = seafoodById(id);
+        el.innerHTML = `<div class="icon">${sf.emoji}</div>
+          <div class="info"><b>${k + 1} 号缸 · ${sf.name}</b><p>值 ${sf.sell}💰</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = '捞回背包';
+        btn.addEventListener('click', () => { g.takeFromAquarium(k); this.renderAquarium(); });
+        el.appendChild(btn);
+      } else {
+        el.innerHTML = `<div class="icon">🫧</div>
+          <div class="info"><b>${k + 1} 号缸</b><p>空着</p></div>`;
+      }
+      body.appendChild(el);
+    });
   }
 
   /* ---------- 分拣台 ---------- */

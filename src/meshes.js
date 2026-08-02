@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor } from './config.js';
+import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD } from './config.js';
 
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...opts });
@@ -3695,5 +3695,162 @@ export function createSprayMark() {
   g.add(mesh(new THREE.BoxGeometry(0.11, 0.05, 0.05), mat(0x6a6a76), 0.06, 0.22, 0));    // 喷嘴
   g.position.y = 0.82;
   g.userData.sprayMark = true;
+  return g;
+}
+
+/* ================= 水族馆：玻璃馆 + 岛下展厅 + 水产模型 ================= */
+
+// 岛上的水族馆（点它进馆）
+export function createAquarium() {
+  const g = new THREE.Group();
+  const wall = mat(0xdfeef5);
+  const glassM = mat(0x9fd8e8, { transparent: true, opacity: 0.42, roughness: 0.1 });
+  const trim = mat(0x3a7a9a);
+
+  g.add(mesh(new THREE.BoxGeometry(4.0, 0.3, 3.2), mat(0xc8d8e0), 0, 0.15, 0));      // 底座
+  g.add(mesh(new THREE.BoxGeometry(3.6, 2.0, 2.8), wall, 0, 1.3, 0));                // 主体
+  // 正面整面观景玻璃 + 边框
+  g.add(mesh(new THREE.BoxGeometry(2.6, 1.4, 0.1), glassM, 0, 1.35, 1.42));
+  g.add(mesh(new THREE.BoxGeometry(2.8, 0.12, 0.14), trim, 0, 2.1, 1.43));
+  g.add(mesh(new THREE.BoxGeometry(2.8, 0.12, 0.14), trim, 0, 0.6, 1.43));
+  // 圆弧顶（半圆柱）+ 脊线
+  const roof = mesh(new THREE.CylinderGeometry(1.5, 1.5, 3.6, 14, 1, false, 0, Math.PI), wall, 0, 2.3, 0);
+  roof.rotation.z = Math.PI / 2;
+  g.add(roof);
+  g.add(mesh(new THREE.BoxGeometry(3.7, 0.1, 0.1), trim, 0, 2.32, 0));
+  // 屋顶会转的小鱼招牌
+  const fish = createSeafoodMesh('carp', 1.5);
+  fish.position.set(0, 3.1, 0);
+  fish.userData.spin = true;
+  g.add(fish);
+  // 门口两侧的水柱缸
+  [-1.5, 1.5].forEach(x => {
+    g.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.3, 10), glassM, x, 0.95, 1.1));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.12, 10), trim, x, 1.65, 1.1));
+  });
+  g.add(mesh(new THREE.BoxGeometry(0.9, 1.2, 0.1), mat(0x2a6a8a), 0, 0.9, 1.45)); // 门
+
+  g.traverse(o => { if (o.isMesh) o.userData.aquarium = true; });
+  return g;
+}
+
+// 展厅里 15 个展位：三排五列，整体排在大缸前面
+// （原先中间排正中是 (0,0)，正好和中央大缸同位，那一缸会被埋进柱子里）
+export const AQUARIUM_SPOTS = Array.from({ length: 15 }, (_, k) => {
+  const row = Math.floor(k / 5), col = k % 5;
+  return { x: (col - 2) * 2.6, z: -2.2 + row * 3.3 };
+});
+
+// 馆内（藏在岛下）：深色水厅 + 中央大缸 + 蓝色氛围光
+export function createAquariumInterior() {
+  const g = new THREE.Group();
+  const W = 18, D = 16;
+  const wallM = mat(0x1e3a4a);
+  const glassM = mat(0x6ac0e0, { transparent: true, opacity: 0.3, roughness: 0.1 });
+
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0x16303e), 0, -0.15, 0));   // 地面
+  g.add(mesh(new THREE.BoxGeometry(W, 6, 0.3), wallM, 0, 3, -D / 2 + 0.15));   // 后墙
+  [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 6, D), wallM, s * (W / 2 - 0.15), 3, 0)));
+  // 后墙一整面观景窗，透出蓝光
+  g.add(mesh(new THREE.BoxGeometry(W - 3, 3.4, 0.12),
+    mat(0x3aa8d0, { emissive: 0x2a88b0, emissiveIntensity: 0.5, transparent: true, opacity: 0.55 }),
+    0, 3.2, -D / 2 + 0.3));
+  // 柱形大缸：摆在后墙前当背景，别占住展位
+  const CZ = -6;
+  g.add(mesh(new THREE.CylinderGeometry(1.5, 1.5, 3.2, 16), glassM, 0, 1.6, CZ));
+  g.add(mesh(new THREE.CylinderGeometry(1.65, 1.65, 0.25, 16), mat(0x2a5a70), 0, 0.12, CZ));
+  g.add(mesh(new THREE.CylinderGeometry(1.65, 1.65, 0.2, 16), mat(0x2a5a70), 0, 3.25, CZ));
+  // 缸里的水草
+  [[-0.6, 0.4], [0.5, -0.5], [0.1, 0.7]].forEach(([x, z]) => {
+    const w = mesh(new THREE.ConeGeometry(0.14, 1.2, 5), mat(0x3a9a5a), x, 0.75, CZ + z);
+    g.add(w);
+  });
+  // 蓝色氛围光
+  [[-5, -4], [5, -4], [-5, 4], [5, 4], [0, 0]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0x8ad8f0, 0.5, 20, 1.8);
+    l.position.set(x, 4.5, z);
+    g.add(l);
+  });
+  return g;
+}
+
+// 展位：一个小玻璃缸，有货就把水产摆进去
+export function createAquariumTank(seafoodId) {
+  const g = new THREE.Group();
+  const glassM = mat(0x7ac8e0, { transparent: true, opacity: 0.34, roughness: 0.1 });
+  g.add(mesh(new THREE.BoxGeometry(1.5, 0.2, 1.2), mat(0x2a5a70), 0, 0.1, 0));      // 底座
+  g.add(mesh(new THREE.BoxGeometry(1.3, 1.1, 1.0), glassM, 0, 0.75, 0));            // 缸体
+  g.add(mesh(new THREE.BoxGeometry(1.4, 0.1, 1.1), mat(0x2a5a70), 0, 1.32, 0));     // 缸沿
+  g.add(mesh(new THREE.BoxGeometry(1.2, 0.12, 0.9), mat(0xc8b088), 0, 0.28, 0));    // 缸底沙
+  if (seafoodId) {
+    const m = createSeafoodMesh(seafoodId, 1.25);
+    m.position.y = 0.8;
+    m.userData.tankSwim = true; // 在缸里慢慢游
+    g.add(m);
+  }
+  return g;
+}
+
+// 水产模型：鱼 / 虾 / 蟹三种形态，颜色按品种走
+const seafoodShapes = {
+  fish(m1, m2, sf) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.17, 7, 6), m1);
+    body.scale.set(1.5, 0.9, 0.7);
+    g.add(body);
+    const tail = mesh(new THREE.ConeGeometry(0.12, 0.2, 4), m2, -0.28, 0, 0);
+    tail.rotation.z = Math.PI / 2;
+    g.add(tail);
+    g.add(mesh(new THREE.ConeGeometry(0.07, 0.14, 4), m2, 0.02, 0.15, 0));           // 背鳍
+    [-0.06, 0.06].forEach(z =>
+      g.add(mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(0x1a1a22), 0.19, 0.05, z))); // 眼睛
+    return g;
+  },
+  shrimp(m1, m2, sf) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 4; k++) {                                                    // 分节的身子，越往后越小
+      const seg = mesh(new THREE.SphereGeometry(0.13 - k * 0.02, 6, 5), k % 2 ? m2 : m1,
+        -k * 0.11, k * 0.015, 0);
+      seg.scale.set(1, 0.85, 0.8);
+      g.add(seg);
+    }
+    const tail = mesh(new THREE.ConeGeometry(0.1, 0.16, 4), m2, -0.42, 0.03, 0);
+    tail.rotation.z = -Math.PI / 2;
+    g.add(tail);
+    [-0.05, 0.05].forEach(z => {                                                     // 两根长须
+      const a = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 4), m2, 0.24, 0.04, z);
+      a.rotation.z = 1.2; g.add(a);
+    });
+    [-0.05, 0.05].forEach(z =>
+      g.add(mesh(new THREE.SphereGeometry(0.03, 5, 4), mat(0x1a1a22), 0.14, 0.08, z)));
+    return g;
+  },
+  crab(m1, m2, sf) {
+    const g = new THREE.Group();
+    const shell = mesh(new THREE.SphereGeometry(0.2, 8, 6), m1, 0, 0.06, 0);
+    shell.scale.set(1.25, 0.6, 1);
+    g.add(shell);
+    [-1, 1].forEach(s => {                                                           // 两只大钳
+      const arm = mesh(new THREE.SphereGeometry(0.08, 6, 5), m2, s * 0.28, 0.02, 0.14);
+      arm.scale.set(1.3, 0.8, 0.9);
+      g.add(arm);
+      for (let k = 0; k < 3; k++) {                                                   // 每边三条腿
+        const leg = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.2, 4), m2,
+          s * 0.2, -0.02, -0.04 - k * 0.09);
+        leg.rotation.z = s * 0.9;
+        g.add(leg);
+      }
+    });
+    [-0.07, 0.07].forEach(x =>
+      g.add(mesh(new THREE.SphereGeometry(0.035, 5, 4), mat(0x1a1a22), x, 0.16, 0.13)));
+    return g;
+  },
+};
+
+export function createSeafoodMesh(id, scale = 1) {
+  const sf = SEAFOOD.find(s => s.id === id) ?? SEAFOOD[0];
+  const opt = sf.glow ? { emissive: sf.c1, emissiveIntensity: sf.glow, roughness: 0.35 } : {};
+  const g = seafoodShapes[sf.kind](mat(sf.c1, opt), mat(sf.c2), sf);
+  g.scale.setScalar(scale);
   return g;
 }

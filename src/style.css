@@ -184,19 +184,19 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body { padding: 12px; overflow-y: auto; flex: 1; }
-#pet-close, #greenhouse-close, #ach-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body { padding: 12px; overflow-y: auto; flex: 1; }
+#pet-close, #greenhouse-close, #ach-close, #aqua-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 /* 花房温室面板 */
 .gh-title { color: #6b4a24; font-weight: 700; font-size: 13px; margin: 12px 0 6px; }
 .gh-seeds { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -526,6 +526,33 @@ body {
   display: inline-block; font-style: normal; margin-left: 6px;
   font-size: 10px; font-weight: 700; color: #fff; background: #7a9ee0;
   border-radius: 6px; padding: 1px 6px; vertical-align: middle;
+}
+
+/* ---------- 水族馆 ---------- */
+#aqua-progress {
+  background: linear-gradient(135deg, #eaf7fc, #cfe9f5); border: 2px solid #7ac0dd;
+  border-radius: 14px; padding: 14px; text-align: center; color: #24576b;
+  font-size: 22px; font-weight: 700; margin-bottom: 12px;
+}
+#aqua-progress small { display: block; font-size: 12px; color: #4d7f92; font-weight: 400; margin-top: 5px; line-height: 1.5; }
+#aqua-add {
+  width: 100%; margin-bottom: 10px; cursor: pointer; font-weight: 700; font-size: 14px;
+  border: 2px solid #4aa8c8; background: #dff2f9; color: #24576b; border-radius: 12px; padding: 11px 0;
+}
+#aqua-add:hover { background: #cbe9f4; }
+.aqua-tank {
+  border: 2px solid #b8dcea; border-radius: 14px; background: #fff;
+  padding: 10px 12px; margin-bottom: 9px; display: flex; align-items: center; gap: 10px;
+}
+.aqua-tank.empty { border-style: dashed; border-color: #d4e6ee; background: #fafdff; }
+.aqua-tank .icon { font-size: 27px; }
+.aqua-tank.empty .icon { opacity: 0.45; }
+.aqua-tank .info { flex: 1; min-width: 0; }
+.aqua-tank .info b { color: #24576b; font-size: 14px; }
+.aqua-tank .info p { color: #6f97a6; font-size: 12px; margin-top: 2px; }
+.aqua-tank button {
+  border: 2px solid #4aa8c8; background: #dff2f9; color: #24576b;
+  border-radius: 10px; padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; white-space: nowrap;
 }
 
 /* ---------- 分拣台 ---------- */

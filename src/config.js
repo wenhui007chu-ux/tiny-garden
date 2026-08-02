@@ -161,8 +161,40 @@ export const ITEMS = [
 ];
 
 // 主动钓鱼：进入钓鱼模式后每分钟结算一次
-export const ROD = { chance: 0.9, min: 5, max: 10 };
-export const CASTNET = { chance: 0.7, min: 10, max: 20 };
+// min/max 现在是「捞上来的水产价值区间」，按区间随机抽一种水产给玩家，
+// 不再直接发钱——水产可以摆进水族馆，也可以照常卖掉
+export const ROD = { chance: 0.9, min: 5, max: 20 };
+export const CASTNET = { chance: 0.7, min: 10, max: 30 };
+
+// ===== 水产：钓鱼/收网的产物，背包 key 形如 s:carp =====
+// 每样都能摆进水族馆（最多 15 个），摆不下的留在背包照常卖
+export const SEAFOOD = [
+  { id: 'minnow',  name: '小鱼',   emoji: '🐟', kind: 'fish',  sell: 8,   c1: 0x8fb8d8, c2: 0xd8e8f0 },
+  { id: 'shrimp',  name: '小虾',   emoji: '🦐', kind: 'shrimp', sell: 12,  c1: 0xf0a080, c2: 0xf8d0b8 },
+  { id: 'crab',    name: '河蟹',   emoji: '🦀', kind: 'crab',  sell: 18,  c1: 0xd06848, c2: 0xf0a888 },
+  { id: 'carp',    name: '鲤鱼',   emoji: '🐠', kind: 'fish',  sell: 30,  c1: 0xe89040, c2: 0xf8d090 },
+  { id: 'prawn',   name: '青虾',   emoji: '🦐', kind: 'shrimp', sell: 45,  c1: 0x5aa890, c2: 0xa8d8c8 },
+  { id: 'swimcrab',name: '梭子蟹', emoji: '🦀', kind: 'crab',  sell: 65,  c1: 0x7088c0, c2: 0xb0c0e8 },
+  { id: 'grouper', name: '石斑鱼', emoji: '🐡', kind: 'fish',  sell: 95,  c1: 0x9a7ab8, c2: 0xd0b8e0 },
+  { id: 'lobster', name: '龙虾',   emoji: '🦞', kind: 'shrimp', sell: 130, c1: 0xd83c3c, c2: 0xf08878 },
+  { id: 'king',    name: '帝王蟹', emoji: '🦀', kind: 'crab',  sell: 180, c1: 0xe0603c, c2: 0xf8b090 },
+  // 恐龙虾只能从恐龙虾卵在水族馆里孵，钓不到
+  { id: 'dino',    name: '恐龙虾', emoji: '🦞', kind: 'shrimp', sell: 260, c1: 0x6ac0a0, c2: 0xe0f0a0, hatchOnly: true, glow: 0.35 },
+];
+export const seafoodById = (id) => SEAFOOD.find(s => s.id === id);
+// 按价值区间抽一种（恐龙虾除外，它只能孵）
+export const rollSeafood = (min, max) => {
+  const pool = SEAFOOD.filter(s => !s.hatchOnly && s.sell >= min && s.sell <= max);
+  const list = pool.length ? pool : SEAFOOD.filter(s => !s.hatchOnly);
+  return list[Math.floor(Math.random() * list.length)];
+};
+
+// 水族馆：岛上的玻璃馆 + 藏在岛下的 3D 展厅
+// 岛下已被占用的坑位：房间(0,0) 杂交(-60,0) 图鉴(60,0) 花房(-60,-60)
+// 宠物(0,60) 成就(60,60)，水族馆挑一个没人用的
+export const AQUARIUM_POS = { x: -60, y: -60, z: 60 };
+export const AQUARIUM_SLOTS = 15;   // 最多养 15 只
+export const EGG_HATCH = 'dino';    // 恐龙虾卵放进去孵出什么
 
 // 水塘装饰：30 种按稀有度定价，买断制，钓鱼区最多同时摆 3 个，全部会动
 export const POND_RARITY = {
@@ -800,6 +832,10 @@ export function keyInfo(key) {
   if (key.startsWith('f:')) {
     const fl = flowerById(key.slice(2));
     return { seed: null, quality: undefined, processed: false, stunted: false, flower: true, price: fl.sell, label: fl.name, icon: fl.emoji };
+  }
+  if (key.startsWith('s:')) {
+    const sf = seafoodById(key.slice(2));
+    return { seed: null, quality: undefined, processed: false, stunted: false, seafood: sf.id, price: sf.sell, label: sf.name, icon: sf.emoji };
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');

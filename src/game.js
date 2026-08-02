@@ -15,6 +15,7 @@ import {
   FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
   ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
   SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
+  SEAFOOD, seafoodById, rollSeafood, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -30,6 +31,7 @@ import {
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
+  createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
 
@@ -247,6 +249,19 @@ export class Game {
     this.pond.traverse(o => { if (o.isMesh) this.pondMeshes.push(o); });
     this.netMeshes = Array(FISHING.slots).fill(null);
 
+    // 水族馆：填上图鉴大楼、商场、水塘围出来的那块左侧空地
+    this.aquarium = Array(AQUARIUM_SLOTS).fill(null); // 每格：水产 id 或 null
+    const aquariumBuilding = createAquarium();
+    aquariumBuilding.position.set(-15, -0.51, 0.5);
+    aquariumBuilding.rotation.y = 0.5;
+    this.group.add(aquariumBuilding);
+    this.aquariumMeshes = [];
+    aquariumBuilding.traverse(o => { if (o.isMesh) this.aquariumMeshes.push(o); });
+    this.aquariumHall = createAquariumInterior();
+    this.aquariumHall.position.set(AQUARIUM_POS.x, AQUARIUM_POS.y, AQUARIUM_POS.z);
+    this.group.add(this.aquariumHall);
+    this.tankMeshes = [];
+
     // 商场：菜园后方的小楼
     const mall = createMall();
     mall.position.set(-9.2, -0.51, -6.6); // 让开二层农田的位置
@@ -277,6 +292,7 @@ export class Game {
     this.addSign(greenhouse, '🌸', '花房温室', 'greenhouse');
     this.addSign(achBuilding, '🏅', '成就殿堂', 'achievement');
     this.addSign(codexBuilding, '📖', '图鉴大楼', 'codex');
+    this.addSign(aquariumBuilding, '🐠', '水族馆', 'aquarium');
     this.addSign(sorter, '⚙️', '分拣台', 'sorter');
 
     this._booting = true; // 读档期间不弹虫害提示
@@ -1200,8 +1216,10 @@ export class Game {
   }
 
   // 咬钩后排进收杆队列：点击次数 = 金额 + 5（5块10下、6块11下…）
-  queueCatch(label, value) {
-    const c = { label, value, total: value + 5, clicksLeft: value + 5 };
+  // 咬钩的是一条具体的水产，不再是一坨钱
+  queueCatch(label, sf) {
+    const clicks = Math.max(4, Math.min(14, Math.round(sf.sell / 12) + 4)); // 越值钱越难拉
+    const c = { label, seafood: sf.id, value: sf.sell, total: clicks, clicksLeft: clicks };
     if (this.pendingCatch) this.catchQueue.push(c);
     else this.pendingCatch = c;
   }
@@ -1212,9 +1230,10 @@ export class Game {
     if (!c) return;
     c.clicksLeft -= 1;
     if (c.clicksLeft > 0) return;
-    this.coins += c.value;
-    this.fishingEarned += c.value;
-    this.onToast(`${c.label} 钓上来了！+${c.value}💰`);
+    const sf = seafoodById(c.seafood);
+    this.inventory[`s:${sf.id}`] = (this.inventory[`s:${sf.id}`] ?? 0) + 1;
+    this.fishingEarned += sf.sell;
+    this.onToast(`${c.label} 钓上来一只${sf.emoji}${sf.name}！值 ${sf.sell}💰，可以养进水族馆`);
     this.pendingCatch = this.catchQueue.shift() ?? null;
     if (this.pendingCatch) this.onToast('🐟 又一条在钩上，继续收杆！');
     this.onState();
@@ -1232,8 +1251,7 @@ export class Game {
     const usingRod = this.fishingGear === 'rod';
     const cfg = usingRod ? ROD : CASTNET;
     if (Math.random() < cfg.chance) {
-      this.queueCatch(usingRod ? '🎣 鱼竿' : '🥅 渔网',
-        cfg.min + Math.floor(Math.random() * (cfg.max - cfg.min + 1)));
+      this.queueCatch(usingRod ? '🎣 鱼竿' : '🥅 渔网', rollSeafood(cfg.min, cfg.max));
       this.onToast('🐟 有鱼咬钩了！快点收杆！');
       sfx.play('bite');
     } else {
@@ -1306,11 +1324,14 @@ export class Game {
   collectNet(k) {
     const n = this.fishNets[k];
     if (!n || this.time < n.readyAt) return;
-    const reward = FISHING.rewardMin + Math.floor(Math.random() * (FISHING.rewardMax - FISHING.rewardMin + 1));
+    // 收网捞上来的是高档水产，不再直接给钱
+    const sf = rollSeafood(FISHING.rewardMin, FISHING.rewardMax);
     this.fishNets[k] = null;
     this.refreshNets();
-    this.gain(reward);
-    this.onToast(`🎣 收网！捞上来 ${reward}💰 ${reward >= 100 ? '，血赚' : '，亏了…'}`);
+    this.inventory[`s:${sf.id}`] = (this.inventory[`s:${sf.id}`] ?? 0) + 1;
+    this.onToast(`🕸️ 收网！捞到${sf.emoji}${sf.name}（值 ${sf.sell}💰）`);
+    sfx.play('done');
+    this.onState();
     this.save();
   }
 
@@ -1503,7 +1524,7 @@ export class Game {
     if (typeof key !== 'string') return null;
     if (key.startsWith('p:') || key.startsWith('k:') || key.startsWith('h:')
       || key.startsWith('f:') || key.startsWith('x:') || key.startsWith('m:')
-      || key.startsWith('y:')) return null;
+      || key.startsWith('y:') || key.startsWith('s:')) return null;
     const [id, quality] = key.split(':');
     if (!quality || !METAL[quality] || !seedById(id)) return null;
     return { id, quality };
@@ -1551,6 +1572,67 @@ export class Game {
 
   sortingCount() {
     return this.sorter.filter(s => s && this.time < s.readyAt).length;
+  }
+
+  /* ---------- 水族馆 ---------- */
+
+  aquariumCount() { return this.aquarium.filter(Boolean).length; }
+
+  // 背包里哪些能摆进水族馆：水产本身，外加能孵化的恐龙虾卵
+  aquariumCandidates() {
+    return Object.keys(this.inventory).filter(k =>
+      (this.inventory[k] ?? 0) > 0 && (k.startsWith('s:') || k === EGG.key));
+  }
+
+  // 摆一样进去。恐龙虾卵是特例：进去就孵成恐龙虾
+  addToAquarium(key) {
+    const slot = this.aquarium.indexOf(null);
+    if (slot < 0) { this.onToast(`水族馆最多养 ${AQUARIUM_SLOTS} 只，先取出来一只吧`); sfx.play('deny'); return false; }
+    if ((this.inventory[key] ?? 0) <= 0) return false;
+    const hatched = key === EGG.key;
+    const id = hatched ? EGG_HATCH : key.slice(2);
+    if (!seafoodById(id)) { this.onToast('这个养不了'); sfx.play('deny'); return false; }
+    this.inventory[key] -= 1;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.aquarium[slot] = id;
+    this.refreshAquarium();
+    const sf = seafoodById(id);
+    this.onToast(hatched
+      ? `🥚 恐龙虾卵孵化了！${sf.emoji}${sf.name}住进 ${slot + 1} 号缸`
+      : `${sf.emoji} ${sf.name}住进 ${slot + 1} 号缸（${this.aquariumCount()}/${AQUARIUM_SLOTS}）`);
+    sfx.play(hatched ? 'upgrade' : 'done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 取出来放回背包（孵出来的恐龙虾也能取，取出就是水产）
+  takeFromAquarium(slot) {
+    const id = this.aquarium[slot];
+    if (!id) return;
+    this.aquarium[slot] = null;
+    const key = `s:${id}`;
+    this.inventory[key] = (this.inventory[key] ?? 0) + 1;
+    this.refreshAquarium();
+    const sf = seafoodById(id);
+    this.onToast(`${sf.emoji} ${sf.name}捞回背包了`);
+    sfx.play('close');
+    this.onState();
+    this.save();
+  }
+
+  // 重建 15 个缸：有货的摆水产，空的只留空缸
+  refreshAquarium() {
+    if (!this.aquariumHall) return;
+    this.tankMeshes.forEach(m => this.aquariumHall.remove(m));
+    this.tankMeshes = [];
+    this.aquarium.forEach((id, k) => {
+      const spot = AQUARIUM_SPOTS[k];
+      const tank = createAquariumTank(id);
+      tank.position.set(spot.x, 0, spot.z);
+      this.aquariumHall.add(tank);
+      this.tankMeshes.push(tank);
+    });
   }
 
   /* ---------- 成就系统 ---------- */
@@ -1748,6 +1830,7 @@ export class Game {
     if (key.startsWith('p:') || key.startsWith('k:') || key === EGG.key) { this.onToast('个人图鉴只摆作物本物～'); return false; }
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if (key.startsWith('y:')) { this.onToast('打过药的不适合摆出来展示'); return false; }
+    if (key.startsWith('s:')) { this.onToast('水产请养进水族馆，个人图鉴只摆田里的收成'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
     if (this.inventory[key] === 0) delete this.inventory[key];
@@ -1783,6 +1866,7 @@ export class Game {
     if (key.startsWith('k:')) { this.onToast('料理不能做成罐头'); return; }
     if (key.startsWith('h:')) { this.onToast('杂交作物是稀世珍品，直接卖个好价吧'); return; }
     if (key.startsWith('m:')) { this.onToast('金属条是分拣出来的，罐头装不下它'); return; }
+    if (key.startsWith('s:')) { this.onToast('水产做不成罐头，卖掉或者养进水族馆吧'); return; }
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
     if (key.startsWith('y:')) { this.onToast('打过药的只能直接卖，加工不了'); return; }
@@ -2070,6 +2154,7 @@ export class Game {
       decorSlots: this.decorSlots.map(s => s.decor?.id ?? null),
       displaySlots: this.displaySlots.map(s => s.item?.key ?? null),
       workshop: this.workshop.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
+      aquarium: this.aquarium,
       sorter: this.sorter.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
@@ -2207,6 +2292,12 @@ export class Game {
         this.workshop[k] = { key: s.key, readyAt: this.time + Math.max(0, s.remain - elapsed) };
       }
     });
+    // 水族馆：老存档没有这个字段，留空即可
+    this.aquarium = Array(AQUARIUM_SLOTS).fill(null);
+    (data.aquarium ?? []).forEach((id, k) => {
+      if (id && k < this.aquarium.length && seafoodById(id)) this.aquarium[k] = id;
+    });
+    this.refreshAquarium();
     // 分拣台：离线也照常分拣（老存档没有这个字段，留空即可）
     (data.sorter ?? []).forEach((s, k) => {
       if (s && k < this.sorter.length && this.sortableKey(s.key)) {

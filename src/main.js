@@ -8,7 +8,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -69,7 +69,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -216,6 +216,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
 
+  // 水族馆：点击进馆
+  if (hit.userData.aquarium) {
+    ui.openAquarium();
+    return;
+  }
+
   // 分拣台：点击打开分拣面板
   if (hit.userData.sorter) {
     ui.openSorter();
@@ -342,6 +348,11 @@ function animate() {
       obj.material.emissiveIntensity = (1 - f) * 0.85;
     }
     if (obj.userData.sprayMark) obj.position.y = 0.82 + Math.sin(t * 2.2 + obj.id) * 0.05; // 药瓶轻轻浮
+    if (obj.userData.tankSwim) {                                                    // 缸里的水产来回游
+      obj.position.x = Math.sin(t * 0.8 + obj.id) * 0.22;
+      obj.position.y = 0.8 + Math.sin(t * 1.3 + obj.id) * 0.08;
+      obj.rotation.y = Math.cos(t * 0.8 + obj.id) > 0 ? 0 : Math.PI;
+    }
     if (obj.userData.pestBug) {                                              // 虫子绕着作物打转
       obj.rotation.y = t * 1.6;
       obj.position.y = 0.75 + Math.sin(t * 3 + obj.id) * 0.06;
