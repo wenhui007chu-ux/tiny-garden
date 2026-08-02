@@ -110,6 +110,19 @@ git show origin/main:save-backup.json | ConvertFrom-Json # 远程的
 而 stash 往往是几分钟前的旧快照。强行 pop 会把旧存档写回硬盘，
 反而和 localStorage 打架。确认后 `git stash drop` 即可（丢弃前先复制一份留底）。
 
+### 先查状态，别空跑一遍
+
+我说「备份 / 推送」时，**先看清楚到底有没有东西要推**：
+
+```bash
+git status --short                        # 工作区有改动吗
+git fetch origin && git rev-list --count origin/main..main   # 本地领先几个提交
+```
+
+- 工作区干净 **且** 领先 0 → **直接告诉我「已经是最新的，无需推送」**，不要走一遍空的 commit/push
+- 只有 `save-backup.json` 变了 → 只提交存档那一个，别把代码也捎上（它本来就已经推过了）
+- 分别说清楚**代码**和**存档**各自的状态，我要的是结论不是过程
+
 ### 提交怎么切分
 
 - **代码和存档分两个提交**，方便以后翻历史时区分「功能改动」和「进度快照」：
