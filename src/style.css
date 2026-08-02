@@ -499,7 +499,28 @@ body {
   100% { opacity: 0; transform: translateY(-6px); }
 }
 
-/* 图鉴还没收录的作物：背包里高亮一下，一键售卖也会跳过 */
+/* 一键售卖：勾选模式 */
+.bag-item.sell-pick { cursor: pointer; padding-left: 8px; }
+.bag-item.sell-pick .tick { font-size: 20px; flex-shrink: 0; }
+.bag-item.sell-pick.off { opacity: 0.5; border-style: dashed; }
+.bag-item.sell-pick.off .info b { text-decoration: line-through; }
+.bag-item.sell-pick:hover { border-color: #e09b3d; }
+/* 底部固定的确认栏，压在背包面板最下面 */
+#sell-bar {
+  flex-shrink: 0; border-top: 2px solid #f0dfc0; background: #fff8ec;
+  padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+#sell-bar small { width: 100%; color: #a1834f; font-size: 11px; line-height: 1.5; }
+#sell-bar button {
+  flex: 1; border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 12px; padding: 11px 8px; cursor: pointer; font-weight: 700; font-size: 14px;
+}
+#sell-bar button:disabled { border-color: #ccc; background: #f0f0f0; color: #aaa; cursor: default; }
+#sell-bar button.ghost {
+  flex: 0 0 72px; border-color: #d9b071; background: #fff; color: #8a5a2b;
+}
+
+/* 图鉴还没收录的作物：背包里标一下，供勾选时参考（卖不卖玩家自己定） */
 .bag-item.keep { border-color: #7a9ee0; background: linear-gradient(135deg, #fff, #eef3fd); }
 .keep-tag {
   display: inline-block; font-style: normal; margin-left: 6px;

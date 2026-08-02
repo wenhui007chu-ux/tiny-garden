@@ -19,6 +19,8 @@ export class UI {
     this.mallTab = 'items';   // 商场大楼里包揽了原来商店的全部页签
     this.codexTab = 'donate'; // 图鉴大楼：donate 基础图鉴 / gallery 个人图鉴
     this.achTab = 'all';      // 成就殿堂：all 全部 / done 已达成 / todo 未达成
+    this.sellMode = false;    // 一键售卖的勾选状态
+    this.sellExcluded = new Set(); // 被玩家点掉、不卖的那些 key
 
     game.onToast = (msg) => this.toast(msg);
     game.onState = () => this.refresh();
@@ -39,9 +41,14 @@ export class UI {
     $('#bag-btn').addEventListener('click', () => {
       const wasHidden = $('#bag').classList.contains('hidden');
       this.closePanels();
+      this.exitSellMode(); // 从工具栏正常打开背包，不带勾选状态
       if (wasHidden) { $('#bag').classList.remove('hidden'); this.renderBag(); }
     });
-    $('#bag-close').addEventListener('click', () => $('#bag').classList.add('hidden'));
+    $('#bag-close').addEventListener('click', () => {
+      $('#bag').classList.add('hidden');
+      this.exitSellMode(); // 关掉背包就退出勾选状态，下次打开是干净的
+      $('#sell-bar')?.remove();
+    });
     $('#ws-close').addEventListener('click', () => $('#ws').classList.add('hidden'));
     $('#mall-close').addEventListener('click', () => $('#mall').classList.add('hidden'));
     $('#items-close').addEventListener('click', () => $('#items').classList.add('hidden'));
@@ -151,7 +158,7 @@ export class UI {
       if (k === 'r') this.openQuickMenu('layouts'); // R 直接打开布局列表
       if (k === 'w') this.game.waterAll();
       if (k === 'h') this.game.harvestAll();
-      if (k === 's') this.game.sellAll();
+      if (k === 's') this.openSellMode();
     });
   }
 
@@ -195,9 +202,11 @@ export class UI {
     const body = $('#bag-body');
     const g = this.game;
     body.innerHTML = '';
+    $('#sell-bar')?.remove(); // 每次重画都先撤掉旧的确认栏，否则会一条条堆起来
     const entries = Object.entries(g.inventory).filter(([, n]) => n > 0);
     if (!entries.length) {
       body.innerHTML = '<div class="bag-empty">背包空空如也<br>去收获点作物吧 🌱</div>';
+      this.exitSellMode();
       return;
     }
     // 按种子顺序排，同种作物普通→白银→黄金，罐头排在生鲜后面
@@ -211,22 +220,90 @@ export class UI {
     entries.forEach(([key, n]) => {
       const info = keyInfo(key);
       const quality = info.quality;
-      const keep = g.worthKeeping(key); // 图鉴还没收录的，标出来别手滑卖了
+      const keep = g.worthKeeping(key); // 图鉴还没收录的，标出来供参考，卖不卖玩家自己定
       const el = document.createElement('div');
       el.className = 'bag-item' + (quality ? ` quality-${quality}` : '') + (keep ? ' keep' : '');
-      el.innerHTML = `<div class="icon">${info.icon}</div>
+
+      // 售卖模式：每项前面一个对勾，默认全勾上，点一下取消
+      if (this.sellMode) {
+        const on = !this.sellExcluded.has(key);
+        el.classList.add('sell-pick', on ? 'on' : 'off');
+        const tick = document.createElement('div');
+        tick.className = 'tick';
+        tick.textContent = on ? '✅' : '⬜';
+        el.appendChild(tick);
+        el.addEventListener('click', () => {
+          if (on) this.sellExcluded.add(key); else this.sellExcluded.delete(key);
+          this.renderBag();
+        });
+      }
+
+      el.insertAdjacentHTML('beforeend', `<div class="icon">${info.icon}</div>
         <div class="info"><b>${info.label} ×${n}${keep ? '<i class="keep-tag">📖 图鉴未收录</i>' : ''}</b>
-          <p>单价 ${info.price}💰 · 全卖 ${info.price * n}💰${keep ? ' · 一键售卖会跳过它' : ''}</p></div>`;
-      const sellOne = document.createElement('button');
-      sellOne.textContent = '卖1个';
-      sellOne.addEventListener('click', () => { g.sellCrop(key, 1); this.renderBag(); });
-      const sellAll = document.createElement('button');
-      sellAll.className = 'sell-all';
-      sellAll.textContent = '全卖';
-      sellAll.addEventListener('click', () => { g.sellCrop(key, n); this.renderBag(); });
-      el.append(sellOne, sellAll);
+          <p>单价 ${info.price}💰 · 共 ${info.price * n}💰</p></div>`);
+
+      // 非售卖模式才给单卖按钮，免得点勾和点卖混在一起
+      if (!this.sellMode) {
+        const sellOne = document.createElement('button');
+        sellOne.textContent = '卖1个';
+        sellOne.addEventListener('click', () => { g.sellCrop(key, 1); this.renderBag(); });
+        const sellAll = document.createElement('button');
+        sellAll.className = 'sell-all';
+        sellAll.textContent = '全卖';
+        sellAll.addEventListener('click', () => { g.sellCrop(key, n); this.renderBag(); });
+        el.append(sellOne, sellAll);
+      }
       body.appendChild(el);
     });
+
+    if (this.sellMode) this.renderSellBar(entries);
+  }
+
+  /* ---------- 一键售卖：先勾选，再卖 ---------- */
+
+  // 入口：跳到背包并全部勾上，玩家把不卖的点掉再确认
+  openSellMode() {
+    const g = this.game;
+    if (!Object.keys(g.inventory).some(k => g.inventory[k] > 0)) {
+      this.toast('背包里没有东西可以卖');
+      return;
+    }
+    this.closePanels();
+    this.sellMode = true;
+    this.sellExcluded = new Set();
+    $('#bag').classList.remove('hidden');
+    this.renderBag();
+    sfx.play('open');
+  }
+
+  exitSellMode() {
+    this.sellMode = false;
+    this.sellExcluded = new Set();
+  }
+
+  // 底部那条固定的确认栏：实时算选中件数与总价
+  renderSellBar(entries) {
+    const g = this.game;
+    const picked = entries.filter(([key]) => !this.sellExcluded.has(key));
+    const count = picked.reduce((s, [, n]) => s + n, 0);
+    const total = picked.reduce((s, [key, n]) => s + keyInfo(key).price * n, 0);
+    const bar = document.createElement('div');
+    bar.id = 'sell-bar';
+    bar.innerHTML = `<small>点条目上的 ✅ 可以取消，取消的会留在背包</small>`;
+    const btn = document.createElement('button');
+    btn.disabled = !picked.length;
+    btn.textContent = picked.length ? `💰 卖出 ${count} 件 · ${total}💰` : '一件都没选';
+    btn.addEventListener('click', () => {
+      g.sellKeys(picked.map(([key]) => key));
+      this.exitSellMode();
+      this.renderBag();
+    });
+    const cancel = document.createElement('button');
+    cancel.className = 'ghost';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => { this.exitSellMode(); this.renderBag(); sfx.play('close'); });
+    bar.append(btn, cancel);
+    $('#bag').appendChild(bar);
   }
 
   /* ---------- 面板统一开关 ---------- */
@@ -1828,8 +1905,8 @@ export class UI {
         g.harvestAll();
         menu.classList.add('hidden');
       });
-      addBtn('💰 一键售卖 <small>背包里所有东西全部卖掉 · 快捷键 S</small>', () => {
-        g.sellAll();
+      addBtn('💰 一键售卖 <small>跳到背包勾选，不想卖的点掉再确认 · 快捷键 S</small>', () => {
+        this.openSellMode();
         menu.classList.add('hidden');
       });
       addBtn('🌱 一键播种 <small>从保存过的布局中选一个 · 快捷键 R</small>', () => {

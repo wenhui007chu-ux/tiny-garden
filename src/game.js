@@ -555,27 +555,19 @@ export class Game {
 
   /* ---------- 快捷操作 ---------- */
 
-  // 图鉴还没收录的作物：一键售卖要绕开它，否则辛苦刷出来的稀有品质
-  // 会跟着白菜萝卜一起被 s 键卖光，而且没有任何提示（真出过这事）
+  // 图鉴还没收录的：不替玩家做主，只在背包里标出来供参考
   worthKeeping(key) {
     return this.codexKeys().includes(key) && !this.codex[key];
   }
 
-  sellAll() {
-    const kept = [];
-    const entries = Object.entries(this.inventory).filter(([key, n]) => {
-      if (n <= 0) return false;
-      if (this.worthKeeping(key)) { kept.push(key); return false; }
-      return true;
-    });
-    if (!entries.length) {
-      this.onToast(kept.length
-        ? `背包里只剩 ${kept.length} 样图鉴没收录的，帮你留着了`
-        : '背包里没有东西可以卖');
-      return;
-    }
+  // 卖出指定的这些 key（玩家在背包里勾选好的），不传就是全卖
+  sellKeys(keys) {
+    const list = (keys ?? Object.keys(this.inventory))
+      .filter(k => (this.inventory[k] ?? 0) > 0);
+    if (!list.length) { this.onToast('没有选中要卖的东西'); return; }
     let total = 0, count = 0, ruined = 0;
-    entries.forEach(([key, n]) => {
+    list.forEach(key => {
+      const n = this.inventory[key];
       const info = keyInfo(key);
       const bad = info.sprayed ? this.rollSprayed(n) : 0;
       ruined += bad;
@@ -584,12 +576,9 @@ export class Game {
       delete this.inventory[key];
     });
     this.gain(total);
-    const tail = [
-      ruined ? `${ruined} 个打过药的报废了` : '',
-      kept.length ? `📖 ${kept.length} 样图鉴没收录的帮你留着了` : '',
-    ].filter(Boolean).join('，');
-    this.onToast(`💰 一键售卖！${count} 件东西卖了 ${total}💰${tail ? `（${tail}）` : ''}`);
+    this.onToast(`💰 卖掉 ${count} 件，收入 ${total}💰${ruined ? `（${ruined} 个打过药的报废了）` : ''}`);
     sfx.play('coin');
+    this.onState();
     this.save();
   }
 
@@ -1569,15 +1558,55 @@ export class Game {
   // 逐条比对当前状态，把新达成的记下来并回调 UI。
   // silent=true 只补记不弹提示，读档时用——老存档一进来就点亮一批，
   // 不静默的话会一口气弹十几条横幅刷屏。
+  // 取一条成就的当前进度，取值函数出错也不能连累主循环
+  achievementCur(a) {
+    try { return a.cur(this); } catch { return 0; }
+  }
+
+  // 收回「名不副实」的成就：目标被后来调大、现在够不着了就撤销。
+  // 典型场景：新增了 2 种特殊种子，「特殊种子收藏家」从集齐 6 变成集齐 8，
+  // 而玩家手上还是 6 种——这时候顶着「已达成」是假的，先收回，集齐了会自动再亮。
+  // 注意只认「目标变大」，玩家自己把钱花光导致金币类成就回落的不算，那是正常波动。
+  // 循环到稳定：收回一条会让「园艺大师」这种统计型成就的进度跟着掉，可能连锁。
+  revokeUnearned() {
+    const revoked = [];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const a of ACHIEVEMENTS) {
+        const rec = this.achievements[a.id];
+        if (!rec) continue;
+        // 只动「只增不减」那类。金币、槽位占用、摆放数会正常回落，
+        // 玩家当时确实做到过，不能因为此刻不满足就把成就扒了。
+        if (!a.monotonic) continue;
+        // 老存档只存了时间戳，不知道当年的目标，就按「现在够不够」判定
+        const earnedMax = (rec && typeof rec === 'object') ? rec.max : null;
+        const targetRaised = earnedMax == null || a.max > earnedMax;
+        if (targetRaised && this.achievementCur(a) < a.max) {
+          delete this.achievements[a.id];
+          revoked.push(a);
+          changed = true;
+        }
+      }
+    }
+    // 留下来的老记录补上当年的目标值，之后就只在目标真变大时才会再收回
+    for (const a of ACHIEVEMENTS) {
+      const rec = this.achievements[a.id];
+      if (rec && typeof rec !== 'object') this.achievements[a.id] = { at: rec, max: a.max };
+    }
+    if (revoked.length) this.refreshTrophies();
+    return revoked;
+  }
+
   checkAchievements(silent = false) {
     const fresh = [];
     for (const a of ACHIEVEMENTS) {
       if (this.achievements[a.id]) continue;
-      // 某条成就的取值函数万一出错，不能连累整个主循环
       let done = false;
       try { done = a.cur(this) >= a.max; } catch { done = false; }
       if (!done) continue;
-      this.achievements[a.id] = Date.now();
+      // 连达成时的目标一起记下来，日后目标被调大才认得出来
+      this.achievements[a.id] = { at: Date.now(), max: a.max };
       fresh.push(a);
     }
     if (!fresh.length) return fresh;
@@ -2222,8 +2251,10 @@ export class Game {
       this._pendingDamage = false;
       this.damageTiles(this.drought ? 'cracked' : 'wet');
     }
-    // 成就：老存档没有这个字段，先静默补记已经做到的，再立起奖杯
+    // 成就：先收回目标被调大后够不着的，再静默补记已经做到的，最后立起奖杯
     this.achievements = data.achievements ?? {};
+    this.revokeUnearned().forEach(a => this._notices.push(
+      `🔒 「${a.name}」的目标提高到 ${a.max} 了，先收回，达到后会自动再亮`));
     this.checkAchievements(true);
     this.refreshTrophies();
   }

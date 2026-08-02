@@ -745,6 +745,20 @@ export const ACHIEVEMENTS = [
     cur: (g) => ACHIEVEMENTS.filter(a => a.id !== 'a30' && g.achievements[a.id]).length,
     max: 30 },
 ];
+// 哪些成就的进度「只增不减」：解锁数、集齐数、收录数、升级档位这类。
+// 对它们来说「现在够不着」必然意味着目标被后来调大了，可以安全收回成就。
+// 其余的是瞬时状态——金币会花掉、槽位会空、装饰能铲掉、展台能收回——
+// 那属于正常波动，玩家当时确实做到过，绝不能因此把成就撤掉。
+const MONOTONIC_ACHIEVEMENTS = new Set([
+  'a01', 'a02', 'a03', 'a04',        // 土地解锁 / 黑土升级
+  'a05', 'a06', 'a07', 'a08', 'a09', // 作物解锁 / 图鉴收录
+  'a19',                             // 水利等级
+  'a23', 'a24', 'a25',               // 家具持有 / 满级数
+  'a26', 'a27', 'a29',               // 宠物 / 水塘装饰（买断制）
+  'a30', 'a31',                      // 园艺大师 / 特殊种子集齐
+]);
+ACHIEVEMENTS.forEach(a => { a.monotonic = MONOTONIC_ACHIEVEMENTS.has(a.id); });
+
 // 园艺大师要求「除自己外全部达成」，成就表增删时自动跟上，免得忘了改数字
 {
   const master = ACHIEVEMENTS.find(a => a.id === 'a30');
