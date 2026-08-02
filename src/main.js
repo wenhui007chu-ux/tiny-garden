@@ -4,6 +4,7 @@ import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
 import { INTERIOR_POS, SLEEP_SPEED } from './config.js';
 import { music, sfx } from './music.js';
+import { applyStaticI18n } from './i18n.js';
 import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
@@ -27,6 +28,7 @@ try {
   }
 } catch { /* 没有备份或非开发环境，用 localStorage 就好 */ }
 
+applyStaticI18n(); // 先把静态文案按当前语言填好，再建场景
 const { renderer, scene, camera, controls, ensureSize, lights } = createScene(document.getElementById('app'));
 const game = new Game(scene);
 const ui = new UI(game);

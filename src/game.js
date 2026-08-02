@@ -36,6 +36,7 @@ import {
   createBlackMarket,
 } from './meshes.js';
 import { sfx } from './music.js';
+import { t } from './i18n.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
 
@@ -295,19 +296,21 @@ export class Game {
 
     // 每栋建筑顶上挂一块悬浮名牌：一眼认出是什么，点名牌等于点建筑
     this.signMeshes = [];
-    this.addSign(ws, '🏭', '工坊', 'workshop');
-    this.addSign(mall, '🛒', '商场', 'mall');
-    this.addSign(this.houseMesh, '🏠', '我的小屋', 'house');
-    this.addSign(this.pond, '🎣', '抓鱼水滩', 'pond');
-    this.addSign(bank, '🏦', '银行', 'bank');
-    this.addSign(kitchen, '🍳', '料理工坊', 'kitchen');
-    this.addSign(lab, '🧬', '杂交室', 'hybridLab');
-    this.addSign(petHouse, '🐾', '宠物间', 'petHouse');
-    this.addSign(greenhouse, '🌸', '花房温室', 'greenhouse');
-    this.addSign(achBuilding, '🏅', '成就殿堂', 'achievement');
-    this.addSign(codexBuilding, '📖', '图鉴大楼', 'codex');
-    this.addSign(aquariumBuilding, '🐠', '水族馆', 'aquarium');
-    this.addSign(sorter, '⚙️', '分拣台', 'sorter');
+    // 名字走 i18n，换语言重载后名牌跟着变
+    this.addSign(ws, '🏭', 'workshop');
+    this.addSign(mall, '🛒', 'mall');
+    this.addSign(this.houseMesh, '🏠', 'house');
+    this.addSign(this.pond, '🎣', 'pond');
+    this.addSign(bank, '🏦', 'bank');
+    this.addSign(kitchen, '🍳', 'kitchen');
+    this.addSign(lab, '🧬', 'hybridLab');
+    this.addSign(petHouse, '🐾', 'petHouse');
+    this.addSign(greenhouse, '🌸', 'greenhouse');
+    this.addSign(achBuilding, '🏅', 'achievement');
+    this.addSign(codexBuilding, '📖', 'codex');
+    this.addSign(aquariumBuilding, '🐠', 'aquarium');
+    this.addSign(sorter, '⚙️', 'sorter');
+    this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -319,9 +322,9 @@ export class Game {
   // 这样 main.js 那套点击分发不用改就能直接认。
   // 注意挂在 group 而不是建筑上：换肤会整个重建 houseMesh，
   // 挂建筑上的话名牌会跟着旧对象一起被丢掉。
-  addSign(building, emoji, text, key) {
+  addSign(building, emoji, key) {
     const box = new THREE.Box3().setFromObject(building);
-    const sign = createSignboard(emoji, text);
+    const sign = createSignboard(emoji, t(`sign.${key}`));
     sign.position.set(building.position.x, box.max.y + 0.62, building.position.z);
     sign.userData[key] = true;
     sign.userData.signBaseY = sign.position.y; // 让它轻轻上下浮

@@ -528,6 +528,13 @@ body {
   border-radius: 6px; padding: 1px 6px; vertical-align: middle;
 }
 
+/* 设置里的语言选项 */
+.music-row.lang-opt { cursor: pointer; }
+.music-row.lang-opt:hover { border-color: #e09b3d; background: #fffaf0; }
+.music-row.lang-opt.current { border-color: #6aae5e; background: #f0f9ec; }
+.music-row.lang-opt button { min-width: 38px; }
+.lang-hint { color: #a1834f; font-size: 11px; text-align: center; padding: 2px 4px 0; line-height: 1.6; }
+
 /* ---------- 黑市 ---------- */
 /* 整个面板压成暗色，和别处的奶油木牌拉开距离，一看就不是正经地方 */
 #black { background: #1e1a24; border-left-color: #4a3a52; }

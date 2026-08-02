@@ -27,145 +27,145 @@
   <div id="toolbar">
     <!-- 上排：种田工具 6 个（和下排数量对齐） -->
     <div class="tb-row">
-      <button class="tool-btn active" data-tool="hand" title="点击成熟作物收获">🖐<span>收获</span></button>
-      <button class="tool-btn" data-tool="plant" title="选择种子后点击空地种植">🌱<span>种植</span></button>
-      <button class="tool-btn" data-tool="water" title="点击土地浇水">💧<span>浇水</span></button>
-      <button class="tool-btn" data-tool="spray" title="花 3💰 给一株作物打药：卖价 +10💰，但 15% 概率报废">🧪<span>打药</span></button>
-      <button class="tool-btn" data-tool="shovel" title="铲除作物或装饰">🧹<span>铲除</span></button>
-      <button class="tool-btn" id="save-layout-btn" title="保存当前种植布局">💾<span>保存</span></button>
+      <button class="tool-btn active" data-tool="hand" title="点击成熟作物收获">🖐<span data-i18n="tool.harvest">收获</span></button>
+      <button class="tool-btn" data-tool="plant" title="选择种子后点击空地种植">🌱<span data-i18n="tool.plant">种植</span></button>
+      <button class="tool-btn" data-tool="water" title="点击土地浇水">💧<span data-i18n="tool.water">浇水</span></button>
+      <button class="tool-btn" data-tool="spray" title="花 3💰 给一株作物打药：卖价 +10💰，但 15% 概率报废">🧪<span data-i18n="tool.spray">打药</span></button>
+      <button class="tool-btn" data-tool="shovel" title="铲除作物或装饰">🧹<span data-i18n="tool.shovel">铲除</span></button>
+      <button class="tool-btn" id="save-layout-btn" title="保存当前种植布局">💾<span data-i18n="tool.save">保存</span></button>
     </div>
     <!-- 下排：菜单与背包 6 个 -->
     <div class="tb-row">
-      <button class="tool-btn" id="quick-btn" title="快捷操作">⚡<span>快捷</span></button>
-      <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span>挂机</span></button>
-      <button class="tool-btn" id="music-pick-btn" title="选一首曲子点播或循环">🎶<span>选曲</span></button>
-      <button class="tool-btn" id="settings-btn" title="设置">⚙️<span>设置</span></button>
-      <button class="tool-btn" id="bag-btn" title="背包">🎒<span>背包</span><i id="bag-badge" class="hidden"></i></button>
-      <button class="tool-btn" id="items-btn" title="道具背包">🧰<span>道具</span><i id="items-badge" class="hidden"></i></button>
+      <button class="tool-btn" id="quick-btn" title="快捷操作">⚡<span data-i18n="tool.quick">快捷</span></button>
+      <button class="tool-btn" id="afk-btn" title="挂机：暂停整个世界">😴<span data-i18n="tool.afk">挂机</span></button>
+      <button class="tool-btn" id="music-pick-btn" title="选一首曲子点播或循环">🎶<span data-i18n="tool.music">选曲</span></button>
+      <button class="tool-btn" id="settings-btn" title="设置">⚙️<span data-i18n="tool.settings">设置</span></button>
+      <button class="tool-btn" id="bag-btn" title="背包">🎒<span data-i18n="tool.bag">背包</span><i id="bag-badge" class="hidden"></i></button>
+      <button class="tool-btn" id="items-btn" title="道具背包">🧰<span data-i18n="tool.items">道具</span><i id="items-badge" class="hidden"></i></button>
     </div>
   </div>
 
   <div id="bag" class="hidden">
-    <div id="bag-head"><b>🎒 背包</b><button id="bag-close">✕</button></div>
+    <div id="bag-head"><b data-i18n="panel.bag">🎒 背包</b><button id="bag-close">✕</button></div>
     <div id="bag-body"></div>
   </div>
 
   <div id="ws" class="hidden">
-    <div id="ws-head"><b>🏭 工坊</b><button id="ws-close">✕</button></div>
+    <div id="ws-head"><b data-i18n="panel.ws">🏭 工坊</b><button id="ws-close">✕</button></div>
     <div id="ws-body"></div>
   </div>
 
   <div id="mall" class="hidden">
-    <div id="mall-head"><b>🛒 商场</b><button id="mall-close">✕</button></div>
+    <div id="mall-head"><b data-i18n="panel.mall">🛒 商场</b><button id="mall-close">✕</button></div>
     <div id="mall-tabs"></div>
     <div id="mall-body"></div>
   </div>
 
   <div id="items" class="hidden">
-    <div id="items-head"><b>🧰 道具背包</b><button id="items-close">✕</button></div>
+    <div id="items-head"><b data-i18n="panel.items">🧰 道具背包</b><button id="items-close">✕</button></div>
     <div id="items-body"></div>
   </div>
 
   <div id="codex" class="hidden">
-    <div id="codex-head"><b>📖 图鉴大楼</b><button id="codex-close">🚪 出馆</button></div>
+    <div id="codex-head"><b data-i18n="panel.codex">📖 图鉴大楼</b><button id="codex-close">🚪 出馆</button></div>
     <div id="codex-body"></div>
   </div>
 
   <div id="bank" class="hidden">
-    <div id="bank-head"><b>🏦 黑房子银行</b><button id="bank-close">✕</button></div>
+    <div id="bank-head"><b data-i18n="panel.bank">🏦 黑房子银行</b><button id="bank-close">✕</button></div>
     <div id="bank-body"></div>
   </div>
 
   <div id="kitchen" class="hidden">
-    <div id="kitchen-head"><b>🍳 料理工坊</b><button id="kitchen-close">✕</button></div>
+    <div id="kitchen-head"><b data-i18n="panel.kitchen">🍳 料理工坊</b><button id="kitchen-close">✕</button></div>
     <div id="kitchen-body"></div>
   </div>
 
   <div id="hybrid" class="hidden">
-    <div id="hybrid-head"><b>🧬 杂交室</b><button id="hybrid-close">✕</button></div>
+    <div id="hybrid-head"><b data-i18n="panel.hybrid">🧬 杂交室</b><button id="hybrid-close">✕</button></div>
     <div id="hybrid-body"></div>
   </div>
 
   <div id="pet" class="hidden">
-    <div id="pet-head"><b>🐾 宠物间</b><button id="pet-close">🚪 出门</button></div>
+    <div id="pet-head"><b data-i18n="panel.pet">🐾 宠物间</b><button id="pet-close">🚪 出门</button></div>
     <div id="pet-tabs"></div>
     <div id="pet-body"></div>
   </div>
 
   <div id="wiki" class="hidden">
-    <div id="wiki-head"><b>📖 游戏百科</b><button id="wiki-close">✕</button></div>
+    <div id="wiki-head"><b data-i18n="panel.wiki">📖 游戏百科</b><button id="wiki-close">✕</button></div>
     <div id="wiki-body"></div>
   </div>
 
   <div id="fish" class="hidden">
-    <div id="fish-head"><b>🎣 抓鱼水滩</b><button id="fish-close">✕</button></div>
+    <div id="fish-head"><b data-i18n="panel.fish">🎣 抓鱼水滩</b><button id="fish-close">✕</button></div>
     <div id="fish-body"></div>
   </div>
 
   <div id="house" class="hidden">
-    <div id="house-head"><b>🏠 我的小屋</b><button id="house-close">🚪 出门</button></div>
+    <div id="house-head"><b data-i18n="panel.house">🏠 我的小屋</b><button id="house-close">🚪 出门</button></div>
     <div id="house-body"></div>
   </div>
 
   <div id="greenhouse" class="hidden">
-    <div id="greenhouse-head"><b>🌸 花房温室</b><button id="greenhouse-close">🚪 出门</button></div>
+    <div id="greenhouse-head"><b data-i18n="panel.greenhouse">🌸 花房温室</b><button id="greenhouse-close">🚪 出门</button></div>
     <div id="greenhouse-body"></div>
   </div>
 
   <div id="ach" class="hidden">
-    <div id="ach-head"><b>🏅 成就殿堂</b><button id="ach-close">🚪 出馆</button></div>
+    <div id="ach-head"><b data-i18n="panel.ach">🏅 成就殿堂</b><button id="ach-close">🚪 出馆</button></div>
     <div id="ach-tabs"></div>
     <div id="ach-body"></div>
   </div>
 
   <div id="black" class="hidden">
-    <div id="black-head"><b>🕶️ 黑市</b><button id="black-close">✕</button></div>
+    <div id="black-head"><b data-i18n="panel.black">🕶️ 黑市</b><button id="black-close">✕</button></div>
     <div id="black-body"></div>
   </div>
 
   <div id="aqua" class="hidden">
-    <div id="aqua-head"><b>🐠 水族馆</b><button id="aqua-close">🚪 出馆</button></div>
+    <div id="aqua-head"><b data-i18n="panel.aqua">🐠 水族馆</b><button id="aqua-close">🚪 出馆</button></div>
     <div id="aqua-body"></div>
   </div>
 
   <div id="sorter" class="hidden">
-    <div id="sorter-head"><b>⚙️ 分拣台</b><button id="sorter-close">✕</button></div>
+    <div id="sorter-head"><b data-i18n="panel.sorter">⚙️ 分拣台</b><button id="sorter-close">✕</button></div>
     <div id="sorter-body"></div>
   </div>
 
   <div id="ach-banner-wrap"></div>
 
 
-  <div id="hint">🌱 选择种子种下 → 💧 浇水 → 等待成熟 → 🖐 点击收获卖钱</div>
+  <div id="hint" data-i18n="hint.main">🌱 选择种子种下 → 💧 浇水 → 等待成熟 → 🖐 点击收获卖钱</div>
 
   <div id="dead-overlay" class="hidden">
     <div id="dead-card">
       <div id="dead-emoji">💀</div>
-      <b>你毒发身亡了</b>
+      <b data-i18n="dead.title">你毒发身亡了</b>
       <p>拍虫的时候被咬了一口，没来得及解毒。<br>躺一会儿就能复活，这期间什么都干不了。</p>
       <div id="dead-timer">复活倒计时 90 秒</div>
     </div>
   </div>
 
   <div id="poison-hud" class="hidden">
-    <b>☠️ 中毒！</b>
+    <b data-i18n="poison.title">☠️ 中毒！</b>
     <span id="poison-timer">60</span> 秒内用 💉 解毒剂，否则死亡
-    <button id="poison-use">💉 立刻解毒</button>
+    <button id="poison-use" data-i18n="poison.btn">💉 立刻解毒</button>
   </div>
 
   <div id="sleep-overlay" class="hidden">
     <div id="sleep-clock"></div>
-    <div id="sleep-note">😴 睡觉中 · 时间正在流逝</div>
+    <div id="sleep-note" data-i18n="sleep.note">😴 睡觉中 · 时间正在流逝</div>
     <div id="sleep-bar"><i></i></div>
-    <button id="sleep-wake">🥱 提前起床</button>
+    <button id="sleep-wake" data-i18n="sleep.wake">🥱 提前起床</button>
   </div>
 
   <div id="afk-overlay" class="hidden">
     <div id="afk-card">
       <div id="afk-emoji">😴</div>
-      <b>挂机中 · 世界已暂停</b>
+      <b data-i18n="afk.title">挂机中 · 世界已暂停</b>
       <p>作物、时钟、工坊全部冻结<br>休息一下眼睛吧</p>
-      <button id="afk-resume">☀️ 点击解冻</button>
+      <button id="afk-resume" data-i18n="afk.resume">☀️ 点击解冻</button>
     </div>
   </div>
 

@@ -5,6 +5,7 @@ import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } 
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET } from './config.js';
 import { music, sfx } from './music.js';
+import { t, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
 // 秒数显示成「X分X秒」
 const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
@@ -2324,25 +2325,60 @@ export class UI {
 
   renderSettingsMenu() {
     const menu = $('#settings-menu');
-    menu.innerHTML = '<div class="music-head">⚙️ 设置</div>';
+    menu.innerHTML = `<div class="music-head">${t('set.title')}</div>`;
     const row = (icon, label, on, onClick) => {
       const el = document.createElement('div');
       el.className = 'music-row';
       el.innerHTML = `<b>${icon} ${label}</b>`;
       const btn = document.createElement('button');
       btn.className = on ? 'on' : 'off';
-      btn.textContent = on ? '开' : '关';
+      btn.textContent = on ? t('set.on') : t('set.off');
       btn.addEventListener('click', () => { onClick(); this.renderSettingsMenu(); });
       el.appendChild(btn);
       menu.appendChild(el);
     };
-    row('🎵', '背景音乐', music.enabled, () => music.toggle());
-    row('🔊', '操作音效', sfx.enabled, () => sfx.toggle());
-    row('💬', '消息提示', this.tipsOn, () => {
+    row('🎵', t('set.music'), music.enabled, () => music.toggle());
+    row('🔊', t('set.sfx'), sfx.enabled, () => sfx.toggle());
+    row('💬', t('set.tips'), this.tipsOn, () => {
       this.tipsOn = !this.tipsOn;
       localStorage.setItem('farm-tips-on', this.tipsOn ? '1' : '0');
       if (this.tipsOn) this.toast('💬 提示已打开');
     });
+
+    // 语言：点一下展开三个选项，选中的高亮
+    const cur = LANGS.find(l => l.id === lang);
+    const langRow = document.createElement('div');
+    langRow.className = 'music-row';
+    langRow.innerHTML = `<b>🌐 ${t('set.lang')}</b>`;
+    const langBtn = document.createElement('button');
+    langBtn.className = 'on';
+    langBtn.textContent = `${cur.flag} ${cur.name}`;
+    langBtn.addEventListener('click', () => {
+      this.langOpen = !this.langOpen;
+      this.renderSettingsMenu();
+    });
+    langRow.appendChild(langBtn);
+    menu.appendChild(langRow);
+
+    if (this.langOpen) {
+      LANGS.forEach(l => {
+        const opt = document.createElement('div');
+        opt.className = 'music-row lang-opt' + (l.id === lang ? ' current' : '');
+        opt.innerHTML = `<b>${l.flag} ${l.name}</b>`;
+        const pick = document.createElement('button');
+        pick.textContent = l.id === lang ? '✓' : '选';
+        const choose = () => {
+          // 换语言后整页重载：面板文案散在几十个 render 里，重开一遍最干净
+          if (setLang(l.id)) { this.game.save(); location.reload(); }
+        };
+        pick.addEventListener('click', choose);
+        opt.addEventListener('click', choose);
+        opt.appendChild(pick);
+        menu.appendChild(opt);
+      });
+      menu.insertAdjacentHTML('beforeend',
+        `<div class="lang-hint">${t('set.langHint')}</div>`);
+    }
   }
 
   /* ---------- 选曲 ---------- */
@@ -2365,21 +2401,22 @@ export class UI {
       });
       menu.appendChild(cancel);
     }
-    music.listTracks().forEach(t => {
+    // 参数别叫 t：会遮蔽 i18n 的 t()，以后翻译这个菜单时必踩
+    music.listTracks().forEach(track => {
       const row = document.createElement('div');
-      row.className = 'music-row' + (music.track?.id === t.id && music.playing ? ' current' : '');
-      row.innerHTML = `<b>${music.track?.id === t.id && music.playing ? '🎵 ' : ''}${t.name}</b>`;
+      row.className = 'music-row' + (music.track?.id === track.id && music.playing ? ' current' : '');
+      row.innerHTML = `<b>${music.track?.id === track.id && music.playing ? '🎵 ' : ''}${track.name}</b>`;
       const once = document.createElement('button');
       once.textContent = '▶ 一次';
       once.addEventListener('click', () => {
-        music.playTrack(t.id, 'once');
+        music.playTrack(track.id, 'once');
         this.renderMusicMenu();
       });
       const loop = document.createElement('button');
       loop.textContent = '🔁 循环';
       loop.addEventListener('click', () => {
-        music.playTrack(t.id, 'loop');
-        this.toast(`🔁 循环播放《${t.name}》`);
+        music.playTrack(track.id, 'loop');
+        this.toast(`🔁 循环播放《${track.name}》`);
         this.renderMusicMenu();
       });
       row.append(once, loop);
