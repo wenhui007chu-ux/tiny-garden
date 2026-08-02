@@ -54,7 +54,9 @@ export class UI {
     $('#mall-close').addEventListener('click', () => $('#mall').classList.add('hidden'));
     $('#items-close').addEventListener('click', () => $('#items').classList.add('hidden'));
     $('#house-close').addEventListener('click', () => this.exitHouse());
-    $('#fish-close').addEventListener('click', () => $('#fish').classList.add('hidden'));
+    // 必须走 exitFishing：只隐藏面板的话 inFishing 会一直是 true，
+    // 于是 inside() 恒为真，main.js 里所有菜园点击都被拦掉，表现是「点什么都没反应」
+    $('#fish-close').addEventListener('click', () => this.exitFishing());
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
@@ -323,7 +325,11 @@ export class UI {
     this.exitAquarium();
   }
 
-  inside() { return this.inHouse || this.inCodex || this.inFishing || this.inHybridLab || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium; }
+  // 加 !! 保证返回真正的布尔：|| 链在全部 falsy 时会返回最后一项（undefined）
+  inside() {
+    return !!(this.inHouse || this.inCodex || this.inFishing || this.inHybridLab
+      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium);
+  }
 
   /* ---------- 主动钓鱼 ---------- */
 
