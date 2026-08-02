@@ -104,6 +104,12 @@ export const metalPrice = (seedId, quality) =>
 export const DAY_CYCLE = 1200;      // 秒
 export const NIGHT_SLOW = 0.5;
 
+// 睡觉：不再「一瞬间跳到天亮」，而是把时间快进着走完。
+// 快进期间 tick 照常跑，所以天气、作物、料理、罐头、杂交都按正常规则推进，
+// 只是流逝得快——躺下就白嫖一整批加工的漏洞就此堵上。
+// 半天 600 游戏秒 ÷ 20 倍 ≈ 玩家实际等 30 秒，看着时钟一格格走。
+export const SLEEP_SPEED = 20;
+
 // 快捷操作
 export const QUICK_WATER_COST = 10; // 一键浇水价格
 

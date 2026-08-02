@@ -65,6 +65,9 @@ export class Game {
     this.furnitureStyle = {};    // 当前展示的外观等级（可在已解锁范围内随意切换）
     this.furniturePos = {};      // 玩家自己摆的位置：id -> { x, z, rotY }
     this._notices = [];          // 读档时要说的话：那会儿 UI 还没建好，先攒着
+    this.sleeping = false;   // 睡觉快进中
+    this.sleepLeft = 0;      // 还要走多少游戏秒
+    this.onWake = () => {};  // 醒来时通知 UI 收起遮罩
     this.onToast = () => {};
     this.onState = () => {};
 
@@ -1773,15 +1776,37 @@ export class Game {
 
   // 睡觉：晚上睡到第二天早上 6 点，白天午睡到傍晚 6 点天黑
   // 这段时间的生长和加工照常结算
+  // 躺下：只是开启快进，时间照常一秒秒流过（见 SLEEP_SPEED 的说明）。
+  // 以前这里是个 for 循环把 remain 一次性 tick 完，等于瞬移到天亮——
+  // 坏天气当场消失、料理罐头杂交全部白嫖，睡一觉顶过所有等待。
   sleep() {
+    if (this.sleeping) return false;
     const wasNight = this.isNight();
     const target = wasNight ? DAY_CYCLE : DAY_CYCLE / 2; // 时钟 0=早6点，600=晚6点
-    const remain = target - this.clock;
-    const step = 1.5;
-    for (let t = 0; t < remain; t += step) this.tick(Math.min(step, remain - t));
-    this.onToast(wasNight ? '😴 一觉睡到大天亮！' : '😴 午觉睡醒，天都黑了');
-    this.save();
+    this.sleeping = true;
+    this.sleepWasNight = wasNight;
+    // 直接记「还要走多少游戏秒」，免得判断时钟绕过 0 点
+    this.sleepLeft = target - this.clock;
+    this.sleepTotal = this.sleepLeft;
+    this.onToast(wasNight ? '😴 睡下了，等天亮…' : '😴 午睡中，等天黑…');
     return true;
+  }
+
+  // 时钟走到目标点就自然醒；中途也能被叫醒（wakeUp(true)）
+  wakeUp(early = false) {
+    if (!this.sleeping) return;
+    this.sleeping = false;
+    this.onToast(early ? '🥱 被吵醒了…'
+      : this.sleepWasNight ? '🌅 一觉睡到大天亮！' : '🌇 午觉睡醒，天都黑了');
+    this.onWake();
+    this.onState();
+    this.save();
+  }
+
+  // 睡到几成了（UI 拿去画进度条）
+  sleepProgress() {
+    if (!this.sleeping || !this.sleepTotal) return 0;
+    return Math.min(1, 1 - this.sleepLeft / this.sleepTotal);
   }
 
   /* ---------- 个人图鉴（图鉴大楼贵宾区） ---------- */
@@ -2092,6 +2117,12 @@ export class Game {
       sfx.play('revive');
       this.onState();
       this.save();
+    }
+
+    // 睡眠倒计时：走完自然醒。dt 已经被主循环按 SLEEP_SPEED 放大过
+    if (this.sleeping) {
+      this.sleepLeft -= dt;
+      if (this.sleepLeft <= 0) this.wakeUp();
     }
 
     this.tickFishing(dt);

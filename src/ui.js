@@ -26,6 +26,7 @@ export class UI {
     game.onToast = (msg) => this.toast(msg);
     game.onState = () => this.refresh();
     game.onAchievement = (a) => this.achievementBanner(a);
+    game.onWake = () => this.exitSleep();
 
     this.bindToolbar();
     this.refresh();
@@ -130,6 +131,7 @@ export class UI {
     document.querySelectorAll('[id$="-close"]').forEach(btn =>
       btn.addEventListener('click', () => sfx.play('close')));
     // 挂机模式
+    $('#sleep-wake').addEventListener('click', () => this.game.wakeUp(true));
     $('#afk-btn').addEventListener('click', () => this.setAfk(true));
     $('#afk-resume').addEventListener('click', () => this.setAfk(false));
     if (this.game.paused) $('#afk-overlay').classList.remove('hidden'); // 上次是挂机时关的
@@ -1668,7 +1670,7 @@ export class UI {
         const btn = document.createElement('button');
         btn.className = 'sleep';
         btn.textContent = '😴 睡觉';
-        btn.addEventListener('click', () => { if (g.sleep()) this.renderHouse(); });
+        btn.addEventListener('click', () => this.enterSleep());
         el.appendChild(btn);
       }
       if (lv && lv < FURNITURE_MAX_LEVEL) {
@@ -2353,6 +2355,54 @@ export class UI {
     const badge = $('#clock-badge');
     badge.textContent = `${isNight ? '🌙' : '☀️'} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
     badge.classList.toggle('night', isNight);
+  }
+
+  /* ---------- 睡觉 ---------- */
+
+  // 躺到床上：镜头挪到床头半躺着看房间，屏幕压暗但时钟照常走
+  enterSleep() {
+    const g = this.game;
+    if (!g.sleep()) return;
+    $('#house').classList.add('hidden'); // 收起家具面板，别挡着
+    if (this.camera) {
+      this._sleepCam = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = INTERIOR_POS;
+      // 床在房间左后角 (-10.4, -9.6)，视线从枕头位置往房间中央斜上方看
+      this.camera.position.set(p.x - 10.2, p.y + 1.15, p.z - 9.2);
+      this.controls.target.set(p.x + 1, p.y + 3.2, p.z + 1);
+      this.controls.minDistance = 0.5;
+      this.controls.update();
+    }
+    $('#sleep-overlay').classList.remove('hidden');
+    this.renderSleep();
+    if (!this._sleepTimer) this._sleepTimer = setInterval(() => this.renderSleep(), 120);
+  }
+
+  exitSleep() {
+    $('#sleep-overlay').classList.add('hidden');
+    if (this._sleepTimer) { clearInterval(this._sleepTimer); this._sleepTimer = null; }
+    if (this._sleepCam) {
+      this.camera.position.copy(this._sleepCam.pos);
+      this.controls.target.copy(this._sleepCam.target);
+      this.controls.minDistance = this._sleepCam.minD;
+      this.controls.update();
+      this._sleepCam = null;
+    }
+    if (this.inHouse) { $('#house').classList.remove('hidden'); this.renderHouse(); }
+  }
+
+  // 遮罩上的大时钟与进度条，睡着时每 120ms 刷一次
+  renderSleep() {
+    const g = this.game;
+    if (!g.sleeping) return;
+    const { hh, mm, isNight } = g.clockInfo();
+    $('#sleep-clock').textContent =
+      `${isNight ? '🌙' : '☀️'} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    $('#sleep-bar').querySelector('i').style.width = `${Math.round(g.sleepProgress() * 100)}%`;
   }
 
   /* ---------- 状态刷新 ---------- */

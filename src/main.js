@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createScene } from './scene.js';
 import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
-import { INTERIOR_POS } from './config.js';
+import { INTERIOR_POS, SLEEP_SPEED } from './config.js';
 import { music, sfx } from './music.js';
 import { startWatchdog } from './watchdog.js';
 
@@ -312,7 +312,10 @@ scene.add(suns);
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.1);
+  let dt = Math.min(clock.getDelta(), 0.1);
+  // 睡觉时把时间按倍速快进：tick 照常跑，天气/作物/加工都按正常规则推进，
+  // 只是流逝得快，不再是一瞬间跳到天亮
+  if (game.sleeping) dt *= SLEEP_SPEED;
   ensureSize();
   game.tick(dt);
   controls.update();

@@ -528,6 +528,33 @@ body {
   border-radius: 6px; padding: 1px 6px; vertical-align: middle;
 }
 
+/* ---------- 睡觉遮罩 ---------- */
+/* 压暗但不全黑：时钟必须始终看得清，玩家要知道现在几点、还要睡多久 */
+#sleep-overlay {
+  position: fixed; inset: 0; z-index: 45;
+  background: radial-gradient(ellipse at 50% 45%, #0b132899 0%, #050a16ee 75%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; animation: sleep-in 0.8s ease-out;
+}
+#sleep-clock {
+  font-size: 54px; font-weight: 800; color: #e8f0ff;
+  font-variant-numeric: tabular-nums; letter-spacing: 2px;
+  text-shadow: 0 0 24px #6a8ad088, 0 3px 0 #0006;
+}
+#sleep-note { color: #a8bce0; font-size: 14px; letter-spacing: 1px; animation: sleep-breathe 3s ease-in-out infinite; }
+#sleep-bar {
+  width: min(60vw, 300px); height: 7px; background: #1a2740;
+  border-radius: 999px; overflow: hidden;
+}
+#sleep-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4a6ea8, #8ab0e8); transition: width .12s linear; }
+#sleep-wake {
+  margin-top: 6px; border: 2px solid #4a5f8a; background: #16203a; color: #b8cbe8;
+  border-radius: 999px; padding: 9px 22px; cursor: pointer; font-size: 13px; font-weight: 700;
+}
+#sleep-wake:hover { background: #1e2a4a; border-color: #6a82b8; }
+@keyframes sleep-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sleep-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
 /* ---------- 水族馆 ---------- */
 #aqua-progress {
   background: linear-gradient(135deg, #eaf7fc, #cfe9f5); border: 2px solid #7ac0dd;
