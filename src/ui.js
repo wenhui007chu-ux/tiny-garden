@@ -3,6 +3,7 @@ import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybr
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
+import { BLACK_MARKET } from './config.js';
 import { music, sfx } from './music.js';
 
 // 秒数显示成「X分X秒」
@@ -68,6 +69,7 @@ export class UI {
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
+    $('#black-close').addEventListener('click', () => $('#black').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
       const wasHidden = panel.classList.contains('hidden');
@@ -315,7 +317,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -370,6 +372,62 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 黑市 ---------- */
+
+  openBlackMarket() {
+    this.closePanels();
+    $('#black').classList.remove('hidden');
+    this.renderBlackMarket();
+    // 行情一直在滑动，面板开着就跟着刷
+    if (!this._blackTimer) this._blackTimer = setInterval(() => {
+      if ($('#black').classList.contains('hidden')) {
+        clearInterval(this._blackTimer); this._blackTimer = null; return;
+      }
+      this.renderBlackMarket();
+    }, 700);
+  }
+
+  renderBlackMarket() {
+    const g = this.game;
+    const body = $('#black-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    const mood = g.blackMoodLabel();
+
+    body.insertAdjacentHTML('beforeend', `
+      <div id="black-mood" class="${mood.tone}">
+        ${mood.label}
+        <small>成交价在原价的 <b>50%~150%</b> 之间浮动，卖了才知道。<br>
+        风声只是参考——真谈崩了照样腰斩。</small>
+      </div>`);
+
+    const list = Object.entries(g.inventory).filter(([, n]) => n > 0)
+      .sort(([a], [b]) => keyInfo(b).price * g.inventory[b] - keyInfo(a).price * g.inventory[a]);
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend',
+        '<div class="bag-empty">背包里没东西可出手<br>先去地里收点货 🌱</div>');
+      return;
+    }
+    list.forEach(([key, n]) => {
+      const info = keyInfo(key);
+      const base = info.price * n;
+      const el = document.createElement('div');
+      el.className = 'black-row';
+      el.innerHTML = `<div class="icon">${info.icon}</div>
+        <div class="info"><b>${info.label} ×${n}</b>
+          <p>正常卖 ${base}💰 · 黑市 ${Math.floor(base * 0.5)}~${Math.floor(base * 1.5)}💰</p></div>`;
+      const btn = document.createElement('button');
+      btn.textContent = '出手';
+      btn.addEventListener('click', () => {
+        g.sellToBlackMarket(key);
+        this.renderBlackMarket();
+      });
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled; // 定时重绘别把滚动位置弹回顶部
   }
 
   /* ---------- 水族馆 ---------- */

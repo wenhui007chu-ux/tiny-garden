@@ -16,6 +16,7 @@ import {
   ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
   SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
   SEAFOOD, seafoodById, rollSeafood, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
+  BLACK_MARKET, blackMarketMood, blackMoodOf,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -32,6 +33,7 @@ import {
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
+  createBlackMarket,
 } from './meshes.js';
 import { sfx } from './music.js';
 
@@ -264,6 +266,15 @@ export class Game {
     this.aquariumHall.position.set(AQUARIUM_POS.x, AQUARIUM_POS.y, AQUARIUM_POS.z);
     this.group.add(this.aquariumHall);
     this.tankMeshes = [];
+
+    // 黑市：农田正后方那块空地，前后左右这下都占满了
+    // z=-17 是算过的：再靠前会被二层农田的台面挡住视线
+    const blackMarket = createBlackMarket();
+    blackMarket.position.set(0, -0.51, -17);
+    blackMarket.rotation.y = 0.12;
+    this.group.add(blackMarket);
+    this.blackMarketMeshes = [];
+    blackMarket.traverse(o => { if (o.isMesh) this.blackMarketMeshes.push(o); });
 
     // 商场：菜园后方的小楼
     const mall = createMall();
@@ -1575,6 +1586,42 @@ export class Game {
 
   sortingCount() {
     return this.sorter.filter(s => s && this.time < s.readyAt).length;
+  }
+
+  /* ---------- 黑市 ---------- */
+
+  // 当前行情（0.5~1.5），随时间连续滑动
+  blackMood() { return blackMarketMood(this.time); }
+
+  // 给玩家看的模糊风声，不报精确数字
+  blackMoodLabel() { return blackMoodOf(this.blackMood()); }
+
+  // 成交倍率：行情为底，再加一层成交那一刻的随机，钳在 ±50% 内
+  rollBlackMult() {
+    const jitter = (Math.random() * 2 - 1) * BLACK_MARKET.jitter;
+    return Math.min(BLACK_MARKET.max, Math.max(BLACK_MARKET.min, this.blackMood() + jitter));
+  }
+
+  // 卖给黑市：一次一种，赚多赚少当场揭晓
+  sellToBlackMarket(key) {
+    const n = this.inventory[key] ?? 0;
+    if (n <= 0) return false;
+    const info = keyInfo(key);
+    const mult = this.rollBlackMult();
+    // 打过药的照旧要掷报废骰子，黑市可不管你货好不好
+    const ruined = info.sprayed ? this.rollSprayed(n) : 0;
+    const total = Math.max(0, Math.floor(info.price * (n - ruined) * mult));
+    delete this.inventory[key];
+    this.gain(total);
+    const pct = Math.round((mult - 1) * 100);
+    const face = mult >= 1.25 ? '🤑 老板今天大方' : mult >= 1.02 ? '🙂 谈了个好价'
+      : mult >= 0.85 ? '😐 就这么着吧' : '💀 被狠狠压价';
+    this.onToast(`${face}：${info.icon}${info.label} ×${n} 按 ${pct >= 0 ? '+' : ''}${pct}% 成交，+${total}💰`
+      + (ruined ? `（${ruined} 个药坏了）` : ''));
+    sfx.play(mult >= 1.02 ? 'coin' : 'deny');
+    this.onState();
+    this.save();
+    return true;
   }
 
   /* ---------- 水族馆 ---------- */

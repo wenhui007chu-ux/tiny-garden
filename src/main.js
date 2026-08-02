@@ -8,7 +8,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -69,7 +69,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.aquariumMeshes, ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -213,6 +213,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 图鉴大楼：点击进馆
   if (hit.userData.codex) {
     ui.openCodex();
+    return;
+  }
+
+  // 黑市：点击开交易面板
+  if (hit.userData.blackMarket) {
+    ui.openBlackMarket();
     return;
   }
 

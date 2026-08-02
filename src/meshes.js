@@ -3892,3 +3892,55 @@ export function createSeafoodMesh(id, scale = 1) {
   g.scale.setScalar(scale);
   return g;
 }
+
+/* ================= 黑市：农田正后方的地下交易点 ================= */
+
+// 岛上的黑市（点它开交易面板）：压低的暗色棚屋，一盏晃动的吊灯
+export function createBlackMarket() {
+  const g = new THREE.Group();
+  const dark = mat(0x2e2a32);
+  const wood = mat(0x4a3f38);
+  const cloth = mat(0x5a2a3a);
+
+  // 地面台阶与主体（矮胖，透着不正经）
+  g.add(mesh(new THREE.BoxGeometry(4.2, 0.26, 3.2), mat(0x3a3038), 0, 0.13, 0));
+  g.add(mesh(new THREE.BoxGeometry(3.6, 1.7, 2.6), dark, 0, 1.1, 0));
+  // 歪一点的顶棚
+  const roof = mesh(new THREE.BoxGeometry(4.4, 0.16, 3.4), wood, 0, 2.0, 0);
+  roof.rotation.z = 0.045;
+  g.add(roof);
+  // 支棚的四根柱子
+  [[-1.9, 1.4], [1.9, 1.4], [-1.9, -1.4], [1.9, -1.4]].forEach(([x, z]) =>
+    g.add(mesh(new THREE.CylinderGeometry(0.09, 0.11, 2.0, 6), wood, x, 1.0, z)));
+  // 正面挂的暗红布帘（半掩着）
+  [-0.9, 0.9].forEach(x => {
+    const c = mesh(new THREE.BoxGeometry(1.1, 1.5, 0.06), cloth, x, 1.15, 1.32);
+    c.rotation.z = x > 0 ? -0.05 : 0.05;
+    g.add(c);
+  });
+  // 柜台 + 上面堆的货箱
+  g.add(mesh(new THREE.BoxGeometry(2.6, 0.5, 0.5), wood, 0, 0.5, 1.55));
+  [[-0.7, 0.28], [0.5, 0.24]].forEach(([x, s]) =>
+    g.add(mesh(new THREE.BoxGeometry(s * 2, s * 1.6, s * 1.6), mat(0x6a5a48), x, 0.9, 1.55)));
+  // 会晃的吊灯：昏黄一盏，夜里更明显
+  const lampGroup = new THREE.Group();
+  lampGroup.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), dark, 0, 0.25, 0));
+  const bulb = mesh(new THREE.SphereGeometry(0.14, 7, 6),
+    mat(0xffd98a, { emissive: 0xd89a2a, emissiveIntensity: 0.85 }), 0, -0.05, 0);
+  bulb.userData.lampBulb = true;
+  lampGroup.add(bulb);
+  const light = new THREE.PointLight(0xffc46a, 0.6, 6, 2);
+  light.position.set(0, -0.1, 0);
+  lampGroup.add(light);
+  lampGroup.position.set(0, 1.95, 1.2);
+  lampGroup.userData.blackLamp = true; // 主循环里让它轻轻摆
+  g.add(lampGroup);
+  // 屋顶插的骷髅小旗，表明这里不太正经
+  g.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 4), dark, -1.5, 2.5, 0));
+  const flag = mesh(new THREE.BoxGeometry(0.7, 0.4, 0.04), mat(0x1e1a22), -1.15, 2.78, 0);
+  g.add(flag);
+  g.add(mesh(new THREE.SphereGeometry(0.09, 6, 5), mat(0xe8e0d0), -1.15, 2.8, 0.03));
+
+  g.traverse(o => { if (o.isMesh) o.userData.blackMarket = true; });
+  return g;
+}

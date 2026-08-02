@@ -229,6 +229,33 @@ export const rollSeafood = (min, max) => {
   return list[Math.floor(Math.random() * list.length)];
 };
 
+// ===== 黑市：农田正后方的地下交易点 =====
+// 卖价在 ±50% 之间浮动：运气好一件顶一件半，运气差直接腰斩。
+// 行情随时间缓慢漂移（两条不同周期的正弦叠加，看着像随机但其实连续），
+// 面板只给模糊风声，成交倍率要卖了才揭晓——不然玩家蹲着等高点就没有风险可言了。
+export const BLACK_MARKET = {
+  min: 0.5,          // 最惨腰斩
+  max: 1.5,          // 最好多赚五成
+  slowCycle: 180,    // 主行情周期（秒）
+  fastCycle: 47,     // 叠加的小波动周期，取个跟主周期不成整数比的数
+  jitter: 0.18,      // 成交那一刻的额外随机，风声再好也可能翻车
+};
+// 当前行情（0.5~1.5），只跟时间有关，是连续滑动的
+export function blackMarketMood(time) {
+  const wave = Math.sin(time / BLACK_MARKET.slowCycle * Math.PI * 2) * 0.62
+    + Math.sin(time / BLACK_MARKET.fastCycle * Math.PI * 2) * 0.38;
+  return 1 + wave * 0.5; // wave 在 ±1 之间 → 0.5 ~ 1.5
+}
+// 行情的模糊描述：给玩家一点判断依据，但不报精确数字
+export const BLACK_MOODS = [
+  { at: 1.28, label: '🔥 风声：今天有大买家', tone: 'hot' },
+  { at: 1.08, label: '🙂 风声：行情不错', tone: 'good' },
+  { at: 0.92, label: '😐 风声：平平淡淡', tone: 'flat' },
+  { at: 0.72, label: '😒 风声：老板在压价', tone: 'bad' },
+  { at: 0,    label: '💀 风声：今天很不妙', tone: 'awful' },
+];
+export const blackMoodOf = (mood) => BLACK_MOODS.find(m => mood >= m.at) ?? BLACK_MOODS[BLACK_MOODS.length - 1];
+
 // 水族馆：岛上的玻璃馆 + 藏在岛下的 3D 展厅
 // 岛下已被占用的坑位：房间(0,0) 杂交(-60,0) 图鉴(60,0) 花房(-60,-60)
 // 宠物(0,60) 成就(60,60)，水族馆挑一个没人用的
