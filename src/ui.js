@@ -3,7 +3,7 @@ import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybr
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
-import { BLACK_MARKET } from './config.js';
+import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO } from './config.js';
 import { music, sfx } from './music.js';
 import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
@@ -70,6 +70,7 @@ export class UI {
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
+    $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
     $('#black-close').addEventListener('click', () => $('#black').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -318,7 +319,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -375,6 +376,85 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 天气观测台 ---------- */
+
+  openObservatory() {
+    this.closePanels();
+    $('#obs').classList.remove('hidden');
+    this.renderObservatory();
+    // 观测中要走倒计时，开着就跟着刷
+    if (!this._obsTimer) this._obsTimer = setInterval(() => {
+      if ($('#obs').classList.contains('hidden')) {
+        clearInterval(this._obsTimer); this._obsTimer = null; return;
+      }
+      this.renderObservatory();
+    }, 500);
+  }
+
+  renderObservatory() {
+    const g = this.game;
+    const body = $('#obs-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    const state = g.observatoryState();
+
+    // 顶部：说明 / 倒计时 / 取报告
+    if (state === 'idle' || state === 'report') {
+      const expired = g.forecastExpired();
+      body.insertAdjacentHTML('beforeend', `
+        <div id="obs-panel">
+          <b>🔭 ${t('obs.title')}</b>
+          <small>${t('obs.desc').replace('{days}', OBSERVATORY.days)
+            .replace('{cost}', OBSERVATORY.cost).replace('{min}', OBSERVATORY.time / 60)}</small>
+        </div>`);
+      const btn = document.createElement('button');
+      btn.id = 'obs-start';
+      btn.textContent = `🔭 ${t(expired || state === 'idle' ? 'obs.start' : 'obs.restart')} · ${OBSERVATORY.cost}💰`;
+      btn.addEventListener('click', () => { g.startObservatory(); this.renderObservatory(); });
+      body.appendChild(btn);
+    } else if (state === 'running') {
+      const left = Math.max(0, g.observatory.readyAt - g.time);
+      const pct = Math.round((1 - left / OBSERVATORY.time) * 100);
+      body.insertAdjacentHTML('beforeend', `
+        <div id="obs-panel" class="running">
+          <b>🔭 ${t('obs.running')}</b>
+          <small>${t('obs.left')} ${fmtTime(left)}</small>
+          <div class="ach-bar"><i style="width:${pct}%"></i></div>
+        </div>`);
+    } else if (state === 'done') {
+      body.insertAdjacentHTML('beforeend',
+        `<div id="obs-panel" class="ready"><b>✅ ${t('obs.ready')}</b></div>`);
+      const btn = document.createElement('button');
+      btn.id = 'obs-start';
+      btn.textContent = `📋 ${t('obs.collect')}`;
+      btn.addEventListener('click', () => { g.collectForecast(); this.renderObservatory(); });
+      body.appendChild(btn);
+    }
+
+    // 报告本体
+    const list = g.forecastList();
+    if (list.length) {
+      if (g.forecastExpired()) {
+        body.insertAdjacentHTML('beforeend', `<div class="obs-expired">⏳ ${t('obs.expired')}</div>`);
+      }
+      const grid = document.createElement('div');
+      grid.id = 'obs-grid';
+      list.forEach(({ offset, weather }) => {
+        const w = WEATHER_INFO[weather];
+        const past = offset < 0;
+        const el = document.createElement('div');
+        el.className = `obs-day ${w.tone}` + (past ? ' past' : '') + (offset === 0 ? ' today' : '');
+        el.innerHTML = `<div class="d">${offset === 0 ? t('obs.today') : (offset > 0 ? `+${offset}` : offset)}</div>
+          <div class="w">${w.icon}</div>
+          <div class="n">${t('weather.' + weather)}</div>`;
+        el.title = t('weatherDesc.' + weather);
+        grid.appendChild(el);
+      });
+      body.appendChild(grid);
+    }
+    body.scrollTop = scrolled;
   }
 
   /* ---------- 黑市 ---------- */

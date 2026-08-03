@@ -17,6 +17,7 @@ import {
   SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
   SEAFOOD, seafoodById, rollSeafood, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
   BLACK_MARKET, blackMarketMood, blackMoodOf,
+  weatherOfDay, OBSERVATORY, WEATHER_INFO,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -33,7 +34,7 @@ import {
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
-  createBlackMarket,
+  createBlackMarket, createObservatory,
 } from './meshes.js';
 import { sfx } from './music.js';
 import { t, tf, tp } from './i18n.js';
@@ -51,6 +52,9 @@ export class Game {
     this.time = 0;
     this.clock = DAY_CYCLE / 4; // 昼夜时钟，0 = 早上6点，默认从中午开始
     this.dayCount = 0;          // 过了多少天，黑市行情按「半天」翻牌要用
+    // 天气种子：每个存档一份，天气由「种子 + 第几天」推算，所以未来可预报
+    this.weatherSeed = Math.floor(Math.random() * 1e6);
+    this.observatory = null;    // 观测台：{ readyAt } 运行中，或 { fromDay } 已出报告
     this.coins = START_COINS;
     this.waterLevel = 0;
     this.unlockedSeeds = ['sweetpot', 'radish'];
@@ -278,6 +282,14 @@ export class Game {
     this.blackMarketMeshes = [];
     blackMarket.traverse(o => { if (o.isMesh) this.blackMarketMeshes.push(o); });
 
+    // 天气观测台：紧挨着黑市（黑市在 0,-17），摆在它右手边
+    const observatory = createObservatory();
+    observatory.position.set(6.5, -0.51, -16.5);
+    observatory.rotation.y = -0.3;
+    this.group.add(observatory);
+    this.observatoryMeshes = [];
+    observatory.traverse(o => { if (o.isMesh) this.observatoryMeshes.push(o); });
+
     // 商场：菜园后方的小楼
     const mall = createMall();
     mall.position.set(-9.2, -0.51, -6.6); // 让开二层农田的位置
@@ -312,6 +324,7 @@ export class Game {
     this.addSign(aquariumBuilding, '🐠', 'aquarium');
     this.addSign(sorter, '⚙️', 'sorter');
     this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
+    this.addSign(observatory, '🔭', 'observatory');
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -355,11 +368,14 @@ export class Game {
     return n;
   }
 
+  // 第 n 天是什么天气：只跟存档种子和天数有关，随时可以提前算出来
+  weatherAt(day) { return weatherOfDay(this.weatherSeed, day); }
+
   rollWeather() {
     const healed = this.healAllTiles();
     if (healed && !this._booting) this.onToast(`🌿 天气转好，${healed} 块受灾的地恢复了`);
-    const r = Math.random();
-    this.setWeather(r < DROUGHT.chance, r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance);
+    const w = this.weatherAt(this.dayCount);
+    this.setWeather(w === 'drought', w === 'rain');
     this.onToast(this.drought
       ? '☀️☀️☀️ 大旱天！生长缓慢，今天的收成会生长不良'
       : this.rain
@@ -1588,6 +1604,56 @@ export class Game {
     return this.sorter.filter(s => s && this.time < s.readyAt).length;
   }
 
+  /* ---------- 天气观测台 ---------- */
+
+  // 三种状态：null 没开机 / { readyAt } 观测中 / { fromDay } 报告已出
+  observatoryState() {
+    const o = this.observatory;
+    if (!o) return 'idle';
+    if (o.readyAt !== undefined) return this.time >= o.readyAt ? 'done' : 'running';
+    return 'report';
+  }
+
+  startObservatory() {
+    if (this.observatoryState() !== 'idle' && this.observatoryState() !== 'report') {
+      this.onToast('观测台正忙着呢'); sfx.play('deny'); return false;
+    }
+    if (!this.spend(OBSERVATORY.cost)) return false;
+    this.observatory = { readyAt: this.time + OBSERVATORY.time };
+    this.onToast(`🔭 观测台启动，${OBSERVATORY.time / 60} 分钟后出预报`);
+    sfx.play('upgrade');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 观测跑完，把报告的起始天固定下来
+  collectForecast() {
+    if (this.observatoryState() !== 'done') return false;
+    this.observatory = { fromDay: this.dayCount };
+    this.onToast(`🔭 预报出炉！未来 ${OBSERVATORY.days} 天的天气都在这儿了`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 报告内容：从出报告那天起 N 天，每天的天气
+  forecastList() {
+    const o = this.observatory;
+    if (!o || o.fromDay === undefined) return [];
+    return Array.from({ length: OBSERVATORY.days }, (_, i) => {
+      const day = o.fromDay + i;
+      return { day, offset: day - this.dayCount, weather: this.weatherAt(day) };
+    });
+  }
+
+  // 报告过期 = 当前天数已经走过了整份报告
+  forecastExpired() {
+    const o = this.observatory;
+    return !!o && o.fromDay !== undefined && this.dayCount > o.fromDay + OBSERVATORY.days - 1;
+  }
+
   /* ---------- 黑市 ---------- */
 
   // 半天序号：白天和夜晚各占一个，天亮/天黑时 +1，行情就跟着翻牌
@@ -2250,6 +2316,10 @@ export class Game {
       clock: this.clock,
       windTimer: this.windTimer,
       dayCount: this.dayCount,
+      weatherSeed: this.weatherSeed,
+      observatory: this.observatory ? (this.observatory.readyAt !== undefined
+        ? { remain: Math.max(0, this.observatory.readyAt - this.time) }
+        : { fromDay: this.observatory.fromDay }) : null,
       drought: this.drought,
       rain: this.rain,
       savedLayouts: this.savedLayouts,
@@ -2310,6 +2380,9 @@ export class Game {
     this.flowerPlots = (data.flowerPlots ?? []).slice(0, GREENHOUSE_SLOTS).map(p =>
       p && flowerById(p.id) ? { id: p.id, readyAt: this.time + Math.max(0, (p.remain ?? 0) - elapsed) } : null);
     while (this.flowerPlots.length < GREENHOUSE_SLOTS) this.flowerPlots.push(null);
+    // 天气种子要先于任何 weatherAt() 调用读出来。老存档没有就沿用本次随机的，
+    // 下次保存时固化——已经过去的天气无从追溯，但往后是一致的
+    this.weatherSeed = data.weatherSeed ?? this.weatherSeed;
     this.drought = data.drought ?? false;
     this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气
@@ -2317,11 +2390,21 @@ export class Game {
     // 天数要接着走，否则离线回来黑市行情会跳回旧值
     this.dayCount = (data.dayCount ?? 0) + offlineDays;
     if (offlineDays > 0) {
-      const r = Math.random();
-      this.drought = r < DROUGHT.chance;
-      this.rain = r >= DROUGHT.chance && r < DROUGHT.chance + RAIN.chance;
+      // 离线跨天也走同一套确定性天气，否则回来看到的和预报对不上
+      const w = this.weatherAt(this.dayCount);
+      this.drought = w === 'drought';
+      this.rain = w === 'rain';
       this._pendingHeal = true; // 隔了一天，之前的天灾都该消退了
       if (this.badWeather()) this._pendingDamage = true; // 地块数据还没读完，稍后再毁地
+    }
+    // 观测台：运行中的按剩余时间接着跑，已出的报告原样带回来
+    this.observatory = null;
+    if (data.observatory) {
+      if (data.observatory.remain !== undefined) {
+        this.observatory = { readyAt: this.time + Math.max(0, data.observatory.remain - elapsed) };
+      } else if (data.observatory.fromDay !== undefined) {
+        this.observatory = { fromDay: data.observatory.fromDay };
+      }
     }
     // 银行离线也每天日结
     this.bank = data.bank ?? 0;

@@ -128,6 +128,30 @@ export const EGG = { key: 'egg', name: '恐龙虾卵', emoji: '🦐', sell: 10, 
 export const DROUGHT = { chance: 0.15, growSlow: 1 / 3, sellMult: 0.5 };
 export const RAIN = { chance: 0.2 };
 
+// 天气改成「由存档种子 + 第几天」算出来的，不再当场 Math.random()。
+// 序列照样是乱的，但因为可推算，天气观测台才有得报——
+// 否则未来的天气根本还不存在，预报无从谈起。
+export function weatherOfDay(seed, day) {
+  // 拿正弦的小数部分当伪随机，同样的 (seed, day) 永远得到同一个值
+  const x = Math.sin(seed * 12.9898 + day * 78.233) * 43758.5453;
+  const r = x - Math.floor(x);
+  if (r < DROUGHT.chance) return 'drought';
+  if (r < DROUGHT.chance + RAIN.chance) return 'rain';
+  return 'clear';
+}
+
+// 天气观测台：花钱开机，跑完给一份未来 N 天的天气表
+export const OBSERVATORY = {
+  cost: 200,      // 每次启动的费用
+  time: 1200,     // 跑 20 分钟（正好一个游戏日）
+  days: 20,       // 一次报未来 20 天
+};
+export const WEATHER_INFO = {
+  clear:   { icon: '🌅', name: '风调雨顺', tone: 'clear',   desc: '正常生长' },
+  drought: { icon: '☀️', name: '大旱',     tone: 'drought', desc: '生长 ×1/3，收成生长不良' },
+  rain:    { icon: '⛈', name: '暴雨',     tone: 'rain',    desc: '收成生长不良' },
+};
+
 // 商场道具：存在独立的道具背包里，和作物背包分开
 export const ITEMS = [
   {

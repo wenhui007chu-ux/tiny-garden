@@ -3944,3 +3944,49 @@ export function createBlackMarket() {
   g.traverse(o => { if (o.isMesh) o.userData.blackMarket = true; });
   return g;
 }
+
+/* ================= 天气观测台：黑市旁边的圆顶天文台 ================= */
+
+export function createObservatory() {
+  const g = new THREE.Group();
+  const wall = mat(0xdde3ec);
+  const trim = mat(0x5a6a80);
+  const domeM = mat(0xa8b8cc, { roughness: 0.5, metalness: 0.2 });
+
+  // 圆形基座 + 塔身
+  g.add(mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.3, 14), mat(0xc4ccd8), 0, 0.15, 0));
+  g.add(mesh(new THREE.CylinderGeometry(1.35, 1.45, 2.2, 14), wall, 0, 1.4, 0));
+  g.add(mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.14, 14), trim, 0, 2.55, 0));
+  // 半球顶
+  const dome = mesh(new THREE.SphereGeometry(1.45, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), domeM, 0, 2.6, 0);
+  g.add(dome);
+  // 顶上开的观测缝
+  g.add(mesh(new THREE.BoxGeometry(0.42, 1.5, 0.06), mat(0x2a3444), 0, 3.15, 1.05));
+  // 斜伸出来的望远镜（会缓慢转，扫视天空）
+  const scope = new THREE.Group();
+  const tube = mesh(new THREE.CylinderGeometry(0.17, 0.22, 1.5, 10), mat(0x44506a), 0, 0, 0);
+  tube.rotation.x = Math.PI / 2.6;
+  scope.add(tube);
+  scope.add(mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.1, 10), trim, 0, 0.52, 0.66));
+  scope.position.set(0, 3.0, 0.3);
+  scope.userData.scopeSpin = true;
+  g.add(scope);
+  // 塔身几扇亮着的小窗
+  [0, 2.1, 4.2].forEach(a =>
+    g.add(mesh(new THREE.BoxGeometry(0.3, 0.42, 0.08),
+      mat(0xffe6a8, { emissive: 0xd8a83a, emissiveIntensity: 0.5 }),
+      Math.sin(a) * 1.4, 1.5, Math.cos(a) * 1.4)));
+  // 门
+  g.add(mesh(new THREE.BoxGeometry(0.8, 1.2, 0.1), mat(0x4a5568), 0, 0.9, 1.42));
+  // 门口的风向标：一根杆 + 会转的箭头
+  g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), trim, 1.75, 1.0, 0.9));
+  const vane = new THREE.Group();
+  vane.add(mesh(new THREE.ConeGeometry(0.11, 0.34, 4), mat(0xe0a040), 0.22, 0, 0).rotateZ(-Math.PI / 2));
+  vane.add(mesh(new THREE.BoxGeometry(0.26, 0.2, 0.03), mat(0xe0a040), -0.2, 0, 0));
+  vane.position.set(1.75, 1.85, 0.9);
+  vane.userData.spin = true;
+  g.add(vane);
+
+  g.traverse(o => { if (o.isMesh) o.userData.observatory = true; });
+  return g;
+}
