@@ -433,27 +433,35 @@ export class UI {
       body.appendChild(btn);
     }
 
-    // 报告本体
+    // 20 个格子一直摆在这儿：没观测时是空的，观测完才填上天气。
+    // 一进来就看得见「会得到什么」，比只放一个按钮清楚得多。
     const list = g.forecastList();
-    if (list.length) {
-      if (g.forecastExpired()) {
-        body.insertAdjacentHTML('beforeend', `<div class="obs-expired">⏳ ${t('obs.expired')}</div>`);
-      }
-      const grid = document.createElement('div');
-      grid.id = 'obs-grid';
-      list.forEach(({ offset, weather }) => {
-        const w = WEATHER_INFO[weather];
-        const past = offset < 0;
-        const el = document.createElement('div');
-        el.className = `obs-day ${w.tone}` + (past ? ' past' : '') + (offset === 0 ? ' today' : '');
-        el.innerHTML = `<div class="d">${offset === 0 ? t('obs.today') : (offset > 0 ? `+${offset}` : offset)}</div>
-          <div class="w">${w.icon}</div>
-          <div class="n">${t('weather.' + weather)}</div>`;
-        el.title = t('weatherDesc.' + weather);
-        grid.appendChild(el);
-      });
-      body.appendChild(grid);
+    if (list.length && g.forecastExpired()) {
+      body.insertAdjacentHTML('beforeend', `<div class="obs-expired">⏳ ${t('obs.expired')}</div>`);
     }
+    const grid = document.createElement('div');
+    grid.id = 'obs-grid';
+    for (let i = 0; i < OBSERVATORY.days; i++) {
+      const item = list[i];
+      const el = document.createElement('div');
+      if (!item) { // 还没有报告：空格子占位
+        el.className = 'obs-day empty' + (state === 'running' ? ' waiting' : '');
+        el.innerHTML = `<div class="d">${i === 0 ? t('obs.today') : `+${i}`}</div>
+          <div class="w">${state === 'running' ? '🔄' : '❔'}</div>
+          <div class="n">—</div>`;
+      } else {
+        const w = WEATHER_INFO[item.weather];
+        el.className = `obs-day ${w.tone}`
+          + (item.offset < 0 ? ' past' : '') + (item.offset === 0 ? ' today' : '');
+        el.innerHTML = `<div class="d">${item.offset === 0 ? t('obs.today')
+          : (item.offset > 0 ? `+${item.offset}` : item.offset)}</div>
+          <div class="w">${w.icon}</div>
+          <div class="n">${t('weather.' + item.weather)}</div>`;
+        el.title = t('weatherDesc.' + item.weather);
+      }
+      grid.appendChild(el);
+    }
+    body.appendChild(grid);
     body.scrollTop = scrolled;
   }
 
