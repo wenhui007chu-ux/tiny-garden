@@ -1,3 +1,9 @@
+// i18n.js 不 import 任何东西，所以这里引它不会成环
+import { tf, nameSep } from './i18n.js';
+
+// 作物名走翻译，查不到就回落到下面配置里的中文名
+export const seedName = (s) => (s ? tf(`seed.${s.id}`, s.name) : '');
+
 export const GRID = 6;          // 每层菜地 6x6 格
 export const LEVELS = 2;        // 两层梯田
 export const UPPER_Y = 4.2;     // 二层农田高度
@@ -231,28 +237,28 @@ export const rollSeafood = (min, max) => {
 
 // ===== 黑市：农田正后方的地下交易点 =====
 // 卖价在 ±50% 之间浮动：运气好一件顶一件半，运气差直接腰斩。
-// 行情随时间缓慢漂移（两条不同周期的正弦叠加，看着像随机但其实连续），
+// 行情【半天一换】：白天一个、夜晚一个，同一段时间内固定不变，天亮/天黑各翻一次牌。
 // 面板只给模糊风声，成交倍率要卖了才揭晓——不然玩家蹲着等高点就没有风险可言了。
 export const BLACK_MARKET = {
   min: 0.5,          // 最惨腰斩
   max: 1.5,          // 最好多赚五成
-  slowCycle: 180,    // 主行情周期（秒）
-  fastCycle: 47,     // 叠加的小波动周期，取个跟主周期不成整数比的数
   jitter: 0.18,      // 成交那一刻的额外随机，风声再好也可能翻车
 };
-// 当前行情（0.5~1.5），只跟时间有关，是连续滑动的
-export function blackMarketMood(time) {
-  const wave = Math.sin(time / BLACK_MARKET.slowCycle * Math.PI * 2) * 0.62
-    + Math.sin(time / BLACK_MARKET.fastCycle * Math.PI * 2) * 0.38;
-  return 1 + wave * 0.5; // wave 在 ±1 之间 → 0.5 ~ 1.5
+// 当前行情（0.5~1.5）。period = 半天序号（白天/夜晚各占一个），
+// 用序号当种子算，而不是按真实秒数漂移——同一个半天内怎么读档都是同一个价，
+// 离线跨过多少个半天也能自动对上。
+export function blackMarketMood(period) {
+  const x = Math.sin(period * 12.9898 + 78.233) * 43758.5453;
+  const r = x - Math.floor(x); // 稳定的伪随机 0~1
+  return BLACK_MARKET.min + r * (BLACK_MARKET.max - BLACK_MARKET.min);
 }
 // 行情的模糊描述：给玩家一点判断依据，但不报精确数字
 export const BLACK_MOODS = [
-  { at: 1.28, label: '🔥 风声：今天有大买家', tone: 'hot' },
+  { at: 1.28, label: '🔥 风声：来了大买家', tone: 'hot' },
   { at: 1.08, label: '🙂 风声：行情不错', tone: 'good' },
   { at: 0.92, label: '😐 风声：平平淡淡', tone: 'flat' },
   { at: 0.72, label: '😒 风声：老板在压价', tone: 'bad' },
-  { at: 0,    label: '💀 风声：今天很不妙', tone: 'awful' },
+  { at: 0,    label: '💀 风声：行情很不妙', tone: 'awful' },
 ];
 export const blackMoodOf = (mood) => BLACK_MOODS.find(m => mood >= m.at) ?? BLACK_MOODS[BLACK_MOODS.length - 1];
 
@@ -918,7 +924,14 @@ export function keyInfo(key) {
     + (sprayed ? PESTICIDE.bonus : 0)));
   return {
     seed, quality, processed, stunted, sprayed, price,
-    label: `${stunted ? '生长不良的' : ''}${sprayed ? '打过药的' : ''}${q ? q.name : ''}${seed.name}${processed ? '罐头' : ''}`,
+    // 各段分开翻译再拼：中文不留空格，英俄要留（Gold Tomato 而不是 GoldTomato）
+    label: [
+      stunted ? tf('mod.stunted', '生长不良的') : '',
+      sprayed ? tf('mod.sprayed', '打过药的') : '',
+      q ? tf(`quality.${quality}`, q.name) : '',
+      seedName(seed),
+      processed ? tf('mod.can', '罐头') : '',
+    ].filter(Boolean).join(nameSep()),
     icon: `${stunted ? '🥀' : ''}${sprayed ? '🧪' : ''}${q ? q.emoji : ''}${processed ? '🥫' : ''}${seed.emoji}`,
   };
 }

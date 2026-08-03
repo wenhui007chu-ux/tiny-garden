@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   GRID, LEVELS, WET_DURATION, START_COINS,
-  SEEDS, SOILS, WATER_LEVELS, seedById, decorById,
+  SEEDS, SOILS, WATER_LEVELS, seedById, seedName, decorById,
   QUALITIES, GOLD_CHANCE, SILVER_CHANCE, WORKSHOP, keyInfo,
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
@@ -36,7 +36,7 @@ import {
   createBlackMarket,
 } from './meshes.js';
 import { sfx } from './music.js';
-import { t } from './i18n.js';
+import { t, tf, tp } from './i18n.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
 
@@ -50,6 +50,7 @@ export class Game {
     this.scene = scene;
     this.time = 0;
     this.clock = DAY_CYCLE / 4; // 昼夜时钟，0 = 早上6点，默认从中午开始
+    this.dayCount = 0;          // 过了多少天，黑市行情按「半天」翻牌要用
     this.coins = START_COINS;
     this.waterLevel = 0;
     this.unlockedSeeds = ['sweetpot', 'radish'];
@@ -550,12 +551,12 @@ export class Game {
     const t = this.tiles[idx];
     const seed = seedById(seedId);
     if (!seed || !this.unlockedSeeds.includes(seedId)) return;
-    if (t.locked) { this.onToast(`这块地还没解锁，点它花 ${UNLOCK_COST}💰 开垦`); return; }
-    if (t.damaged) { this.onToast(`这块地${t.damaged === 'cracked' ? '晒裂' : '被水泡'}了，去道具背包用 🔧 恢复器修复`); return; }
-    if (t.plant) { this.onToast('这块地已经种上啦'); return; }
+    if (t.locked) { this.onToast(tp('plant.locked', { cost: UNLOCK_COST })); return; }
+    if (t.damaged) { this.onToast(t(t.damaged === 'cracked' ? 'plant.cracked' : 'plant.waterlogged')); return; }
+    if (t.plant) { this.onToast(t('plant.occupied')); return; }
     if (!this.spend(seed.cost)) return;
     t.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(t.lucky) };
-    if (t.lucky) { t.lucky = false; this.onToast('🧪 幸运加持生效！'); }
+    if (t.lucky) { t.lucky = false; this.onToast(t('plant.lucky')); }
     this.updatePlantMesh(t);
     sfx.play('plant');
     this.save();
@@ -627,7 +628,7 @@ export class Game {
       this.removePlant(t);
       count += n;
     }
-    if (!count) { this.onToast('没有成熟的作物可以收'); return; }
+    if (!count) { this.onToast(t('harvest.noneRipe')); return; }
     this.onState();
     this.onToast(`🧺 一键收取！${count} 个作物进了背包`);
     this.save();
@@ -698,8 +699,8 @@ export class Game {
     if (!targets.length) return;
     targets.forEach(t => { t.wetUntil = this.time + WET_DURATION; });
     // 自动灌溉时代，洒水器的使命就是找恐龙虾卵
-    this.onToast(this.waterLevel === 2 ? '💦 洒水器出动，找找恐龙虾卵～'
-      : this.waterLevel === 1 ? '💧 洒水器浇了 3×3' : '💧 浇水成功');
+    this.onToast(t(this.waterLevel === 2 ? 'water.eggHunt'
+      : this.waterLevel === 1 ? 'water.ok3x3' : 'water.ok'));
     sfx.play('water');
     this.rollEggs(targets.length);
     this.save();
@@ -721,7 +722,7 @@ export class Game {
     const t = this.tiles[idx];
     if (!t.plant) return false;
     const seed = seedById(t.plant.seedId);
-    if (t.plant.stage < 3) { this.onToast(`${seed.name}还没成熟`); return false; }
+    if (t.plant.stage < 3) { this.onToast(tp('harvest.notRipe', { name: seedName(seed) })); return false; }
     const count = SOILS[t.soil].yield;
     const quality = t.plant.quality;
     // 生长不良优先于打药：都蔫了，药钱就当白花了，不叠加两个前缀
@@ -734,13 +735,9 @@ export class Game {
     this.inventory[key] = (this.inventory[key] ?? 0) + count;
     this.onState();
     const q = QUALITIES[quality];
-    this.onToast(wasPest
-      ? `🐛 被虫啃过的${seed.name} ×${count} 放入背包（生长不良）`
-      : wasSprayed
-        ? `🧪 打过药的${q ? q.name : ''}${seed.name} ×${count} 放入背包（卖价 +${PESTICIDE.bonus}，${Math.round(PESTICIDE.ruinChance * 100)}% 会砸手里）`
-        : q
-          ? `${q.emoji} 收获${q.name}${seed.name} ×${count}！放入背包`
-          : `${seed.emoji}${seed.name} ×${count} 放入背包`);
+    // keyInfo 已经把「生长不良/打过药/品质/作物名」按当前语言拼好了，直接用，省得每种情况各写一句
+    const got = keyInfo(key);
+    this.onToast(`${got.icon}${got.label} ×${count} ${t('harvest.bagged')}`);
     // 连着收会一级级升调，一片收完像走完一段音阶
     this._combo = (this.time - (this._comboAt ?? -9) < 2) ? Math.min((this._combo ?? 0) + 1, 6) : 0;
     this._comboAt = this.time;
@@ -1593,8 +1590,11 @@ export class Game {
 
   /* ---------- 黑市 ---------- */
 
-  // 当前行情（0.5~1.5），随时间连续滑动
-  blackMood() { return blackMarketMood(this.time); }
+  // 半天序号：白天和夜晚各占一个，天亮/天黑时 +1，行情就跟着翻牌
+  blackPeriod() { return this.dayCount * 2 + (this.isNight() ? 1 : 0); }
+
+  // 当前行情（0.5~1.5），半天一换，这半天里怎么读档都是同一个值
+  blackMood() { return blackMarketMood(this.blackPeriod()); }
 
   // 给玩家看的模糊风声，不报精确数字
   blackMoodLabel() { return blackMoodOf(this.blackMood()); }
@@ -2031,7 +2031,7 @@ export class Game {
     const next = WATER_LEVELS[this.waterLevel + 1];
     if (!this.spend(next.cost)) return;
     this.waterLevel += 1;
-    this.onToast(`获得${next.name}！`);
+    this.onToast(`${t('toast.gotWater')}${tf(`water.name.${this.waterLevel}`, next.name)}！`);
     this.onState();
     this.save();
   }
@@ -2041,7 +2041,7 @@ export class Game {
     if (this.unlockedSeeds.includes(seedId)) return;
     if (!this.spend(seed.unlock)) return;
     this.unlockedSeeds.push(seedId);
-    this.onToast(`解锁了${seed.emoji}${seed.name}种子！`);
+    this.onToast(`${t('toast.gotWater')}${seed.emoji}${seedName(seed)}`);
     this.onState();
     this.save();
   }
@@ -2134,6 +2134,7 @@ export class Game {
     const wrapped = this.clock + dt >= DAY_CYCLE;
     this.clock = (this.clock + dt) % DAY_CYCLE;
     if (wrapped) {
+      this.dayCount += 1; // 黑市行情靠它翻牌（配合 isNight 就是半天一换）
       this.rollWeather(); // 每天早上 6 点掷天气骰子
       this.settleBank();  // 银行日结
     }
@@ -2248,6 +2249,7 @@ export class Game {
       petDecorStyle: this.petDecorStyle,
       clock: this.clock,
       windTimer: this.windTimer,
+      dayCount: this.dayCount,
       drought: this.drought,
       rain: this.rain,
       savedLayouts: this.savedLayouts,
@@ -2312,6 +2314,8 @@ export class Game {
     this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气
     const offlineDays = Math.floor(((data.clock ?? 0) + elapsed) / DAY_CYCLE);
+    // 天数要接着走，否则离线回来黑市行情会跳回旧值
+    this.dayCount = (data.dayCount ?? 0) + offlineDays;
     if (offlineDays > 0) {
       const r = Math.random();
       this.drought = r < DROUGHT.chance;

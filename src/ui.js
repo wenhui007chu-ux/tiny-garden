@@ -1,14 +1,14 @@
-import { SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
+import { seedName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET } from './config.js';
 import { music, sfx } from './music.js';
-import { t, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
+import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
 // 秒数显示成「X分X秒」
-const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${Math.round(s % 60)}秒` : ''}` : `${Math.ceil(s)}秒`;
+const fmtTime = (s) => s >= 60 ? `${Math.floor(s / 60)}${t('unit.min')}${s % 60 ? `${Math.round(s % 60)}${t('unit.sec')}` : ''}` : `${Math.ceil(s)}${t('unit.sec')}`;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -199,7 +199,7 @@ export class UI {
       const s = seedById(id);
       const chip = document.createElement('div');
       chip.className = 'seed-chip' + (this.selectedSeed === id ? ' selected' : '');
-      chip.innerHTML = `<b>${s.emoji}</b>${s.name}<br><small>${s.cost}💰 卖${s.sell}</small>`;
+      chip.innerHTML = `<b>${s.emoji}</b>${seedName(s)}<br><small>${s.cost}💰 · ${s.sell}</small>`;
       chip.addEventListener('click', () => { this.selectedSeed = id; this.renderSeedPicker(); sfx.play('tap'); });
       wrap.appendChild(chip);
     });
@@ -362,10 +362,12 @@ export class UI {
   }
 
   exitFishing() {
-    if (!this.inFishing) return;
+    // 关面板要放在守卫之前：点水塘只是打开面板（inFishing 还是 false），
+    // 守卫挡在前面的话叉号就点了没反应，非得先进垂钓模式才关得掉
+    $('#fish').classList.add('hidden');
+    if (!this.inFishing) return; // 没在垂钓模式，收竿和镜头都不用管
     this.inFishing = false;
     this.game.stopFishing();
-    $('#fish').classList.add('hidden');
     if (this._fishCamBackup) {
       this.camera.position.copy(this._fishCamBackup.pos);
       this.controls.target.copy(this._fishCamBackup.target);
@@ -381,7 +383,7 @@ export class UI {
     this.closePanels();
     $('#black').classList.remove('hidden');
     this.renderBlackMarket();
-    // 行情一直在滑动，面板开着就跟着刷
+    // 行情半天一换，但倒计时要走，天亮/天黑那一刻也要立刻翻牌，所以面板开着就跟着刷
     if (!this._blackTimer) this._blackTimer = setInterval(() => {
       if ($('#black').classList.contains('hidden')) {
         clearInterval(this._blackTimer); this._blackTimer = null; return;
@@ -396,12 +398,15 @@ export class UI {
     const scrolled = body.scrollTop;
     body.innerHTML = '';
     const mood = g.blackMoodLabel();
+    // 行情半天一换：白天一个、夜晚一个，天亮/天黑各翻一次牌
+    const night = g.isNight();
+    const untilFlip = (night ? DAY_CYCLE : DAY_CYCLE / 2) - g.clock;
 
     body.insertAdjacentHTML('beforeend', `
       <div id="black-mood" class="${mood.tone}">
         ${mood.label}
-        <small>成交价在原价的 <b>50%~150%</b> 之间浮动，卖了才知道。<br>
-        风声只是参考——真谈崩了照样腰斩。</small>
+        <small><b>${night ? '🌙 夜晚行情' : '☀️ 白天行情'}</b>：半天一换，${night ? '天亮' : '天黑'}后换新的（还剩 ${fmtTime(untilFlip)}）。<br>
+        成交价在原价的 <b>50%~150%</b> 之间浮动，卖了才知道。风声只是参考——真谈崩了照样腰斩。</small>
       </div>`);
 
     const list = Object.entries(g.inventory).filter(([, n]) => n > 0)
@@ -1760,11 +1765,11 @@ export class UI {
     // 页签栏：原商店的全部分类都搬进商场大楼
     const tabsBar = $('#mall-tabs');
     tabsBar.innerHTML = '';
-    [['items', '道具'], ['seeds', '种子'], ['soil', '土壤'], ['water', '水源'], ['decor', '装饰'], ['interior', '内饰'], ['pond', '水塘']]
-      .forEach(([id, label]) => {
+    ['items', 'seeds', 'soil', 'water', 'decor', 'interior', 'pond']
+      .forEach((id) => {
         const tab = document.createElement('button');
         tab.className = 'shop-tab' + (this.mallTab === id ? ' active' : '');
-        tab.textContent = label;
+        tab.textContent = t(`mallTab.${id}`);
         tab.addEventListener('click', () => { this.mallTab = id; this.renderMall(); });
         tabsBar.appendChild(tab);
       });
@@ -1789,7 +1794,7 @@ export class UI {
       // 一次买几个，想买多少填多少
       const qtyBox = document.createElement('div');
       qtyBox.id = 'mall-qty-box';
-      qtyBox.innerHTML = '<span>一次买</span>';
+      qtyBox.innerHTML = `<span>${t('mall.buyPre')}</span>`;
       const input = document.createElement('input');
       input.id = 'mall-qty';
       input.type = 'number';
@@ -1798,25 +1803,26 @@ export class UI {
       input.addEventListener('input', () => {
         this.mallQty = Math.max(1, Math.floor(Number(input.value) || 1));
         body.querySelectorAll('[data-price]').forEach(b => {
-          b.textContent = `买 ${this.mallQty} 个 · ${Number(b.dataset.price) * this.mallQty}💰`;
+          b.textContent = tp('mall.buyN', { n: this.mallQty, cost: Number(b.dataset.price) * this.mallQty });
         });
       });
       qtyBox.appendChild(input);
-      qtyBox.insertAdjacentHTML('beforeend', '<span>个</span>');
+      qtyBox.insertAdjacentHTML('beforeend', `<span>${t('mall.buyPost')}</span>`);
       body.appendChild(qtyBox);
       const qty = () => Math.max(1, Math.floor(Number(input.value) || 1));
       ITEMS.forEach(it => {
         const owned = g.items[it.id] ?? 0;
         // 永久工具只买一件
         if (it.once) {
-          item(it.emoji, it.name, it.desc,
-            owned ? '已拥有' : `${it.cost}💰`,
+          item(it.emoji, tf(`item.${it.id}`, it.name), tf(`itemDesc.${it.id}`, it.desc),
+            owned ? t('mall.owned') : `${it.cost}💰`,
             owned ? null : () => { g.buyItem(it.id, 1); this.renderMall(); },
             owned ? 'owned' : '');
           return;
         }
-        const btn = item(it.emoji, `${it.name}${owned ? `（持有 ${owned}）` : ''}`, it.desc,
-          `买 ${qty()} 个 · ${it.cost * qty()}💰`,
+        const btn = item(it.emoji, `${tf(`item.${it.id}`, it.name)}${owned ? tp('mall.held', { n: owned }) : ''}`,
+          tf(`itemDesc.${it.id}`, it.desc),
+          tp('mall.buyN', { n: qty(), cost: it.cost * qty() }),
           () => { g.buyItem(it.id, qty()); this.renderMall(); });
         btn.dataset.price = it.cost;
       });
@@ -1825,32 +1831,34 @@ export class UI {
     if (this.mallTab === 'seeds') {
       const seedRow = (s) => {
         const owned = g.unlockedSeeds.includes(s.id);
-        item(s.emoji, s.name,
-          `种子 ${s.cost}💰 · 卖出 ${s.sell}💰 · 生长 ${fmtTime(s.growTime)}`,
-          owned ? '已解锁' : `解锁 ${s.unlock}💰`,
+        item(s.emoji, seedName(s),
+          tp('mall.seedDesc', { cost: s.cost, sell: s.sell, time: fmtTime(s.growTime) }),
+          owned ? t('mall.unlocked') : tp('mall.unlockN', { n: s.unlock }),
           owned ? null : () => { g.unlockSeed(s.id); this.renderMall(); },
           owned ? 'owned' : '');
       };
-      body.insertAdjacentHTML('beforeend', `<div class="ach-group">🌱 基础种子 · ${CODEX_SEEDS.length} 种</div>`);
+      body.insertAdjacentHTML('beforeend', `<div class="ach-group">${tp('mall.seedBase', { n: CODEX_SEEDS.length })}</div>`);
       CODEX_SEEDS.forEach(seedRow);
-      body.insertAdjacentHTML('beforeend', `<div class="ach-group">✨ 特殊种子 · ${SPECIAL_SEEDS.length} 种</div>`);
-      body.insertAdjacentHTML('beforeend',
-        `<p class="shop-note">收获物只能摆进<b>个人展台</b>，不进基础图鉴，也与「种子收藏家」无关。</p>`);
+      body.insertAdjacentHTML('beforeend', `<div class="ach-group">${tp('mall.seedSpecial', { n: SPECIAL_SEEDS.length })}</div>`);
+      body.insertAdjacentHTML('beforeend', `<p class="shop-note">${t('mall.seedSpecialNote')}</p>`);
       SPECIAL_SEEDS.forEach(seedRow);
     }
 
     if (this.mallTab === 'soil') {
       SOILS.forEach((s, i) => {
-        const desc = `生长速度 ×${s.speed}${s.yield > 1 ? ` · 收成 ×${s.yield}` : ''}${i > 0 ? ` · 每格 ${s.cost}💰` : ' · 初始土壤'}`;
-        if (i === 0) { item('🟫', s.name, desc, '默认', null, 'owned'); return; }
+        const desc = tp('mall.soilSpeed', { n: s.speed })
+          + (s.yield > 1 ? tp('mall.soilYield', { n: s.yield }) : '')
+          + (i > 0 ? tp('mall.soilPer', { n: s.cost }) : t('mall.soilStart'));
+        const sname = tf(`soil.name.${i}`, s.name);
+        if (i === 0) { item('🟫', sname, desc, t('mall.default'), null, 'owned'); return; }
         const selected = this.selectedSoil === i;
-        item('🟫', s.name, desc,
-          selected ? '✓ 已选择' : '选择',
+        item('🟫', sname, desc,
+          selected ? t('mall.selected') : t('mall.select'),
           () => { this.selectedSoil = i; this.renderMall(); },
           selected ? '' : 'owned');
       });
       const btn = document.createElement('button');
-      btn.textContent = `🛠 进入土壤升级模式（${SOILS[this.selectedSoil].name}）`;
+      btn.textContent = tp('mall.soilMode', { name: tf(`soil.name.${this.selectedSoil}`, SOILS[this.selectedSoil].name) });
       btn.style.cssText = 'width:100%;padding:10px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
       btn.addEventListener('click', () => { this.setTool('soil'); $('#mall').classList.add('hidden'); });
       body.appendChild(btn);
@@ -1858,9 +1866,9 @@ export class UI {
 
     if (this.mallTab === 'water') {
       WATER_LEVELS.forEach((w, i) => {
-        const state = i < g.waterLevel ? '已拥有' : i === g.waterLevel ? '当前' : null;
-        item('💧', w.name, w.desc,
-          state ?? `升级 ${w.cost}💰`,
+        const state = i < g.waterLevel ? t('mall.owned') : i === g.waterLevel ? t('mall.current') : null;
+        item('💧', tf(`water.name.${i}`, w.name), tf(`water.desc.${i}`, w.desc),
+          state ?? tp('mall.upgradeN', { n: w.cost }),
           state || i !== g.waterLevel + 1 ? null : () => { g.buyWaterLevel(); this.renderMall(); },
           state ? 'owned' : '');
       });
@@ -1868,8 +1876,8 @@ export class UI {
 
     if (this.mallTab === 'decor') {
       DECORS.forEach(d => {
-        item(d.emoji, d.name, `${d.cost}💰`,
-          '摆放', () => { this.setTool('decor', { decorId: d.id }); $('#mall').classList.add('hidden'); });
+        item(d.emoji, tf(`decor.${d.id}`, d.name), `${d.cost}💰`,
+          t('mall.place'), () => { this.setTool('decor', { decorId: d.id }); $('#mall').classList.add('hidden'); });
       });
     }
 
@@ -1877,13 +1885,13 @@ export class UI {
       ['common', 'rare', 'epic', 'legend'].forEach(rar => {
         POND_DECORS.filter(d => d.rarity === rar).forEach(d => {
           const owned = !!g.pondOwned[d.id];
-          const badge = `<span style="color:${POND_RARITY[rar].color};font-weight:700">【${POND_RARITY[rar].name}】</span>`;
+          const badge = `<span style="color:${POND_RARITY[rar].color};font-weight:700">【${tf(`rarity.${rar}`, POND_RARITY[rar].name)}】</span>`;
           const el = document.createElement('div');
           el.className = 'shop-item';
           el.innerHTML = `<div class="icon">🦆</div>
-            <div class="info"><b>${d.name}</b><p>${badge} 摆进钓鱼水塘，会动的</p></div>`;
+            <div class="info"><b>${tf(`pond.${d.id}`, d.name)}</b><p>${badge} ${t('mall.pondDesc')}</p></div>`;
           const btn = document.createElement('button');
-          btn.textContent = owned ? '已拥有' : `${d.cost}💰`;
+          btn.textContent = owned ? t('mall.owned') : `${d.cost}💰`;
           if (owned) { btn.className = 'owned'; btn.disabled = true; }
           else btn.addEventListener('click', () => { g.buyPondDecor(d.id); this.renderMall(); });
           el.appendChild(btn);
@@ -1895,9 +1903,10 @@ export class UI {
     if (this.mallTab === 'interior') {
       FURNITURE.filter(f => !f.free).forEach(f => {
         const lv = g.furniture[f.id] ?? 0;
-        item(f.emoji, f.name,
-          lv ? `已拥有 · Lv.${lv}（去小屋里升级）` : `${f.levelNames[0]} · 之后可升到 ${FURNITURE_MAX_LEVEL} 级`,
-          lv ? '已购买' : `${f.cost}💰`,
+        item(f.emoji, tf(`furn.${f.id}`, f.name),
+          lv ? tp('mall.ownedLv', { lv })
+             : tp('mall.furnDesc', { first: tf(`furnLv0.${f.id}`, f.levelNames[0]), max: FURNITURE_MAX_LEVEL }),
+          lv ? t('mall.bought') : `${f.cost}💰`,
           lv ? null : () => { g.buyFurniture(f.id); this.renderMall(); },
           lv ? 'owned' : '');
       });
@@ -2155,164 +2164,99 @@ export class UI {
     const body = $('#wiki-body');
     body.innerHTML = '';
     const pct = (x) => `${Math.round(x * 100)}%`;
+    const th = (k) => t(`wiki.th.${k}`);
+    const dft = t('wiki.default');
+    const skinNames = (part) => Object.entries(HOUSE_SKINS).filter(([, v]) => v.part === part)
+      .map(([k, v]) => tf(`skin.${k}`, v.name)).join('、');
+    const groups = [...new Set(ACHIEVEMENTS.map(a => a.group))];
+    const tomatoBase = seedById('tomato').sell;
+    const tomatoBar = metalPrice('tomato', 'gold');
+    // 每条百科的正文都从词表取（wiki.<k>.h），这里只负责把动态数值和表格塞进占位符
     const sections = [
-      {
-        icon: '🌱', title: '种田基础',
-        html: `流程：<b>选种子 → 点空地种下 → 浇水保湿 → 等成熟 → 收获进背包 → 出售</b>。<br>
-          没浇水的地作物不生长（湿润保持 45 秒）。二层农田每格 <b>${UNLOCK_COST}💰</b> 解锁（绿边标记）。<br>
-          <table class="wtable"><tr><th>土壤</th><th>生长速度</th><th>收成</th><th>每格价</th></tr>
-          ${SOILS.map(s => `<tr><td>${s.name}</td><td>×${s.speed}</td><td>×${s.yield}</td><td>${s.cost || '默认'}</td></tr>`).join('')}</table>
-          <table class="wtable"><tr><th>水源</th><th>效果</th><th>价格</th></tr>
-          ${WATER_LEVELS.map(w => `<tr><td>${w.name}</td><td>${w.desc}</td><td>${w.cost || '默认'}</td></tr>`).join('')}</table>
-          升到自动灌溉后，浇水键专门用来找恐龙虾卵（每浇一格 ${pct(EGG.chance)} 出一颗，卖 ${EGG.sell}💰）。`,
-      },
-      {
-        icon: '🥕', title: '作物一览',
-        html: `带 ✨ 的是<b>特殊种子</b>，规则见下一条。<br>
-          <table class="wtable"><tr><th>作物</th><th>种子</th><th>卖价</th><th>生长</th><th>解锁</th></tr>
-          ${SEEDS.map(s => `<tr><td>${s.emoji}${s.name}${s.special ? ' ✨' : ''}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || '默认'}</td></tr>`).join('')}</table>`,
-      },
-      {
-        icon: '✨', title: '特殊种子',
-        html: `商场「种子」页下半区的 <b>${SPECIAL_SEEDS.length} 种</b>：${SPECIAL_SEEDS.map(s => s.emoji + s.name).join('、')}。<br>
-          种植、浇水、稀有品质、加工、料理、扎花束<b>一切照常</b>，价值全部低于 🌈 彩虹果——彩虹果始终是最强的一种。<br>
-          <b>三条专属规则：</b><br>
-          · 收获物只能摆进 <b>🏆 个人展台</b>（图鉴大楼贵宾区 10 座金台）<br>
-          · <b>不能</b>收录进 📖 基础图鉴（那 42 格只属于 ${CODEX_SEEDS.length} 种基础作物）<br>
-          · 与 <b>🌈 种子收藏家</b>、<b>📚 图鉴大成</b> 两条成就<b>完全无关</b>，不影响已有的收集进度`,
-      },
-      {
-        icon: '✨', title: '稀有品质',
-        html: `种下的一刻暗中判定品质：<b>黄金 ${pct(GOLD_CHANCE)}（卖价 ×3）、白银 ${pct(SILVER_CHANCE)}（×2）</b>，整株带淡金/淡银镀层。<br>
-          商场买不到，纯看脸。🧪 幸运药剂可让指定空地下次播种概率<b>翻倍</b>。<br>
-          稀有作物可以：直接卖 / 进工坊 / 做料理 / 收录图鉴 / 摆上个人金台 / <b>拆进 ⚙️ 分拣台熔金属条</b>（最赚，见下）。`,
-      },
-      {
-        icon: '⏰', title: '时间与天气',
-        html: `现实 <b>${DAY_CYCLE / 60} 分钟 = 游戏一天</b>（白天 6:00~18:00）。夜晚生长 ×${NIGHT_SLOW}。<br>
-          每天早上 6 点掷天气：<b>晴 ${pct(1 - DROUGHT.chance - RAIN.chance)} / 暴雨 ${pct(RAIN.chance)} / 大旱 ${pct(DROUGHT.chance)}</b>。<br>
-          大旱生长 ×1/3；恶劣天气收获的作物全部「<b>生长不良</b>」只卖半价，且会随机毁掉 ${DAMAGE.min}~${DAMAGE.max} 块地（晒裂/水泡，不能种）。<br>
-          天灾随当天天气结束<b>自动恢复</b>；急用可花 🔧 恢复器当场修。<br>
-          🛏 睡觉：夜里睡到早 6 点，白天午睡到晚 6 点，期间生长加工照常。😴 挂机则冻结整个世界。`,
-      },
-      {
-        icon: '🐛', title: '虫害',
-        html: `作物成熟时 <b>${pct(PEST.chance)}</b> 概率生虫（头顶飘着小甲虫）。<br>
-          不处理就收 → 变生长不良半价。<br>
-          <b>直接点击虫子免费拍掉</b>；🧴 杀虫剂（${itemById('pesticide').cost}💰）一键清光全场。<br>
-          ⚠️ <b>徒手拍虫有风险</b>：每次 ${Math.round(POISON.chance * 100)}% 概率被咬中毒！中毒后必须在 <b>${POISON.timeout} 秒</b>内用 💉 解毒剂（${itemById('antidote').cost}💰），
-          否则毒发身亡，要躺 <b>${POISON.reviveTime} 秒</b>才能复活——这期间点不了、按不了，连视角都转不了。<br>
-          想省心就用杀虫剂，想省钱就随身带几支解毒剂。`,
-      },
-      {
-        icon: '🏭', title: '工坊与料理',
-        html: `<b>🏭 工坊</b>：${WORKSHOP.ingredients} 个同种作物加工 ${WORKSHOP.time / 60} 分钟 → 1 个罐头，卖价为原料总价 ×${WORKSHOP.bonus}（即增值 50%）。离线照常加工。<br>
-          <b>🍳 料理工坊</b>：${DISHES.length} 道料理，凑齐配方指定品质的作物即可下锅，<b>${COOK_SLOTS} 个灶位</b>可同时开火，每道菜炒 <b>${COOK_TIME / 60} 分钟</b>出锅（离线照常烹饪）。卖价是原料单卖的 <b>×${DISH_MULT}</b>。<br>
-          生长不良的作物两边都不收；罐头和料理不能二次加工。<br>
-          <b>变现倍率梯度</b>：直接卖 1× ＜ 罐头 ${WORKSHOP.bonus}× ＜ 料理 ${DISH_MULT}× ＜ 杂交 约5×。<br>
-          稀有品质的作物另有一条更赚的路：⚙️ 分拣台，见下条。`,
-      },
-      {
-        icon: '⚙️', title: '分拣台',
-        html: `把<b>稀有品质</b>的作物拆成「普通作物 + 贵金属条」，是稀有作物<b>最赚的变现方式</b>。<br>
-          <b>${SORTER_SLOTS} 个分拣位</b>，每次 <b>${SORTER_TIME / 60} 分钟</b>，离线照常分拣。<br>
-          原理：品质带来的<b>增值部分</b>被单独抽出来，按 <b>${SORTER_MULT} 倍</b>熔成金属条，作物本体原样退回。<br>
-          · 🥈 白银（${QUALITIES.silver.mult}× 价）→ 增值 ${METAL.silver.bars} 份 → 银条 = 原价 × ${METAL.silver.bars * SORTER_MULT}<br>
-          · 🥇 黄金（${QUALITIES.gold.mult}× 价）→ 增值 ${METAL.gold.bars} 份 → 金条 = 原价 × ${METAL.gold.bars * SORTER_MULT}<br>
-          <b>举例</b>：一个黄金🍅番茄直接卖 ${seedById('tomato').sell * QUALITIES.gold.mult}💰；
-          拆开则得 普通番茄 ${seedById('tomato').sell}💰 + 番茄金条 ${metalPrice('tomato', 'gold')}💰
-          ＝ <b>${seedById('tomato').sell + metalPrice('tomato', 'gold')}💰</b>，翻了约 ${Math.round((seedById('tomato').sell + metalPrice('tomato', 'gold')) / (seedById('tomato').sell * QUALITIES.gold.mult))} 倍。<br>
-          金属条只能卖钱，不能加工、不能收录、不能上展台。<b>攒着稀有作物别急着卖，先拆。</b>`,
-      },
-      {
-        icon: '🧬', title: '杂交室',
-        html: `点击玻璃穹顶实验室进入 3D 大厅，<b>${HYBRID_SLOTS} 个培养罩</b>可同时培养 ${HYBRID_SLOTS} 个杂交作物。<br>
-          流程：<b>选配方 → 消耗两种指定品质的作物 → 培养 ${HYBRID_TIME / 60} 分钟 → 取出进背包</b>。离线照常培养，罩里的作物会随进度慢慢长大。<br>
-          共 <b>${HYBRIDS.length} 种</b>杂交作物，卖价约为原料总价的 <b>5 倍</b>，是全游戏最高倍率的变现方式。<br>
-          杂交作物不能做罐头、不能收录基础图鉴，但<b>可以摆上 🏆 个人展台</b>——那是它唯一的展示位。<br>
-          <table class="wtable"><tr><th>杂交作物</th><th>配方</th><th>卖价</th></tr>
+      { icon: '🌱', k: 'farm', v: {
+        unlock: UNLOCK_COST, eggChance: pct(EGG.chance), eggSell: EGG.sell,
+        soilTable: `<table class="wtable"><tr><th>${th('soil')}</th><th>${th('speed')}</th><th>${th('yield')}</th><th>${th('perPlot')}</th></tr>
+          ${SOILS.map((s, i) => `<tr><td>${tf(`soil.name.${i}`, s.name)}</td><td>×${s.speed}</td><td>×${s.yield}</td><td>${s.cost || dft}</td></tr>`).join('')}</table>`,
+        waterTable: `<table class="wtable"><tr><th>${th('water')}</th><th>${th('effect')}</th><th>${th('price')}</th></tr>
+          ${WATER_LEVELS.map((w, i) => `<tr><td>${tf(`water.name.${i}`, w.name)}</td><td>${tf(`water.desc.${i}`, w.desc)}</td><td>${w.cost || dft}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '🥕', k: 'crops', v: {
+        table: `<table class="wtable"><tr><th>${th('crop')}</th><th>${th('seed')}</th><th>${th('sell')}</th><th>${th('grow')}</th><th>${th('unlock')}</th></tr>
+          ${SEEDS.map(s => `<tr><td>${s.emoji}${seedName(s)}${s.special ? ' ✨' : ''}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || dft}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '✨', k: 'special', v: {
+        n: SPECIAL_SEEDS.length, base: CODEX_SEEDS.length,
+        list: SPECIAL_SEEDS.map(s => s.emoji + seedName(s)).join('、'),
+      } },
+      { icon: '✨', k: 'quality', v: { gold: pct(GOLD_CHANCE), silver: pct(SILVER_CHANCE) } },
+      { icon: '⏰', k: 'time', v: {
+        dayMin: DAY_CYCLE / 60, night: NIGHT_SLOW,
+        sun: pct(1 - DROUGHT.chance - RAIN.chance), rain: pct(RAIN.chance), drought: pct(DROUGHT.chance),
+        dmgMin: DAMAGE.min, dmgMax: DAMAGE.max,
+      } },
+      { icon: '🐛', k: 'pest', v: {
+        chance: pct(PEST.chance), pestCost: itemById('pesticide').cost,
+        poison: Math.round(POISON.chance * 100), timeout: POISON.timeout,
+        antidoteCost: itemById('antidote').cost, revive: POISON.reviveTime,
+      } },
+      { icon: '🏭', k: 'craft', v: {
+        ing: WORKSHOP.ingredients, wsTime: WORKSHOP.time / 60, bonus: WORKSHOP.bonus,
+        dishes: DISHES.length, slots: COOK_SLOTS, cookTime: COOK_TIME / 60, mult: DISH_MULT,
+      } },
+      { icon: '⚙️', k: 'sorter', v: {
+        slots: SORTER_SLOTS, time: SORTER_TIME / 60, mult: SORTER_MULT,
+        sMult: QUALITIES.silver.mult, sBars: METAL.silver.bars, sTotal: METAL.silver.bars * SORTER_MULT,
+        gMult: QUALITIES.gold.mult, gBars: METAL.gold.bars, gTotal: METAL.gold.bars * SORTER_MULT,
+        exGold: tomatoBase * QUALITIES.gold.mult, exBase: tomatoBase, exBar: tomatoBar,
+        exSum: tomatoBase + tomatoBar,
+        exTimes: Math.round((tomatoBase + tomatoBar) / (tomatoBase * QUALITIES.gold.mult)),
+      } },
+      { icon: '🧬', k: 'hybrid', v: {
+        slots: HYBRID_SLOTS, time: HYBRID_TIME / 60, n: HYBRIDS.length,
+        table: `<table class="wtable"><tr><th>${th('hybrid')}</th><th>${th('recipe')}</th><th>${th('sell')}</th></tr>
           ${HYBRIDS.map(h => {
-            const nameOf = ([sid, q]) => `${['', '白银', '黄金'][q]}${seedById(sid).name}`;
+            const nameOf = ([sid, q]) => `${q ? tf(`quality.${['', 'silver', 'gold'][q]}`, ['', '白银', '黄金'][q]) + nameSep() : ''}${seedName(seedById(sid))}`;
             const same = h.a[0] === h.b[0] && h.a[1] === h.b[1];
-            return `<tr><td>${h.emoji}${h.name}</td><td>${same ? `${nameOf(h.a)} ×2` : `${nameOf(h.a)} + ${nameOf(h.b)}`}</td><td>${h.sell}</td></tr>`;
+            return `<tr><td>${h.emoji}${tf(`hybrid.${h.id}`, h.name)}</td><td>${same ? `${nameOf(h.a)} ×2` : `${nameOf(h.a)} + ${nameOf(h.b)}`}</td><td>${h.sell}</td></tr>`;
           }).join('')}</table>`,
-      },
-      {
-        icon: '🌸', title: '花房温室',
-        html: `点菜园里的玻璃温室进花房。<b>${GREENHOUSE_SLOTS} 个花圃</b>，种 <b>${FLOWERS.length} 种花</b>。<br>
-          <b>温室恒温</b>：花<b>不受天气影响、也不用浇水</b>，种下后按固定时间开花（离线照常开），是最省心的一条产线。<br>
-          <b>💐 扎花台</b>：任选 <b>${BOUQUET_SIZE} 朵</b>花（<b>没有固定配方</b>，随便搭）扎成一束，按 ${BOUQUET_SIZE} 朵总价 <b>×${BOUQUET_MULT}</b> 直接卖出。<br>
-          花可以直接卖、扎花束、摆上 🏆 个人展台；不进基础图鉴、不能做罐头料理。<br>
-          <table class="wtable"><tr><th>花</th><th>稀有度</th><th>花种</th><th>卖价</th><th>开花</th></tr>
-          ${FLOWERS.map(f => `<tr><td>${f.emoji}${f.name}</td><td>${POND_RARITY[f.rarity].name}</td><td>${f.seed}</td><td>${f.sell}</td><td>${fmtTime(f.grow)}</td></tr>`).join('')}</table>`,
-      },
-      {
-        icon: '🎣', title: '水塘钓鱼',
-        html: `<b>🕸️ 抓鱼网</b>（${itemById('net').cost}💰/张）：摆进水塘 ${FISHING.time / 60} 分钟，随机开出 ${FISHING.rewardMin}~${FISHING.rewardMax}💰，最多同时 ${FISHING.slots} 张，是亏是赚看脸。<br>
-          主动钓鱼要<b>二选一带装备下水</b>（钓鱼中可随时切换）：<br>
-          <b>🎣 鱼竿</b>（${itemById('rod').cost}💰，永久）：每分钟 ${pct(ROD.chance)} 咬钩，鱼值 ${ROD.min}~${ROD.max}💰——求稳。<br>
-          <b>🥅 渔网</b>（${itemById('castnet').cost}💰，永久）：每分钟 ${pct(CASTNET.chance)} 咬钩，鱼值 ${CASTNET.min}~${CASTNET.max}💰——搏大的。<br>
-          咬钩后要狂点收杆：<b>点击次数 = 鱼价 + 5</b>。钓鱼时干别的 = 收竿，钩上的鱼会跑。<br>
-          <b>🪷 水塘装饰</b>：${POND_DECORS.length} 种按稀有度定价（${Object.values(POND_RARITY).map(r => r.name).join('/')}），买断制，
-          最多同时摆 <b>${POND_MAX_PLACED}</b> 个，全部<b>会动</b>——鸭子绕圈游、蜻蜓空中盘旋、荷花水面起伏。纯观赏，不影响钓鱼收益。`,
-      },
-      {
-        icon: '🏦', title: '银行',
-        html: `黑房子银行：存取自由，金额自填。<br>
-          每天结束对存款结算：<b>${pct(BANK.gainChance)} 赚 ${BANK.magMin}~${BANK.magMax}💰，${pct(1 - BANK.gainChance)} 亏 ${BANK.magMin}~${BANK.magMax}💰</b>，离线也照常。<br>
-          HUD 黑色钱袋显示存款余额。`,
-      },
-      {
-        icon: '📖', title: '图鉴大楼',
-        html: `<b>基础图鉴</b>：${CODEX_SEEDS.length} 种基础作物 × 3 品质 = ${CODEX_SEEDS.length * 3} 个说明台。捐一个对应品质的新鲜作物即可收录（重复不收，罐头/生长不良/料理不收），台上立起模型和数据说明牌。<br>
-          <b>✨ 特殊种子的收获物不在这 ${CODEX_SEEDS.length * 3} 格里</b>，只能摆到下面的个人展台。<br>
-          <b>个人图鉴</b>：红毯贵宾区 10 座金台，摆你最得意的作物——基础作物、✨ 特殊种子、🌸 花、🧬 杂交作物都能摆，随摆随收。`,
-      },
-      {
-        icon: '🏠', title: '我的小屋',
-        html: `点房子进 3D 房间。🛏 床免费自带，可睡觉跳时间。<br>
-          <b>${FURNITURE.length} 件家具</b>（商场「内饰」页购买），每件可升到 <b>${FURNITURE_MAX_LEVEL} 级</b>，
-          <b>${FURNITURE_MAX_LEVEL} 种外观解锁后随意切换混搭</b>（第 4、5 级是鎏金 / 传说顶配，带发光与光环）。<br>
-          「🔧 布置模式」里按住家具拖动摆放、↻ 旋转，打造自己的家。<br>
-          <b>🎨 房屋外观装修</b>：小屋面板顶部，<b>${Object.keys(HOUSE_SKINS).length} 个部位</b>各
-          ${Object.values(HOUSE_SKINS)[0].options.length} 种样式自由混搭，每换一处 <b>${HOUSE_SKIN_COST}💰</b>：<br>
-          · <b>${Object.values(HOUSE_SKINS).filter(v => v.part === 'ext').map(v => v.name).join('、')}</b> 改的是<b>菜园里那栋房子</b>的外观——要出门才看得到<br>
-          · <b>${Object.values(HOUSE_SKINS).filter(v => v.part === 'int').map(v => v.name).join('、')}</b> 改的是<b>屋内</b>，当场就变`,
-      },
-      {
-        icon: '🐾', title: '宠物间',
-        html: `点粉屋顶的小房子进宠物间。共 <b>${PETS.length} 只宠物</b>（各含独立 3D 模型，按稀有度定价），
-          买下后可随时切换<b>展示台上的那一只</b>，它会有待机小动作。<br>
-          <b>${PET_DECORS.length} 种房间装饰</b>（宠物窝、猫爬架、饮水机、暖光灯等），
-          每种同样能升到 <b>${FURNITURE_MAX_LEVEL} 级</b>，已解锁的外观随时切换。<br>
-          宠物与装饰纯观赏，不影响种田收益——这里是纯粹的养成与布置乐趣。`,
-      },
-      {
-        icon: '🏅', title: '成就殿堂',
-        html: `点菜园里的奖杯建筑进展厅。共 <b>${ACHIEVEMENTS.length} 个成就</b>，
-          分 ${[...new Set(ACHIEVEMENTS.map(a => a.group))].length} 组：${[...new Set(ACHIEVEMENTS.map(a => a.group))].join(' / ')}。<br>
-          展厅里每个成就一座台子：<b>达成的立起奖杯，没达成的留灰底座</b>，一眼看出还差哪些。<br>
-          面板里每条都有<b>进度条和提示</b>，达成瞬间会弹横幅 + 音效。<br>
-          <b>已达成的成就不会被撤销</b>——后续版本新增内容也不会把它顶回未完成。`,
-      },
-      {
-        icon: '🧰', title: '道具一览',
-        html: `<table class="wtable"><tr><th>道具</th><th>价格</th><th>效果</th></tr>
-          ${ITEMS.map(i => `<tr><td>${i.emoji}${i.name}</td><td>${i.cost}${i.once ? '(永久)' : ''}</td><td style="text-align:left">${i.desc}</td></tr>`).join('')}</table>
-          🌀 小风车装饰每台每分钟发电 +1💰，离线也发（上限 12 小时）。💡 小灯夜里会亮。🎩 稻草人纯装饰。`,
-      },
-      {
-        icon: '⌨️', title: '快捷键',
-        html: `<b>H</b> 一键收取全部成熟作物<br><b>S</b> 一键卖光背包（稀有和罐头也卖，慎按！）<br>
-          <b>R</b> 打开布局列表一键播种（先用 💾 保存布局）<br><b>W</b> 一键浇水（${QUICK_WATER_COST}💰，全场+找🦐卵）<br>
-          <b>Esc</b> 关闭菜单 / 出屋出馆收竿`,
-      },
+      } },
+      { icon: '🌸', k: 'greenhouse', v: {
+        slots: GREENHOUSE_SLOTS, n: FLOWERS.length, size: BOUQUET_SIZE, mult: BOUQUET_MULT,
+        table: `<table class="wtable"><tr><th>${th('flower')}</th><th>${th('rarity')}</th><th>${th('flowerSeed')}</th><th>${th('sell')}</th><th>${th('bloom')}</th></tr>
+          ${FLOWERS.map(f => `<tr><td>${f.emoji}${tf(`flower.${f.id}`, f.name)}</td><td>${tf(`rarity.${f.rarity}`, POND_RARITY[f.rarity].name)}</td><td>${f.seed}</td><td>${f.sell}</td><td>${fmtTime(f.grow)}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '🎣', k: 'fishing', v: {
+        netCost: itemById('net').cost, netTime: FISHING.time / 60,
+        rMin: FISHING.rewardMin, rMax: FISHING.rewardMax, netSlots: FISHING.slots,
+        rodCost: itemById('rod').cost, rodChance: pct(ROD.chance), rodMin: ROD.min, rodMax: ROD.max,
+        netGearCost: itemById('castnet').cost, netChance: pct(CASTNET.chance), netMin: CASTNET.min, netMax: CASTNET.max,
+        decorN: POND_DECORS.length, maxPlaced: POND_MAX_PLACED,
+        rarities: Object.keys(POND_RARITY).map(r => tf(`rarity.${r}`, POND_RARITY[r].name)).join('/'),
+      } },
+      { icon: '🏦', k: 'bank', v: {
+        gain: pct(BANK.gainChance), lose: pct(1 - BANK.gainChance), min: BANK.magMin, max: BANK.magMax,
+      } },
+      { icon: '📖', k: 'codex', v: { base: CODEX_SEEDS.length, slots: CODEX_SEEDS.length * 3 } },
+      { icon: '🏠', k: 'house', v: {
+        n: FURNITURE.length, max: FURNITURE_MAX_LEVEL,
+        parts: Object.keys(HOUSE_SKINS).length, styles: Object.values(HOUSE_SKINS)[0].options.length,
+        cost: HOUSE_SKIN_COST, ext: skinNames('ext'), int: skinNames('int'),
+      } },
+      { icon: '🐾', k: 'pet', v: { n: PETS.length, decorN: PET_DECORS.length, max: FURNITURE_MAX_LEVEL } },
+      { icon: '🏅', k: 'ach', v: {
+        n: ACHIEVEMENTS.length, groupN: groups.length, groups: groups.map(x => tf(`achGroup.${x}`, x)).join(' / '),
+      } },
+      { icon: '🧰', k: 'items', v: {
+        table: `<table class="wtable"><tr><th>${th('item')}</th><th>${th('price')}</th><th>${th('effect')}</th></tr>
+          ${ITEMS.map(i => `<tr><td>${i.emoji}${tf(`item.${i.id}`, i.name)}</td><td>${i.cost}${i.once ? t('wiki.forever') : ''}</td><td style="text-align:left">${tf(`itemDesc.${i.id}`, i.desc)}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '⌨️', k: 'keys', v: { cost: QUICK_WATER_COST } },
     ];
     sections.forEach((s, i) => {
       const sec = document.createElement('div');
       sec.className = 'wiki-sec' + (this.wikiOpenSec === i ? ' open' : '');
-      sec.innerHTML = `<div class="sec-head">${s.icon} ${s.title}<span class="arrow">${this.wikiOpenSec === i ? '▲' : '▼'}</span></div>
-        <div class="sec-body">${s.html}</div>`;
+      sec.innerHTML = `<div class="sec-head">${s.icon} ${t(`wiki.${s.k}.t`)}<span class="arrow">${this.wikiOpenSec === i ? '▲' : '▼'}</span></div>
+        <div class="sec-body">${tp(`wiki.${s.k}.h`, s.v)}</div>`;
       sec.querySelector('.sec-head').addEventListener('click', () => {
         this.wikiOpenSec = this.wikiOpenSec === i ? -1 : i;
         this.renderWiki();
@@ -2541,7 +2485,8 @@ export class UI {
     if (!$('#codex').classList.contains('hidden')) this.renderCodex();
     if (!$('#ach').classList.contains('hidden')) this.renderAchievement();
     if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
-    $('#water-badge').textContent = `💧 ${WATER_LEVELS[this.game.waterLevel].name}`;
+    const wl = this.game.waterLevel;
+    $('#water-badge').textContent = `💧 ${tf(`water.name.${wl}`, WATER_LEVELS[wl].name)}`;
     const total = Object.values(this.game.inventory).reduce((a, b) => a + b, 0);
     const badge = $('#bag-badge');
     badge.textContent = total;
