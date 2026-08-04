@@ -9,7 +9,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -71,7 +71,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -215,6 +215,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 图鉴大楼：点击进馆
   if (hit.userData.codex) {
     ui.openCodex();
+    return;
+  }
+
+  // 酒庄：点击进酒窖
+  if (hit.userData.brewery) {
+    ui.openBrewery();
     return;
   }
 
@@ -369,6 +375,11 @@ function animate() {
     if (obj.userData.houseWindow) {                                          // 夜里窗户透暖光
       obj.material.emissive.setHex(0xffc94a);
       obj.material.emissiveIntensity = (1 - f) * 0.85;
+    }
+    if (obj.userData.brewBubble) {   // 酿造中的气泡往上飘，飘到顶就淡出重来
+      const rise = (t * 0.5) % 0.6;
+      obj.position.y = 1.85 + rise;
+      obj.children.forEach(b => { b.material.opacity = 0.65 - rise * 0.9; });
     }
     if (obj.userData.scopeSpin) obj.rotation.y = Math.sin(t * 0.25) * 0.8; // 望远镜缓慢扫视
     if (obj.userData.sprayMark) obj.position.y = 0.82 + Math.sin(t * 2.2 + obj.id) * 0.05; // 药瓶轻轻浮

@@ -4,6 +4,7 @@ import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
+import { BREWERY_POS, BREW, winePrice } from './config.js';
 import { music, sfx } from './music.js';
 import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
@@ -71,6 +72,7 @@ export class UI {
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
+    $('#brew-close').addEventListener('click', () => this.exitBrewery());
     $('#ware-close').addEventListener('click', () => $('#ware').classList.add('hidden'));
     $('#black-close').addEventListener('click', () => $('#black').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
@@ -90,6 +92,7 @@ export class UI {
       }
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
+      if (!$('#brew').classList.contains('hidden')) this.renderBrewery();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -320,7 +323,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -330,12 +333,13 @@ export class UI {
     this.exitGreenhouse();
     this.exitAchievement();
     this.exitAquarium();
+    this.exitBrewery();
   }
 
   // 加 !! 保证返回真正的布尔：|| 链在全部 falsy 时会返回最后一项（undefined）
   inside() {
     return !!(this.inHouse || this.inCodex || this.inFishing || this.inHybridLab
-      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium);
+      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium || this.inBrewery);
   }
 
   /* ---------- 主动钓鱼 ---------- */
@@ -377,6 +381,162 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 酒庄 ---------- */
+
+  // 面板实际占掉的宽度（CSS 里写死 420，窄屏时不会超过半屏）
+  panelWidth() {
+    const el = $('#brew');
+    const w = el.getBoundingClientRect().width;
+    return w || Math.min(420, window.innerWidth * 0.5);
+  }
+
+  openBrewery() {
+    this.closePanels();
+    // 先亮出面板：底下算镜头偏移要量它的实际宽度，还藏着的话量出来是 0
+    $('#brew').classList.remove('hidden');
+    // 镜头钻进酒窖
+    if (!this.inBrewery && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = BREWERY_POS;
+      // 3D 是按整个视口渲染的，而右边 420px 被面板盖住，
+      // 直接对准酒窖中心的话，中心正好藏在面板底下。
+      // 把相机和目标一起往右挪半个面板宽，画面里的酒窖就整体左移到露出来的那半屏中间。
+      const dist = 16;
+      const visH = 2 * dist * Math.tan((this.camera.fov * Math.PI / 180) / 2);
+      const shift = visH * this.camera.aspect * (this.panelWidth() / window.innerWidth) / 2;
+      this.controls.target.set(p.x + shift, p.y + 1.2, p.z + 0.5);
+      this.camera.position.set(p.x + shift, p.y + 9.5, p.z + 13);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inBrewery = true;
+    }
+    this.brewPick = null; // 正在给几号缸选果，null = 没在选
+    this.renderBrewery();
+    $('#brew-body').scrollTop = 0; // 每次进门从酿造台看起，别停在上回滚到的地方
+  }
+
+  exitBrewery() {
+    $('#brew').classList.add('hidden');
+    if (!this.inBrewery) return;
+    this.inBrewery = false;
+    this.brewPick = null;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderBrewery() {
+    const g = this.game;
+    const body = $('#brew-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+
+    // ① 选果模式：列出背包里所有能酿的果子
+    if (this.brewPick !== null) {
+      const slot = this.brewPick;
+      body.insertAdjacentHTML('beforeend',
+        `<div id="brew-top"><b>🍇 ${tp('brew.pickFor', { n: slot + 1 })}</b><small>${tp('brew.pickHint', { min: BREW.time / 60, mult: BREW.mult })}</small></div>`);
+      const back = document.createElement('button');
+      back.className = 'brew-back';
+      back.textContent = `↩︎ ${t('brew.back')}`;
+      back.addEventListener('click', () => { this.brewPick = null; this.renderBrewery(); });
+      body.appendChild(back);
+
+      const list = g.brewCandidates();
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend', `<div class="brew-empty">${t('brew.noFruit')}</div>`);
+      } else {
+        const grid = document.createElement('div');
+        grid.id = 'brew-fruits';
+        list.sort((a, b) => keyInfo(b).price - keyInfo(a).price).forEach(key => {
+          const info = keyInfo(key);
+          const el = document.createElement('button');
+          el.className = 'brew-fruit';
+          el.innerHTML = `<b>${info.icon}</b><span>${info.label}</span>`
+            + `<small>×${g.inventory[key]} · ${info.price}💰 → ${winePrice(info.price, 0)}💰</small>`;
+          el.addEventListener('click', () => {
+            if (g.startBrew(slot, key)) { this.brewPick = null; this.renderBrewery(); }
+          });
+          grid.appendChild(el);
+        });
+        body.appendChild(grid);
+      }
+      body.scrollTop = 0;
+      return;
+    }
+
+    // ② 三个酿造台
+    body.insertAdjacentHTML('beforeend',
+      `<div id="brew-top"><b>🍷 ${t('brew.vats')}</b><small>${tp('brew.vatHint', { min: BREW.time / 60, mult: BREW.mult, age: BREW.agePerDay })}</small></div>`);
+
+    g.brewery.forEach((b, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!b) {
+        el.innerHTML = `<div class="icon">🫙</div><div class="info"><b>${tp('brew.vatN', { n: k + 1 })}</b><p>${t('brew.empty')}</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = `🍇 ${t('brew.pick')}`;
+        btn.addEventListener('click', () => { this.brewPick = k; this.renderBrewery(); });
+        el.appendChild(btn);
+      } else {
+        const info = keyInfo(b.key);
+        const remain = Math.max(0, b.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / BREW.time) * 100);
+          el.innerHTML = `<div class="icon">${info.icon}</div><div class="info"><b>${info.label}${nameSep()}${t('brew.wineSuffix')}</b>`
+            + `<p>${tp('brew.fermenting', { m: Math.ceil(remain / 60) })}</p>`
+            + `<div class="ach-bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.innerHTML = `<div class="icon">${info.icon}</div><div class="info"><b>${info.label}${nameSep()}${t('brew.wineSuffix')}</b>`
+            + `<p>${tp('brew.done', { p: winePrice(info.price, 0) })}</p></div>`;
+          const btn = document.createElement('button');
+          btn.textContent = `🍷 ${t('brew.collect')}`;
+          btn.addEventListener('click', () => { g.collectBrew(k); this.renderBrewery(); });
+          el.appendChild(btn);
+        }
+      }
+      body.appendChild(el);
+    });
+
+    // ③ 九格酒柜：实时收益 + 取出
+    const usedCellar = g.cellar.filter(Boolean).length;
+    const total = g.cellar.reduce((s, c, k) => s + (c ? g.cellarValue(k) : 0), 0);
+    body.insertAdjacentHTML('beforeend',
+      `<div id="brew-top" class="cellar"><b>🏛️ ${t('brew.cellar')} ${usedCellar} / ${BREW.cellarSlots}</b>`
+      + `<small>${tp('brew.cellarHint', { age: BREW.agePerDay })}</small>`
+      + (usedCellar ? `<em>${t('brew.totalValue')} ${total}💰</em>` : '') + `</div>`);
+
+    const grid = document.createElement('div');
+    grid.id = 'brew-cellar';
+    g.cellar.forEach((c, k) => {
+      const el = document.createElement('div');
+      el.className = 'brew-rack' + (c ? '' : ' empty');
+      if (!c) {
+        el.innerHTML = `<b>🕳️</b><span>${t('brew.rackEmpty')}</span>`;
+      } else {
+        const info = keyInfo(c.key);
+        const days = g.cellarDays(k), val = g.cellarValue(k);
+        el.innerHTML = `<b>🍷</b><span>${info.label}${nameSep()}${t('brew.wineSuffix')}</span>`
+          + `<small>${tp('brew.aged', { d: days })}</small><em>${val}💰</em>`;
+        const btn = document.createElement('button');
+        btn.textContent = `📤 ${t('brew.take')}`;
+        btn.addEventListener('click', () => { g.takeWine(k); this.renderBrewery(); });
+        el.appendChild(btn);
+      }
+      grid.appendChild(el);
+    });
+    body.appendChild(grid);
+    body.scrollTop = scrolled;
   }
 
   /* ---------- 仓库 ---------- */

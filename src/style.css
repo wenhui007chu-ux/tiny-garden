@@ -184,18 +184,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body { padding: 12px; overflow-y: auto; flex: 1; }
 #pet-close, #greenhouse-close, #ach-close, #aqua-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 
 /* 背后没有 3D 场景的面板（商场/背包/工坊/百科/黑市等）改成全屏。
@@ -807,4 +807,64 @@ body {
   position: fixed; bottom: 96px; right: 16px; max-width: 240px; z-index: 5;
   background: #fff8ecd9; border: 2px solid #e8c68f; border-radius: 14px;
   padding: 10px 14px; font-size: 13px; color: #8a5a2b; line-height: 1.7;
+}
+
+/* ---------- 酒庄 ---------- */
+#brew { width: 420px; }
+
+#brew-top {
+  border: 2px solid #b08ac4; border-radius: 14px; background: #f6eefa;
+  padding: 10px 12px; margin-bottom: 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+#brew-top b { color: #5c3a72; font-size: 15px; }
+#brew-top small { color: #8b6ba0; font-size: 12px; line-height: 1.5; }
+#brew-top em {
+  font-style: normal; font-weight: 800; color: #8a5a2b; font-size: 15px;
+  background: #fff4d8; border-radius: 8px; padding: 3px 8px; width: fit-content; margin-top: 2px;
+}
+#brew-top.cellar { margin-top: 14px; border-color: #d9b071; background: #fff8ec; }
+#brew-top.cellar b { color: #8a5a2b; }
+#brew-top.cellar small { color: #a1834f; }
+
+.brew-back {
+  border: 2px solid #d9b071; background: #fff8ec; color: #8a5a2b;
+  border-radius: 12px; padding: 8px 14px; cursor: pointer;
+  font-size: 14px; font-weight: 700; margin-bottom: 10px;
+}
+.brew-back:hover { background: #ffe9b8; }
+
+/* 选果：一行三个，果子多了照样铺得开 */
+#brew-fruits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.brew-fruit {
+  border: 2px solid #eedcba; border-radius: 14px; background: #fff;
+  padding: 10px 6px; cursor: pointer; text-align: center;
+  display: flex; flex-direction: column; gap: 2px; align-items: center;
+}
+.brew-fruit:hover { border-color: #b08ac4; background: #f9f4fc; }
+.brew-fruit b { font-size: 28px; line-height: 1.1; }
+.brew-fruit span { font-size: 13px; color: #6b4a24; font-weight: 700; }
+.brew-fruit small { font-size: 11px; color: #a1834f; line-height: 1.4; }
+
+/* 酒柜：九宫格，跟酒窖里的 3×3 木架对得上 */
+#brew-cellar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.brew-rack {
+  border: 2px solid #c9a9db; border-radius: 14px; background: #fff;
+  padding: 10px 6px; text-align: center;
+  display: flex; flex-direction: column; gap: 2px; align-items: center;
+}
+.brew-rack.empty { border-color: #e2e2e2; background: #fafafa; opacity: .7; }
+.brew-rack b { font-size: 26px; line-height: 1.1; }
+.brew-rack span { font-size: 13px; color: #5c3a72; font-weight: 700; }
+.brew-rack small { font-size: 11px; color: #8b6ba0; }
+.brew-rack em {
+  font-style: normal; font-size: 14px; font-weight: 800; color: #8a5a2b;
+}
+.brew-rack button {
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 10px; padding: 5px 10px; cursor: pointer;
+  font-weight: 700; font-size: 12px; margin-top: 4px;
+}
+.brew-empty {
+  text-align: center; color: #a1834f; font-size: 14px; line-height: 1.8; padding: 30px 0;
 }

@@ -140,6 +140,22 @@ export function weatherOfDay(seed, day) {
   return 'clear';
 }
 
+// ===== 酒庄：果子酿酒，越窖越贵 =====
+// 流程：背包挑果 → 酿造台（3 个位，20 分钟）→ 取出 → 酒窖（9 格）陈酿 → 满意了取回背包卖
+// 酒的基础价 = 原果售价 × 2；进窖后每过一个游戏日再 +10💰，取出时价格就定死了。
+// 便宜果子靠陈酿翻身，贵果子主要吃那个 ×2——两头都有得算。
+export const BREWERY_POS = { x: 0, y: -60, z: -60 }; // 酒窖藏在岛下（这个坑位还空着）
+export const BREW = {
+  slots: 3,        // 酿造台数量
+  time: 1200,      // 酿一批 20 分钟
+  mult: 2,         // 基础价 = 原果价 × 2
+  cellarSlots: 9,  // 酒窖格子
+  agePerDay: 10,   // 每窖藏一个游戏日 +10💰
+};
+// 一瓶酒此刻值多少：底价 + 窖藏天数 × 每日加成
+export const winePrice = (basePrice, days) =>
+  Math.max(1, Math.floor(basePrice * BREW.mult + Math.max(0, days) * BREW.agePerDay));
+
 // 仓库：背包本身没有上限，仓库解决的是「囤着不想卖、又不想让背包一直挤着」。
 // 存进去的东西不参与一键售卖，也不会在背包列表里碍事，要用再取回来。
 export const WAREHOUSE = {
@@ -941,6 +957,18 @@ export function keyInfo(key) {
   if (key.startsWith('f:')) {
     const fl = flowerById(key.slice(2));
     return { seed: null, quality: undefined, processed: false, stunted: false, flower: true, price: fl.sell, label: fl.name, icon: fl.emoji };
+  }
+  // 酒：w:<原果key>:<窖藏天数>，原果 key 自己可能带冒号，所以从尾巴切天数
+  if (key.startsWith('w:')) {
+    const parts = key.slice(2).split(':');
+    const days = parseInt(parts.pop(), 10) || 0;
+    const src = keyInfo(parts.join(':')); // 递归查原果，切掉 w: 后不会再进这一支
+    return {
+      seed: null, quality: undefined, processed: false, stunted: false,
+      wine: true, wineDays: days, wineSrc: parts.join(':'),
+      price: winePrice(src.price, days),
+      label: [src.label, tf('mod.wine', '酒')].filter(Boolean).join(nameSep()), icon: '🍷',
+    };
   }
   if (key.startsWith('s:')) {
     const sf = seafoodById(key.slice(2));

@@ -19,6 +19,7 @@ import {
   BLACK_MARKET, blackMarketMood, blackMoodOf,
   weatherOfDay, OBSERVATORY, WEATHER_INFO,
   WAREHOUSE, warehouseCap,
+  BREWERY_POS, BREW, winePrice,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -36,6 +37,8 @@ import {
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
   createBlackMarket, createObservatory, createWarehouse,
+  createBrewery, createBreweryInterior, createBrewVat, createCellarRack,
+  BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
 import { t, tf, tp } from './i18n.js';
@@ -283,6 +286,21 @@ export class Game {
     this.blackMarketMeshes = [];
     blackMarket.traverse(o => { if (o.isMesh) this.blackMarketMeshes.push(o); });
 
+    // 酒庄：农田正前方的石屋 + 藏在岛下的酒窖
+    this.brewery = Array(BREW.slots).fill(null);      // 酿造台：{ key, readyAt } 或 null
+    this.cellar = Array(BREW.cellarSlots).fill(null); // 酒窖：{ key, sinceDay } 或 null
+    const brewery = createBrewery();
+    brewery.position.set(1, -0.51, 11);
+    brewery.rotation.y = 0.1;
+    this.group.add(brewery);
+    this.breweryMeshes = [];
+    brewery.traverse(o => { if (o.isMesh) this.breweryMeshes.push(o); });
+    this.breweryHall = createBreweryInterior();
+    this.breweryHall.position.set(BREWERY_POS.x, BREWERY_POS.y, BREWERY_POS.z);
+    this.group.add(this.breweryHall);
+    this.vatMeshes = [];
+    this.rackMeshes = [];
+
     // 仓库：农田左后方，避开二层农田台面的遮挡视线
     this.warehouse = {};        // key -> 件数
     this.warehouseLevel = 1;
@@ -337,6 +355,7 @@ export class Game {
     this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
     this.addSign(observatory, '🔭', 'observatory');
     this.addSign(warehouse, '📦', 'warehouse');
+    this.addSign(brewery, '🍷', 'brewery');
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -1616,6 +1635,117 @@ export class Game {
     return this.sorter.filter(s => s && this.time < s.readyAt).length;
   }
 
+  /* ---------- 酒庄 ---------- */
+
+  // 能拿去酿的：田里收的作物本体（含品质），加工品/花/水产/金属条/酒都不行
+  brewable(key) {
+    if (['p:', 'k:', 'h:', 'f:', 'm:', 's:', 'w:', 'x:', 'y:'].some(p => key.startsWith(p))) return false;
+    if (key === EGG.key) return false;
+    return !!seedById(key.split(':')[0]);
+  }
+
+  brewCandidates() {
+    return Object.keys(this.inventory).filter(k => (this.inventory[k] ?? 0) > 0 && this.brewable(k));
+  }
+
+  // 放一颗果子进酿造台
+  startBrew(slot, key) {
+    if (this.brewery[slot]) { this.onToast('这个酿造台正忙着'); sfx.play('deny'); return false; }
+    if (!this.brewable(key) || (this.inventory[key] ?? 0) <= 0) {
+      this.onToast('这个酿不了酒'); sfx.play('deny'); return false;
+    }
+    this.inventory[key] -= 1;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.brewery[slot] = { key, readyAt: this.time + BREW.time };
+    const info = keyInfo(key);
+    this.onToast(`🍇 ${info.icon}${info.label} 下缸了，${BREW.time / 60} 分钟后出酒`);
+    sfx.play('plant');
+    this.refreshBrewery();
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  brewReady(slot) {
+    const b = this.brewery[slot];
+    return !!b && this.time >= b.readyAt;
+  }
+
+  // 酿好了取出来 → 直接进酒窖窖藏；酒窖满了就先别取
+  collectBrew(slot) {
+    if (!this.brewReady(slot)) return false;
+    const free = this.cellar.indexOf(null);
+    if (free < 0) { this.onToast(`酒窖 ${BREW.cellarSlots} 格都满了，先取几瓶出来`); sfx.play('deny'); return false; }
+    const { key } = this.brewery[slot];
+    this.brewery[slot] = null;
+    this.cellar[free] = { key, sinceDay: this.dayCount };
+    const info = keyInfo(key);
+    this.onToast(`🍷 ${info.label}酒出缸！进了 ${free + 1} 号酒架，开始窖藏`);
+    sfx.play('done');
+    this.refreshBrewery();
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 这瓶窖藏了几天 / 现在值多少
+  cellarDays(slot) {
+    const c = this.cellar[slot];
+    return c ? Math.max(0, this.dayCount - c.sinceDay) : 0;
+  }
+  cellarValue(slot) {
+    const c = this.cellar[slot];
+    return c ? winePrice(keyInfo(c.key).price, this.cellarDays(slot)) : 0;
+  }
+
+  // 满意了就取回背包，价格在这一刻定死（编进 key 里）
+  takeWine(slot) {
+    const c = this.cellar[slot];
+    if (!c) return false;
+    const days = this.cellarDays(slot);
+    const wineKey = `w:${c.key}:${days}`;
+    this.cellar[slot] = null;
+    this.inventory[wineKey] = (this.inventory[wineKey] ?? 0) + 1;
+    const info = keyInfo(wineKey);
+    this.onToast(`🍷 ${info.label}（窖藏 ${days} 天）收进背包，值 ${info.price}💰`);
+    sfx.play('coin');
+    this.refreshBrewery();
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 原果越贵，瓶色越往金紫走
+  wineTint(price) {
+    if (price >= 5000) return 0xd8b048;  // 金
+    if (price >= 1000) return 0x8a3ab0;  // 紫
+    if (price >= 200) return 0x9a2a4a;   // 深红
+    return 0xc4566a;                     // 浅红
+  }
+
+  // 重建酒窖里的三个缸和九个架子
+  refreshBrewery() {
+    if (!this.breweryHall) return;
+    this.vatMeshes.forEach(m => this.breweryHall.remove(m));
+    this.rackMeshes.forEach(m => this.breweryHall.remove(m));
+    this.vatMeshes = []; this.rackMeshes = [];
+    this.brewery.forEach((b, k) => {
+      const vat = createBrewVat(!!b && !this.brewReady(k));
+      const s = BREW_SPOTS[k];
+      vat.position.set(s.x, 0, s.z);
+      this.breweryHall.add(vat);
+      this.vatMeshes.push(vat);
+    });
+    this.cellar.forEach((c, k) => {
+      // 瓶色按原果身价分档：一排看过去就知道哪瓶是硬货
+      const rack = createCellarRack(!!c, c ? this.wineTint(keyInfo(c.key).price) : 0);
+      const s = CELLAR_SPOTS[k];
+      rack.position.set(s.x, 0, s.z);
+      this.breweryHall.add(rack);
+      this.rackMeshes.push(rack);
+    });
+  }
+
   /* ---------- 仓库 ---------- */
 
   warehouseUsed() { return Object.values(this.warehouse).reduce((a, b) => a + b, 0); }
@@ -2387,6 +2517,8 @@ export class Game {
       windTimer: this.windTimer,
       dayCount: this.dayCount,
       weatherSeed: this.weatherSeed,
+      brewery: this.brewery.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
+      cellar: this.cellar.map(c => c ? { key: c.key, agedDays: Math.max(0, this.dayCount - c.sinceDay) } : null),
       warehouse: this.warehouse,
       warehouseLevel: this.warehouseLevel,
       observatory: this.observatory ? (this.observatory.readyAt !== undefined
@@ -2469,6 +2601,16 @@ export class Game {
       this._pendingHeal = true; // 隔了一天，之前的天灾都该消退了
       if (this.badWeather()) this._pendingDamage = true; // 地块数据还没读完，稍后再毁地
     }
+    // 酒庄：离线期间照常酿造；窖藏天数换算回 sinceDay
+    this.brewery = Array(BREW.slots).fill(null);
+    (data.brewery ?? []).forEach((b, k) => {
+      if (b && k < this.brewery.length) this.brewery[k] = { key: b.key, readyAt: this.time + Math.max(0, b.remain - elapsed) };
+    });
+    this.cellar = Array(BREW.cellarSlots).fill(null);
+    (data.cellar ?? []).forEach((c, k) => {
+      if (c && k < this.cellar.length) this.cellar[k] = { key: c.key, sinceDay: this.dayCount - (c.agedDays ?? 0) };
+    });
+    this.refreshBrewery();
     // 仓库：老存档没有就是空的 1 级
     this.warehouse = data.warehouse ?? {};
     this.warehouseLevel = Math.min(WAREHOUSE.maxLevel, Math.max(1, data.warehouseLevel ?? 1));

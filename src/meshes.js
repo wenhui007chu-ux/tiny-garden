@@ -4039,3 +4039,133 @@ export function createWarehouse() {
   g.traverse(o => { if (o.isMesh) o.userData.warehouse = true; });
   return g;
 }
+
+/* ================= 酒庄：石屋 + 岛下酒窖（3 个酿造台 + 9 格酒架） ================= */
+
+// 岛上的酒庄（点它进酒窖）
+export function createBrewery() {
+  const g = new THREE.Group();
+  const stone = mat(0xd8cdb8);
+  const darkStone = mat(0x9a8f7a);
+  const wood = mat(0x7a4a2a);
+  const roofM = mat(0x6a4a72);
+
+  g.add(mesh(new THREE.BoxGeometry(4.0, 0.3, 3.2), darkStone, 0, 0.15, 0));   // 基座
+  g.add(mesh(new THREE.BoxGeometry(3.5, 2.0, 2.7), stone, 0, 1.3, 0));        // 主体
+  // 墙上的石纹
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    g.add(mesh(new THREE.BoxGeometry(0.75, 0.5, 0.06), r % 2 ? darkStone : mat(0xcfc3ac),
+      (c - 1.5) * 0.82 + (r % 2 ? 0.2 : 0), 0.65 + r * 0.56, 1.38));
+  }
+  // 双坡屋顶（紫调，跟葡萄酒呼应）
+  [-1, 1].forEach(s => {
+    const slope = mesh(new THREE.BoxGeometry(2.15, 0.16, 3.1), roofM, s * 0.93, 2.72, 0);
+    slope.rotation.z = s * 0.6;
+    g.add(slope);
+  });
+  g.add(mesh(new THREE.BoxGeometry(0.2, 0.2, 3.2), mat(0x4a3050), 0, 3.22, 0)); // 屋脊
+  // 拱门
+  g.add(mesh(new THREE.BoxGeometry(0.95, 1.3, 0.12), wood, 0, 0.8, 1.4));
+  g.add(mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.12, 12, 1, false, 0, Math.PI), wood, 0, 1.45, 1.4)
+    .rotateZ(0).rotateX(Math.PI / 2));
+  // 门口滚着的两个橡木桶
+  [[-1.55, 0.9], [1.6, 0.7]].forEach(([x, z]) => {
+    const barrel = mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.62, 12), wood, x, 0.36, z);
+    barrel.rotation.z = Math.PI / 2;
+    g.add(barrel);
+    [-0.18, 0.18].forEach(o =>
+      g.add(mesh(new THREE.TorusGeometry(0.37, 0.035, 5, 12), mat(0x5a5a62), x + o, 0.36, z)
+        .rotateY(Math.PI / 2)));
+  });
+  // 屋顶挂的葡萄串招牌
+  const grapes = new THREE.Group();
+  [[0, 0], [-0.13, -0.14], [0.13, -0.14], [0, -0.28]].forEach(([x, y]) =>
+    grapes.add(mesh(new THREE.SphereGeometry(0.1, 7, 6), mat(0x8a4ac2), x, y, 0)));
+  grapes.position.set(0, 3.65, 0);
+  grapes.userData.spin = true;
+  g.add(grapes);
+
+  g.traverse(o => { if (o.isMesh) o.userData.brewery = true; });
+  return g;
+}
+
+// 酿造台的三个站位 / 酒架九格的站位（酒窖局部坐标）
+export const BREW_SPOTS = [{ x: -3.2, z: -2 }, { x: 0, z: -2 }, { x: 3.2, z: -2 }];
+export const CELLAR_SPOTS = Array.from({ length: 9 }, (_, k) => ({
+  x: (k % 3 - 1) * 2.4, z: 2.2 + Math.floor(k / 3) * 1.9,
+}));
+
+// 岛下的酒窖：昏黄石室
+export function createBreweryInterior() {
+  const g = new THREE.Group();
+  const W = 16, D = 14;
+  const wallM = mat(0x4a3a30);
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0x3a2e26), 0, -0.15, 0));
+  g.add(mesh(new THREE.BoxGeometry(W, 5.5, 0.3), wallM, 0, 2.75, -D / 2 + 0.15));
+  [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 5.5, D), wallM, s * (W / 2 - 0.15), 2.75, 0)));
+  // 后墙几个拱形壁龛
+  [-4.5, 0, 4.5].forEach(x =>
+    g.add(mesh(new THREE.BoxGeometry(2, 2.2, 0.14),
+      mat(0x2e241e, { emissive: 0x1a1410, emissiveIntensity: 0.3 }), x, 2.2, -D / 2 + 0.3)));
+  // 昏黄壁灯
+  [[-5, -3], [5, -3], [-5, 3], [5, 3]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xffc47a, 0.55, 18, 2);
+    l.position.set(x, 3.6, z);
+    g.add(l);
+    g.add(mesh(new THREE.SphereGeometry(0.14, 7, 6),
+      mat(0xffd9a0, { emissive: 0xd89a3a, emissiveIntensity: 0.8 }), x, 3.6, z));
+  });
+  return g;
+}
+
+// 一个酿造台：石座 + 大橡木桶，酿造中桶盖冒泡
+export function createBrewVat(busy) {
+  const g = new THREE.Group();
+  const wood = mat(busy ? 0x8a5230 : 0x6e4526);
+  g.add(mesh(new THREE.BoxGeometry(1.9, 0.24, 1.9), mat(0x5a4a3e), 0, 0.12, 0));
+  const barrel = mesh(new THREE.CylinderGeometry(0.72, 0.62, 1.5, 14), wood, 0, 0.99, 0);
+  g.add(barrel);
+  [0.45, 0.99, 1.53].forEach(y =>
+    g.add(mesh(new THREE.TorusGeometry(0.73, 0.05, 5, 14), mat(0x4a4a52), 0, y, 0).rotateX(Math.PI / 2)));
+  g.add(mesh(new THREE.CylinderGeometry(0.66, 0.66, 0.1, 14), mat(0x54381f), 0, 1.76, 0)); // 桶盖
+  if (busy) { // 酿造中：桶口冒出的气泡
+    const bubbles = new THREE.Group();
+    [[0, 0], [0.2, 0.15], [-0.18, 0.1]].forEach(([x, z], i) => {
+      const b = mesh(new THREE.SphereGeometry(0.09 - i * 0.015, 6, 5),
+        mat(0xc86ad0, { transparent: true, opacity: 0.65, emissive: 0x8a3a9a, emissiveIntensity: 0.4 }),
+        x, 0.1 + i * 0.14, z);
+      bubbles.add(b);
+    });
+    bubbles.position.y = 1.85;
+    bubbles.userData.brewBubble = true;
+    g.add(bubbles);
+  }
+  return g;
+}
+
+// 酒架上的一瓶酒
+export function createWineBottle(tint = 0x7a2a4a) {
+  const g = new THREE.Group();
+  const glass = mat(tint, { roughness: 0.25, transparent: true, opacity: 0.85 });
+  g.add(mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.42, 10), glass, 0, 0.21, 0));   // 瓶身
+  g.add(mesh(new THREE.CylinderGeometry(0.05, 0.11, 0.16, 8), glass, 0, 0.49, 0));    // 肩
+  g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 8), glass, 0, 0.66, 0));    // 瓶颈
+  g.add(mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.07, 8), mat(0x8a5a2b), 0, 0.79, 0)); // 软木塞
+  g.add(mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.16, 10), mat(0xf0e6d2), 0, 0.22, 0)); // 标签
+  return g;
+}
+
+// 酒架：一个斜放的木格，空着就只有格子
+export function createCellarRack(hasWine, tint) {
+  const g = new THREE.Group();
+  const wood = mat(0x6e4526);
+  g.add(mesh(new THREE.BoxGeometry(1.5, 0.16, 1.2), wood, 0, 0.08, 0));
+  [-0.68, 0.68].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.14, 1.0, 1.2), wood, x, 0.58, 0)));
+  g.add(mesh(new THREE.BoxGeometry(1.5, 0.14, 1.2), wood, 0, 1.13, 0));
+  if (hasWine) {
+    const bottle = createWineBottle(tint);
+    bottle.position.set(0, 0.2, 0);
+    g.add(bottle);
+  }
+  return g;
+}
