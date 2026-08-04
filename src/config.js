@@ -140,6 +140,18 @@ export function weatherOfDay(seed, day) {
   return 'clear';
 }
 
+// 仓库：背包本身没有上限，仓库解决的是「囤着不想卖、又不想让背包一直挤着」。
+// 存进去的东西不参与一键售卖，也不会在背包列表里碍事，要用再取回来。
+export const WAREHOUSE = {
+  maxLevel: 10,     // 最高 10 级
+  baseCap: 100,     // 1 级装 100 件
+  capPerLevel: 50,  // 每升一级 +50 件
+  upCost: 100,      // 每级升级费
+};
+// 第 lv 级的容量：1 级 100，10 级 550
+export const warehouseCap = (lv) =>
+  WAREHOUSE.baseCap + (Math.min(lv, WAREHOUSE.maxLevel) - 1) * WAREHOUSE.capPerLevel;
+
 // 天气观测台：花钱开机，跑完给一份未来 N 天的天气表
 export const OBSERVATORY = {
   cost: 200,      // 每次启动的费用

@@ -3,7 +3,7 @@ import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybr
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
-import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO } from './config.js';
+import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
 import { music, sfx } from './music.js';
 import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
@@ -71,6 +71,7 @@ export class UI {
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
+    $('#ware-close').addEventListener('click', () => $('#ware').classList.add('hidden'));
     $('#black-close').addEventListener('click', () => $('#black').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
       const panel = $('#items');
@@ -319,7 +320,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -376,6 +377,89 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 仓库 ---------- */
+
+  openWarehouse() {
+    this.closePanels();
+    this.wareTab = this.wareTab ?? 'store';
+    $('#ware').classList.remove('hidden');
+    this.renderWarehouse();
+  }
+
+  renderWarehouse() {
+    const g = this.game;
+    const body = $('#ware-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    const used = g.warehouseUsed(), max = g.warehouseMax();
+    const pct = Math.min(100, Math.round((used / max) * 100));
+    const full = g.warehouseLevel >= WAREHOUSE.maxLevel;
+
+    // 顶部：容量条 + 升级
+    body.insertAdjacentHTML('beforeend', `
+      <div id="ware-top">
+        <b>📦 Lv.${g.warehouseLevel} · ${used} / ${max}</b>
+        <small>${t('ware.hint')}</small>
+        <div class="ach-bar"><i style="width:${pct}%"></i></div>
+      </div>`);
+    const up = document.createElement('button');
+    up.id = 'ware-up';
+    up.disabled = full;
+    up.textContent = full
+      ? `✅ ${t('ware.maxed')}`
+      : `⬆️ ${t('ware.upgrade')} Lv.${g.warehouseLevel + 1}（+${WAREHOUSE.capPerLevel}）· ${WAREHOUSE.upCost}💰`;
+    up.addEventListener('click', () => { g.upgradeWarehouse(); this.renderWarehouse(); });
+    body.appendChild(up);
+
+    // 两个页签：存进去 / 取出来
+    const tabs = document.createElement('div');
+    tabs.id = 'ware-tabs';
+    [['store', `📥 ${t('ware.store')}`], ['take', `📤 ${t('ware.take')}（${Object.keys(g.warehouse).length}）`]]
+      .forEach(([id, label]) => {
+        const b = document.createElement('button');
+        b.className = 'shop-tab' + (this.wareTab === id ? ' active' : '');
+        b.textContent = label;
+        b.addEventListener('click', () => { this.wareTab = id; this.renderWarehouse(); });
+        tabs.appendChild(b);
+      });
+    body.appendChild(tabs);
+
+    const isStore = this.wareTab === 'store';
+    const src = isStore ? g.inventory : g.warehouse;
+    const list = Object.entries(src).filter(([, n]) => n > 0)
+      .sort(([a], [b]) => keyInfo(b).price * src[b] - keyInfo(a).price * src[a]);
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend',
+        `<div class="bag-empty">${t(isStore ? 'ware.emptyBag' : 'ware.emptyWare')}</div>`);
+      body.scrollTop = scrolled;
+      return;
+    }
+    list.forEach(([key, n]) => {
+      const info = keyInfo(key);
+      const el = document.createElement('div');
+      el.className = 'bag-item' + (info.quality ? ` quality-${info.quality}` : '');
+      el.innerHTML = `<div class="icon">${info.icon}</div>
+        <div class="info"><b>${info.label} ×${n}</b>
+          <p>${t('ware.unit')} ${info.price}💰</p></div>`;
+      const one = document.createElement('button');
+      one.textContent = isStore ? t('ware.in1') : t('ware.out1');
+      one.addEventListener('click', () => {
+        isStore ? g.storeToWarehouse(key, 1) : g.takeFromWarehouse(key, 1);
+        this.renderWarehouse();
+      });
+      const all = document.createElement('button');
+      all.className = 'sell-all';
+      all.textContent = isStore ? t('ware.inAll') : t('ware.outAll');
+      all.addEventListener('click', () => {
+        isStore ? g.storeToWarehouse(key, n) : g.takeFromWarehouse(key, n);
+        this.renderWarehouse();
+      });
+      el.append(one, all);
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled;
   }
 
   /* ---------- 天气观测台 ---------- */

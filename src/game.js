@@ -18,6 +18,7 @@ import {
   SEAFOOD, seafoodById, rollSeafood, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
   BLACK_MARKET, blackMarketMood, blackMoodOf,
   weatherOfDay, OBSERVATORY, WEATHER_INFO,
+  WAREHOUSE, warehouseCap,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -34,7 +35,7 @@ import {
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
-  createBlackMarket, createObservatory,
+  createBlackMarket, createObservatory, createWarehouse,
 } from './meshes.js';
 import { sfx } from './music.js';
 import { t, tf, tp } from './i18n.js';
@@ -282,6 +283,16 @@ export class Game {
     this.blackMarketMeshes = [];
     blackMarket.traverse(o => { if (o.isMesh) this.blackMarketMeshes.push(o); });
 
+    // 仓库：农田左后方，避开二层农田台面的遮挡视线
+    this.warehouse = {};        // key -> 件数
+    this.warehouseLevel = 1;
+    const warehouse = createWarehouse();
+    warehouse.position.set(-7.5, -0.51, -14);
+    warehouse.rotation.y = 0.35;
+    this.group.add(warehouse);
+    this.warehouseMeshes = [];
+    warehouse.traverse(o => { if (o.isMesh) this.warehouseMeshes.push(o); });
+
     // 天气观测台：紧挨着黑市（黑市在 0,-17），摆在它右手边
     const observatory = createObservatory();
     observatory.position.set(6.5, -0.51, -16.5);
@@ -325,6 +336,7 @@ export class Game {
     this.addSign(sorter, '⚙️', 'sorter');
     this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
     this.addSign(observatory, '🔭', 'observatory');
+    this.addSign(warehouse, '📦', 'warehouse');
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -1604,6 +1616,64 @@ export class Game {
     return this.sorter.filter(s => s && this.time < s.readyAt).length;
   }
 
+  /* ---------- 仓库 ---------- */
+
+  warehouseUsed() { return Object.values(this.warehouse).reduce((a, b) => a + b, 0); }
+  warehouseMax() { return warehouseCap(this.warehouseLevel); }
+  warehouseFree() { return Math.max(0, this.warehouseMax() - this.warehouseUsed()); }
+
+  // 背包 → 仓库。装不下就有多少存多少，不静默吞掉
+  storeToWarehouse(key, count) {
+    const have = this.inventory[key] ?? 0;
+    const free = this.warehouseFree();
+    const n = Math.min(count, have, free);
+    if (n <= 0) {
+      this.onToast(free <= 0 ? '仓库满了，先升级或者取点东西出来' : '背包里没有这个');
+      sfx.play('deny');
+      return false;
+    }
+    this.inventory[key] -= n;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.warehouse[key] = (this.warehouse[key] ?? 0) + n;
+    const info = keyInfo(key);
+    this.onToast(`📦 ${info.icon}${info.label} ×${n} 存进仓库`
+      + (n < count ? `（只装得下 ${n} 件）` : '')
+      + ` · ${this.warehouseUsed()}/${this.warehouseMax()}`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 仓库 → 背包
+  takeFromWarehouse(key, count) {
+    const have = this.warehouse[key] ?? 0;
+    const n = Math.min(count, have);
+    if (n <= 0) return false;
+    this.warehouse[key] -= n;
+    if (this.warehouse[key] <= 0) delete this.warehouse[key];
+    this.inventory[key] = (this.inventory[key] ?? 0) + n;
+    const info = keyInfo(key);
+    this.onToast(`📤 ${info.icon}${info.label} ×${n} 取回背包`);
+    sfx.play('open');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  upgradeWarehouse() {
+    if (this.warehouseLevel >= WAREHOUSE.maxLevel) {
+      this.onToast('仓库已经是满级了'); sfx.play('deny'); return false;
+    }
+    if (!this.spend(WAREHOUSE.upCost)) return false;
+    this.warehouseLevel += 1;
+    this.onToast(`📦 仓库升到 ${this.warehouseLevel} 级，能装 ${this.warehouseMax()} 件了`);
+    sfx.play('upgrade');
+    this.onState();
+    this.save();
+    return true;
+  }
+
   /* ---------- 天气观测台 ---------- */
 
   // 三种状态：null 没开机 / { readyAt } 观测中 / { fromDay } 报告已出
@@ -2317,6 +2387,8 @@ export class Game {
       windTimer: this.windTimer,
       dayCount: this.dayCount,
       weatherSeed: this.weatherSeed,
+      warehouse: this.warehouse,
+      warehouseLevel: this.warehouseLevel,
       observatory: this.observatory ? (this.observatory.readyAt !== undefined
         ? { remain: Math.max(0, this.observatory.readyAt - this.time) }
         : { fromDay: this.observatory.fromDay }) : null,
@@ -2397,6 +2469,9 @@ export class Game {
       this._pendingHeal = true; // 隔了一天，之前的天灾都该消退了
       if (this.badWeather()) this._pendingDamage = true; // 地块数据还没读完，稍后再毁地
     }
+    // 仓库：老存档没有就是空的 1 级
+    this.warehouse = data.warehouse ?? {};
+    this.warehouseLevel = Math.min(WAREHOUSE.maxLevel, Math.max(1, data.warehouseLevel ?? 1));
     // 观测台：运行中的按剩余时间接着跑，已出的报告原样带回来
     this.observatory = null;
     if (data.observatory) {

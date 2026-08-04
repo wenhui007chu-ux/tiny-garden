@@ -9,7 +9,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -71,7 +71,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -215,6 +215,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 图鉴大楼：点击进馆
   if (hit.userData.codex) {
     ui.openCodex();
+    return;
+  }
+
+  // 仓库：点击开存取面板
+  if (hit.userData.warehouse) {
+    ui.openWarehouse();
     return;
   }
 

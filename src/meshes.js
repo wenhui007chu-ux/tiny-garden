@@ -3990,3 +3990,52 @@ export function createObservatory() {
   g.traverse(o => { if (o.isMesh) o.userData.observatory = true; });
   return g;
 }
+
+/* ================= 仓库：农田左后方的木质谷仓 ================= */
+
+export function createWarehouse() {
+  const g = new THREE.Group();
+  const wood = mat(0xa8703f);
+  const darkWood = mat(0x6e4526);
+  const roofM = mat(0xc0543f);
+  const stone = mat(0xcfc4b0);
+
+  // 石基座 + 木质主体
+  g.add(mesh(new THREE.BoxGeometry(4.4, 0.3, 3.4), stone, 0, 0.15, 0));
+  g.add(mesh(new THREE.BoxGeometry(3.9, 2.1, 2.9), wood, 0, 1.35, 0));
+  // 墙面横向木板纹
+  for (let k = 0; k < 4; k++) {
+    g.add(mesh(new THREE.BoxGeometry(3.95, 0.08, 0.06), darkWood, 0, 0.65 + k * 0.48, 1.47));
+  }
+  // 双坡屋顶：两片斜板拼起来
+  [-1, 1].forEach(s => {
+    const slope = mesh(new THREE.BoxGeometry(2.35, 0.16, 3.3), roofM, s * 1.03, 2.87, 0);
+    slope.rotation.z = s * 0.62;
+    g.add(slope);
+  });
+  g.add(mesh(new THREE.BoxGeometry(0.22, 0.22, 3.4), darkWood, 0, 3.42, 0)); // 屋脊
+  // 正面的大双开谷仓门 + 交叉木条
+  [-0.52, 0.52].forEach(x => {
+    g.add(mesh(new THREE.BoxGeometry(0.98, 1.6, 0.1), darkWood, x, 0.95, 1.48));
+    [-0.5, 0.5].forEach(a => {
+      const bar = mesh(new THREE.BoxGeometry(1.15, 0.11, 0.05), wood, x, 0.95, 1.54);
+      bar.rotation.z = a;
+      g.add(bar);
+    });
+  });
+  // 阁楼小窗 + 吊货杆
+  g.add(mesh(new THREE.BoxGeometry(0.6, 0.55, 0.1), mat(0x3a2a1e), 0, 2.5, 1.47));
+  g.add(mesh(new THREE.BoxGeometry(0.12, 0.12, 0.9), darkWood, 0, 2.85, 1.85));
+  g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 5), mat(0x8a8a92), 0, 2.55, 2.24));
+  // 门口堆的板条箱和麻袋，一眼看出是存东西的地方
+  [[-2.3, 0.45, 1.1], [-2.55, 0.32, 0.35]].forEach(([x, s, z]) =>
+    g.add(mesh(new THREE.BoxGeometry(s * 1.5, s * 1.4, s * 1.5), mat(0xc2a071), x, s * 0.7, z)));
+  [[2.3, 1.0], [2.55, 0.3]].forEach(([x, z]) => {
+    const sack = mesh(new THREE.SphereGeometry(0.32, 7, 6), mat(0xd8c9a0), x, 0.3, z);
+    sack.scale.set(1, 1.15, 1);
+    g.add(sack);
+  });
+
+  g.traverse(o => { if (o.isMesh) o.userData.warehouse = true; });
+  return g;
+}

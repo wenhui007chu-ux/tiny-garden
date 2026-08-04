@@ -184,18 +184,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body { padding: 12px; overflow-y: auto; flex: 1; }
 #pet-close, #greenhouse-close, #ach-close, #aqua-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 
 /* 背后没有 3D 场景的面板（商场/背包/工坊/百科/黑市等）改成全屏。
@@ -549,6 +549,22 @@ body {
 .music-row.lang-opt.current { border-color: #6aae5e; background: #f0f9ec; }
 .music-row.lang-opt button { min-width: 38px; }
 .lang-hint { color: #a1834f; font-size: 11px; text-align: center; padding: 2px 4px 0; line-height: 1.6; }
+
+/* ---------- 仓库 ---------- */
+#ware-top {
+  background: linear-gradient(135deg, #fdf6ea, #f2e3cc); border: 2px solid #c9a06a;
+  border-radius: 14px; padding: 14px; text-align: center; color: #6b4a24;
+  font-size: 20px; font-weight: 700; margin-bottom: 10px;
+}
+#ware-top small { display: block; font-size: 12px; font-weight: 400; color: #a1834f; margin: 5px 0 9px; line-height: 1.6; }
+#ware-up {
+  width: 100%; margin-bottom: 12px; cursor: pointer; font-weight: 700; font-size: 14px;
+  border: 2px solid #d9b071; background: #fff8ec; color: #8a5a2b; border-radius: 12px; padding: 11px 0;
+}
+#ware-up:hover:not(:disabled) { background: #ffe9b8; border-color: #e09b3d; }
+#ware-up:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }
+#ware-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+#ware-tabs .shop-tab { flex: 1; text-align: center; }
 
 /* ---------- 天气观测台 ---------- */
 #obs-panel {
