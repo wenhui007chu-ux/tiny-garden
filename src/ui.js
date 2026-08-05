@@ -471,9 +471,13 @@ export class UI {
         });
         body.appendChild(grid);
       }
-      body.scrollTop = 0;
+      // 只有刚点开选果时才回到顶部。这里每秒都会被定时器重绘，
+      // 无条件归零的话，玩家往下翻找便宜果子，两三秒就被弹回顶上。
+      body.scrollTop = this._brewPickShown === slot ? scrolled : 0;
+      this._brewPickShown = slot;
       return;
     }
+    this._brewPickShown = null; // 退出选果模式，下次再进重新从顶部看起
 
     // ② 三个酿造台
     body.insertAdjacentHTML('beforeend',
