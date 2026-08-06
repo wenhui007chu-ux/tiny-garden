@@ -2336,8 +2336,11 @@ export class UI {
 
     // 选择要加工的作物
     if (this.wsChoosing !== null) {
+      // 白名单：只有田里收的原果能装罐（跟酿酒同一判定 brewable）。
+      // 原来是黑名单，f:/s:/w: 这些后加的前缀全漏了——列表里混进水产/酒，
+      // 算罐头价 keyInfo('p:'+key) 解析不了，整个工坊面板每 500ms 崩一次
       const raw = Object.entries(g.inventory)
-        .filter(([k, n]) => !k.startsWith('p:') && !k.startsWith('x:') && !k.startsWith('k:') && !k.startsWith('h:') && !k.startsWith('m:') && !k.startsWith('y:') && k !== 'egg' && n > 0);
+        .filter(([k, n]) => n > 0 && g.brewable(k));
       if (!raw.length) {
         body.insertAdjacentHTML('beforeend', '<div class="bag-empty">背包里没有可加工的作物<br>先去收获一些吧 🌱</div>');
       }
