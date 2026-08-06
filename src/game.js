@@ -595,16 +595,18 @@ export class Game {
   /* ---------- 操作 ---------- */
 
   plantAt(idx, seedId) {
-    const t = this.tiles[idx];
+    // 局部变量不能叫 t——会把导入的 i18n 翻译函数 t() 遮蔽掉，
+    // 下面这几句 this.onToast(t('...')) 一调用就是「t is not a function」
+    const tile = this.tiles[idx];
     const seed = seedById(seedId);
     if (!seed || !this.unlockedSeeds.includes(seedId)) return;
-    if (t.locked) { this.onToast(tp('plant.locked', { cost: UNLOCK_COST })); return; }
-    if (t.damaged) { this.onToast(t(t.damaged === 'cracked' ? 'plant.cracked' : 'plant.waterlogged')); return; }
-    if (t.plant) { this.onToast(t('plant.occupied')); return; }
+    if (tile.locked) { this.onToast(tp('plant.locked', { cost: UNLOCK_COST })); return; }
+    if (tile.damaged) { this.onToast(t(tile.damaged === 'cracked' ? 'plant.cracked' : 'plant.waterlogged')); return; }
+    if (tile.plant) { this.onToast(t('plant.occupied')); return; }
     if (!this.spend(seed.cost)) return;
-    t.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(t.lucky) };
-    if (t.lucky) { t.lucky = false; this.onToast(t('plant.lucky')); }
-    this.updatePlantMesh(t);
+    tile.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(tile.lucky) };
+    if (tile.lucky) { tile.lucky = false; this.onToast(t('plant.lucky')); }
+    this.updatePlantMesh(tile);
     sfx.play('plant');
     this.save();
   }
@@ -766,19 +768,21 @@ export class Game {
   }
 
   harvestAt(idx) {
-    const t = this.tiles[idx];
-    if (!t.plant) return false;
-    const seed = seedById(t.plant.seedId);
-    if (t.plant.stage < 3) { this.onToast(tp('harvest.notRipe', { name: seedName(seed) })); return false; }
-    const count = SOILS[t.soil].yield;
-    const quality = t.plant.quality;
+    // 局部变量不能叫 t——会把导入的 i18n 翻译函数 t() 遮蔽掉，
+    // 下面 onToast 里那句 t('harvest.bagged') 一调用就是「t is not a function」
+    const tile = this.tiles[idx];
+    if (!tile.plant) return false;
+    const seed = seedById(tile.plant.seedId);
+    if (tile.plant.stage < 3) { this.onToast(tp('harvest.notRipe', { name: seedName(seed) })); return false; }
+    const count = SOILS[tile.soil].yield;
+    const quality = tile.plant.quality;
     // 生长不良优先于打药：都蔫了，药钱就当白花了，不叠加两个前缀
-    const bad = this.badWeather() || t.plant.pest;
-    const prefix = bad ? 'x:' : t.plant.sprayed ? 'y:' : '';
+    const bad = this.badWeather() || tile.plant.pest;
+    const prefix = bad ? 'x:' : tile.plant.sprayed ? 'y:' : '';
     const key = prefix + (quality ? `${seed.id}:${quality}` : seed.id);
-    const wasPest = t.plant.pest;
-    const wasSprayed = !bad && t.plant.sprayed; // 蔫了的话药就白打了，提示别再说打过药
-    this.removePlant(t);
+    const wasPest = tile.plant.pest;
+    const wasSprayed = !bad && tile.plant.sprayed; // 蔫了的话药就白打了，提示别再说打过药
+    this.removePlant(tile);
     this.inventory[key] = (this.inventory[key] ?? 0) + count;
     this.onState();
     const q = QUALITIES[quality];
