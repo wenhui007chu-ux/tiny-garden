@@ -198,6 +198,15 @@ body {
 #bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body { padding: 12px; overflow-y: auto; flex: 1; }
 #pet-close, #greenhouse-close, #ach-close, #aqua-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 
+/* 背后有 3D 场景、点进去镜头会切进内部的那几个面板（酒庄/水族馆/成就大厅/
+   图鉴/宠物屋/温室/杂交实验室/我的家）：宽度不能像 .panel-wide 那样铺满——
+   铺满会把 3D 场景整个盖住。原来固定 330px，做酒庄时试过 420px，
+   玩下来一个觉得偏窄一个偏宽，折中定在视口的 1/2.5（40%）。
+   clamp 夹住两头：窗口很窄时别挤没内容，很宽的桌面屏上也别把 3D 遮去一大半。 */
+#codex, #hybrid, #pet, #house, #greenhouse, #ach, #brew, #aqua {
+  width: clamp(300px, 40vw, 480px);
+}
+
 /* 背后没有 3D 场景的面板（商场/背包/工坊/百科/黑市等）改成全屏。
    英文和俄文比中文长得多，330px 的侧边抽屉里会挤成一团，百科的表格更是没法看。
    全屏之后内容再用 max-width 收在中间一栏，免得宽屏上一行拉到两千像素反而难读。 */
@@ -810,7 +819,7 @@ body {
 }
 
 /* ---------- 酒庄 ---------- */
-#brew { width: 420px; }
+/* 宽度在上面「3D 场景面板」共用规则里统一定了，这里不用再单独写 */
 
 #brew-top {
   border: 2px solid #b08ac4; border-radius: 14px; background: #f6eefa;
