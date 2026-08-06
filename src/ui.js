@@ -94,8 +94,11 @@ export class UI {
       }
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
-      if (!$('#brew').classList.contains('hidden')) this.renderBrewery();
-      if (!$('#shop2').classList.contains('hidden')) this.renderFoodShop();
+      // 酒庄/食品店的「挑东西」那一屏整屏都是静态的（背包里的作物不会自己变），
+      // 定时重绘除了把滚动条弹回顶上，还可能正好在两次点击之间把按钮换掉、吞掉一下点击。
+      // 只在总览屏刷新，倒计时该跳还是跳。同钓鱼面板收杆时的处理。
+      if (!$('#brew').classList.contains('hidden') && this.brewPick === null) this.renderBrewery();
+      if (!$('#shop2').classList.contains('hidden') && !this.giftPicking) this.renderFoodShop();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -476,9 +479,13 @@ export class UI {
         });
         body.appendChild(grid);
       }
-      body.scrollTop = 0;
+      // 只有刚点开挑作物时才回到顶部。这里每半秒会被定时器重绘一次，
+      // 无条件归零的话，玩家往下翻找作物，翻两下就被弹回顶上。
+      body.scrollTop = this._giftPickShown ? scrolled : 0;
+      this._giftPickShown = true;
       return;
     }
+    this._giftPickShown = false; // 退出挑作物，下次再进重新从顶部看起
 
     // ② 货架总览
     const used = g.shelf.filter(Boolean).length;
