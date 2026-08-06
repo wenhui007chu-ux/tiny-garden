@@ -37,7 +37,7 @@ import {
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
   createBlackMarket, createObservatory, createWarehouse,
-  createBrewery, createBreweryInterior, createBrewVat, createCellarRack,
+  createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -1977,15 +1977,28 @@ export class Game {
       for (const a of ACHIEVEMENTS) {
         const rec = this.achievements[a.id];
         if (!rec) continue;
+        // 条件改版（rev 对不上）：达成规则本身换了，不只是目标调大。
+        // 这条不看单调性——「玩家当时确实做到过」说的是旧规则，新规则下得重挣。
+        const recRev = (typeof rec === 'object' ? rec.rev : null) ?? 1;
+        if ((a.rev ?? 1) !== recRev) {
+          delete this.achievements[a.id];
+          revoked.push({ a, reason: 'rev' });
+          changed = true;
+          continue;
+        }
         // 只动「只增不减」那类。金币、槽位占用、摆放数会正常回落，
         // 玩家当时确实做到过，不能因为此刻不满足就把成就扒了。
         if (!a.monotonic) continue;
         // 老存档只存了时间戳，不知道当年的目标，就按「现在够不够」判定
-        const earnedMax = (rec && typeof rec === 'object') ? rec.max : null;
+        const earnedMax = (typeof rec === 'object') ? rec.max : null;
         const targetRaised = earnedMax == null || a.max > earnedMax;
-        if (targetRaised && this.achievementCur(a) < a.max) {
+        // 连锁：组件成就被收回后，「园艺大师」这类统计型的进度会掉到
+        // 连达成当年的目标都不够——那次达成已被追溯推翻，一并收回。
+        // 真正单调的量（解锁数、收录数）永远不会掉到 earnedMax 以下，不受影响。
+        const fellBelow = earnedMax != null && this.achievementCur(a) < earnedMax;
+        if ((targetRaised || fellBelow) && this.achievementCur(a) < a.max) {
           delete this.achievements[a.id];
-          revoked.push(a);
+          revoked.push({ a, reason: targetRaised ? 'raised' : 'chain' });
           changed = true;
         }
       }
@@ -2006,8 +2019,11 @@ export class Game {
       let done = false;
       try { done = a.cur(this) >= a.max; } catch { done = false; }
       if (!done) continue;
-      // 连达成时的目标一起记下来，日后目标被调大才认得出来
-      this.achievements[a.id] = { at: Date.now(), max: a.max };
+      // 连达成时的目标一起记下来，日后目标被调大才认得出来；
+      // 条件改过版的成就（rev ≥ 2）把版本号也记上，再改版才认得出老记录
+      const rec = { at: Date.now(), max: a.max };
+      if (a.rev) rec.rev = a.rev;
+      this.achievements[a.id] = rec;
       fresh.push(a);
     }
     if (!fresh.length) return fresh;
@@ -2146,6 +2162,10 @@ export class Game {
       } else if (info.metal) {
         // 金属条也没有 seed 字段，一样得单独走，否则整座台子又不见了
         model = createMetalBar(info.metal, 1.9);
+      } else if (info.wine) {
+        // 酒同理——摆一瓶实体酒，瓶色跟酒窖里一样按原果身价分档
+        model = createWineBottle(this.wineTint(keyInfo(info.wineSrc).price));
+        model.scale.setScalar(2.2);
       } else {
         model = createPlantMesh(info.seed.id, 3);
         applyPlating(model, info.quality);
@@ -2172,6 +2192,10 @@ export class Game {
     if (key.startsWith('x:')) { this.onToast('蔫了吧唧的就别摆出来了吧…'); return false; }
     if (key.startsWith('y:')) { this.onToast('打过药的不适合摆出来展示'); return false; }
     if (key.startsWith('s:')) { this.onToast('水产请养进水族馆，个人图鉴只摆田里的收成'); return false; }
+    // 兜底白名单：能上台的就五类——作物本体、花、杂交、金属条、酒。
+    // 不认识的新 key 一律先拒，免得摆上去没模型、整座台子隐形（花当年就是这么消失的）
+    if (!key.startsWith('f:') && !key.startsWith('h:') && !key.startsWith('m:') && !key.startsWith('w:')
+      && !seedById(key.split(':')[0])) { this.onToast('这个东西没法摆上展台'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
     if (this.inventory[key] === 0) delete this.inventory[key];
@@ -2211,6 +2235,11 @@ export class Game {
     if (key === EGG.key) { this.onToast('恐龙虾卵可不能做成罐头！'); return; }
     if (key.startsWith('x:')) { this.onToast('生长不良的作物做不成罐头，贱卖了吧'); return; }
     if (key.startsWith('y:')) { this.onToast('打过药的只能直接卖，加工不了'); return; }
+    if (key.startsWith('f:')) { this.onToast('花是拿来看的，装什么罐头'); return; }
+    if (key.startsWith('w:')) { this.onToast('酒装进罐头就糟蹋了，直接卖吧'); return; }
+    // 兜底白名单：上面的黑名单每加一种新前缀就得补一次，漏了就会产出
+    // 「p:怪key」这种解析不了的罐头。不认识的一律拒收，宁可少装一罐
+    if (!seedById(key.split(':')[0])) { this.onToast('这个东西做不成罐头'); return; }
     const need = WORKSHOP.ingredients;
     if ((this.inventory[key] ?? 0) < need) {
       this.onToast(`${need} 个才能加工成 1 个罐头，数量不够`);
@@ -2727,11 +2756,15 @@ export class Game {
       this._pendingDamage = false;
       this.damageTiles(this.drought ? 'cracked' : 'wet');
     }
-    // 成就：先收回目标被调大后够不着的，再静默补记已经做到的，最后立起奖杯
+    // 成就：先收回名不副实的，再静默补记已经做到的，最后立起奖杯。
+    // 提示只报「收回后没立刻挣回来」的——当下就满足新条件的无缝换血，弹提示反而吓人
     this.achievements = data.achievements ?? {};
-    this.revokeUnearned().forEach(a => this._notices.push(
-      `🔒 「${a.name}」的目标提高到 ${a.max} 了，先收回，达到后会自动再亮`));
+    const revokedOnLoad = this.revokeUnearned();
     this.checkAchievements(true);
+    revokedOnLoad.filter(({ a }) => !this.achievements[a.id]).forEach(({ a, reason }) => this._notices.push(
+      reason === 'rev' ? `🔒 「${a.name}」的达成条件改了——现在要${a.desc}，先收回，做到后会自动再亮`
+        : reason === 'chain' ? `🔒 「${a.name}」因其中一项成就被收回而暂时不满足，凑齐后会自动再亮`
+          : `🔒 「${a.name}」的目标提高到 ${a.max} 了，先收回，达到后会自动再亮`));
     this.refreshTrophies();
   }
 }

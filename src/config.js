@@ -786,8 +786,11 @@ export const ACHIEVEMENTS = [
     desc: '解锁 10 块土地', hint: '点未开垦的荒地花 1000💰 开垦',
     cur: unlockedTiles, max: 10 },
   { id: 'a02', name: '一层满员', emoji: '🗺️', tier: 'silver', group: '土地',
-    desc: '一层 36 块地全部解锁', hint: '把一层菜地铺满',
-    cur: (g) => g.tiles.slice(0, GRID * GRID).filter(t => !t.locked).length, max: GRID * GRID },
+    desc: '一层 36 块地同时种上作物', hint: '收获前把一层每块地都种满，一块都别空',
+    // rev 2：旧版是「36 块全解锁」，可一层本来就是开着的，有手就行。
+    // 改成同时种满 36 块。老达成记录 rev 对不上，读档时会被收回重挣。
+    cur: (g) => g.tiles.slice(0, GRID * GRID).filter(t => t.plant).length,
+    max: GRID * GRID, rev: 2 },
   { id: 'a03', name: '双层农场', emoji: '🏔️', tier: 'gold', group: '土地',
     desc: '两层共 72 块地全部解锁', hint: '二层每块也要 1000💰，慢慢来',
     cur: unlockedTiles, max: GRID * GRID * LEVELS },
@@ -907,7 +910,7 @@ export const ACHIEVEMENTS = [
 // 其余的是瞬时状态——金币会花掉、槽位会空、装饰能铲掉、展台能收回——
 // 那属于正常波动，玩家当时确实做到过，绝不能因此把成就撤掉。
 const MONOTONIC_ACHIEVEMENTS = new Set([
-  'a01', 'a02', 'a03', 'a04',        // 土地解锁 / 黑土升级
+  'a01', 'a03', 'a04',               // 土地解锁 / 黑土升级（a02 改成同时种满，收了就掉，是瞬时的）
   'a05', 'a06', 'a07', 'a08', 'a09', // 作物解锁 / 图鉴收录
   'a19',                             // 水利等级
   'a23', 'a24', 'a25',               // 家具持有 / 满级数
