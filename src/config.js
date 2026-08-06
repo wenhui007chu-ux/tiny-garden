@@ -144,7 +144,7 @@ export function weatherOfDay(seed, day) {
 // 流程：背包挑果 → 酿造台（3 个位，20 分钟）→ 取出 → 酒窖（9 格）陈酿 → 满意了取回背包卖
 // 酒的基础价 = 原果售价 × 2；进窖后每过一个游戏日再 +10💰，取出时价格就定死了。
 // 便宜果子靠陈酿翻身，贵果子主要吃那个 ×2——两头都有得算。
-export const BREWERY_POS = { x: 0, y: -60, z: -60 }; // 酒窖藏在岛下（这个坑位还空着）
+export const BREWERY_POS = { x: 0, y: -60, z: -60 }; // 酒窖藏在岛下
 export const BREW = {
   slots: 3,        // 酿造台数量
   time: 1200,      // 酿一批 20 分钟
@@ -152,6 +152,23 @@ export const BREW = {
   cellarSlots: 9,  // 酒窖格子
   agePerDay: 10,   // 每窖藏一个游戏日 +10💰
 };
+
+// ===== 食品店：四种作物装成礼盒，上架等人来买 =====
+// 流程：选 4 种作物 → 装盒上架（货架 5 格）→ 20 秒~30 分钟内自动卖出，钱直接进账
+// 跟花房「扎花束」的区别：花束是当场结算，礼盒是挂单——上架了就等，
+// 中途反悔可以下架，作物原样退回背包，等于零成本试价。
+// 岛下 3×3 的场景坑位只剩 (60, -60) 了：另外八个分别是温室/杂交/水族馆/
+// 酒窖/我的家/宠物屋/图鉴/成就殿堂
+export const SHOP_POS = { x: 60, y: -60, z: -60 };
+export const GIFTBOX = {
+  slots: 5,          // 货架最多同时挂 5 盒
+  size: 4,           // 一盒装 4 种作物
+  mult: 1.8,         // 礼盒价 = 4 件作物售价之和 × 1.8
+  minWait: 20,       // 最快 20 秒被买走
+  maxWait: 1800,     // 最慢 30 分钟
+};
+// 礼盒成交价：装盒那一刻就按当时的作物价算死，之后不随行情浮动
+export const giftboxPrice = (sum) => Math.max(1, Math.floor(sum * GIFTBOX.mult));
 // 一瓶酒此刻值多少：底价 + 窖藏天数 × 每日加成
 export const winePrice = (basePrice, days) =>
   Math.max(1, Math.floor(basePrice * BREW.mult + Math.max(0, days) * BREW.agePerDay));

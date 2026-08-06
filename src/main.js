@@ -9,7 +9,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery', 'foodshop'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -71,7 +71,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.foodShopMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -215,6 +215,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 图鉴大楼：点击进馆
   if (hit.userData.codex) {
     ui.openCodex();
+    return;
+  }
+
+  // 食品店：点击进后堂
+  if (hit.userData.foodshop) {
+    ui.openFoodShop();
     return;
   }
 
@@ -375,6 +381,9 @@ function animate() {
     if (obj.userData.houseWindow) {                                          // 夜里窗户透暖光
       obj.material.emissive.setHex(0xffc94a);
       obj.material.emissiveIntensity = (1 - f) * 0.85;
+    }
+    if (obj.userData.giftBox) {   // 货架上的礼盒轻轻上下浮
+      obj.position.y = 0.51 + Math.sin(t * 1.6 + obj.parent.position.x) * 0.06;
     }
     if (obj.userData.brewBubble) {   // 酿造中的气泡往上飘，飘到顶就淡出重来
       const rise = (t * 0.5) % 0.6;

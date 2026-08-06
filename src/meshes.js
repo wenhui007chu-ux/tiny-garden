@@ -4169,3 +4169,102 @@ export function createCellarRack(hasWine, tint) {
   }
   return g;
 }
+
+/* ================= 食品店：临街店面 + 岛下后堂（5 格货架） ================= */
+
+// 岛上的店面（点它进后堂）
+export function createFoodShop() {
+  const g = new THREE.Group();
+  const wall = mat(0xf2e3c8);
+  const trim = mat(0xc75f4a);
+  const wood = mat(0x8a5a34);
+  const glass = mat(0x9fd8e8, { transparent: true, opacity: 0.55, roughness: 0.15 });
+
+  g.add(mesh(new THREE.BoxGeometry(4.4, 0.3, 3.0), mat(0x9a8f7a), 0, 0.15, 0));  // 基座
+  g.add(mesh(new THREE.BoxGeometry(3.9, 2.2, 2.5), wall, 0, 1.4, 0));            // 主体
+  // 整面的临街橱窗
+  g.add(mesh(new THREE.BoxGeometry(3.0, 1.15, 0.08), glass, 0, 1.45, 1.27));
+  g.add(mesh(new THREE.BoxGeometry(3.2, 0.12, 0.16), wood, 0, 0.83, 1.27));      // 窗台
+  [-1.5, 1.5].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.16, 1.3, 0.16), wood, x, 1.45, 1.27)));
+  // 平顶 + 红白条纹雨棚
+  g.add(mesh(new THREE.BoxGeometry(4.2, 0.22, 2.8), trim, 0, 2.6, 0));
+  for (let i = 0; i < 7; i++) {
+    const awning = mesh(new THREE.BoxGeometry(0.48, 0.1, 1.0), i % 2 ? mat(0xfaf3e6) : trim,
+      (i - 3) * 0.5, 2.32, 1.72);
+    awning.rotation.x = -0.42;
+    g.add(awning);
+  }
+  // 门
+  g.add(mesh(new THREE.BoxGeometry(0.85, 1.5, 0.1), wood, 1.35, 0.9, 1.27));
+  g.add(mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0xe0b048), 1.05, 0.95, 1.34));
+  // 门口两筐果子，一眼看出是卖吃的
+  [[-1.5, 1.5], [-0.75, 1.62]].forEach(([x, z], k) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.34, 10), wood, x, 0.32, z));
+    const tint = k ? 0xe0653a : 0xd8434a;
+    [[0, 0], [0.13, 0.1], [-0.12, 0.09], [0.02, -0.13]].forEach(([dx, dz]) =>
+      g.add(mesh(new THREE.SphereGeometry(0.11, 7, 6), mat(tint), x + dx, 0.53, z + dz)));
+  });
+  // 屋顶转动的礼盒招牌
+  const sign = new THREE.Group();
+  sign.add(mesh(new THREE.BoxGeometry(0.46, 0.34, 0.34), mat(0xe8b23a)));
+  sign.add(mesh(new THREE.BoxGeometry(0.5, 0.07, 0.07), trim, 0, 0.06, 0));
+  sign.add(mesh(new THREE.BoxGeometry(0.07, 0.36, 0.07), trim, 0, 0.06, 0));
+  sign.position.set(0, 3.15, 0);
+  sign.userData.spin = true;
+  g.add(sign);
+
+  g.traverse(o => { if (o.isMesh) o.userData.foodshop = true; });
+  return g;
+}
+
+// 5 格货架的站位（后堂局部坐标），一字排开像真的店面陈列
+export const SHELF_SPOTS = Array.from({ length: 5 }, (_, k) => ({ x: (k - 2) * 2.7, z: 0.6 }));
+
+// 岛下的后堂：暖光木质小店
+export function createFoodShopInterior() {
+  const g = new THREE.Group();
+  const W = 17, D = 12;
+  const wallM = mat(0xe6d3b0);
+  g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xb98a5a), 0, -0.15, 0));       // 木地板
+  g.add(mesh(new THREE.BoxGeometry(W, 5, 0.3), wallM, 0, 2.5, -D / 2 + 0.15));
+  [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 5, D), wallM, s * (W / 2 - 0.15), 2.5, 0)));
+  // 后墙的木质陈列格，纯装饰，衬出「店」的感觉
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 6; c++) {
+    g.add(mesh(new THREE.BoxGeometry(2.0, 0.1, 0.5), mat(0x8a5a34),
+      (c - 2.5) * 2.3, 1.5 + r * 1.3, -D / 2 + 0.5));
+  }
+  // 柜台
+  g.add(mesh(new THREE.BoxGeometry(5.2, 1.0, 1.1), mat(0x8a5a34), -4.4, 0.5, 4.0));
+  g.add(mesh(new THREE.BoxGeometry(5.4, 0.12, 1.3), mat(0xc79a62), -4.4, 1.06, 4.0));
+  // 暖光
+  [[-5, 0], [0, 0], [5, 0]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xffd9a0, 0.5, 20, 2);
+    l.position.set(x, 3.8, z);
+    g.add(l);
+    g.add(mesh(new THREE.SphereGeometry(0.16, 8, 6),
+      mat(0xfff0d0, { emissive: 0xe0b048, emissiveIntensity: 0.9 }), x, 3.8, z));
+  });
+  return g;
+}
+
+// 一个货架格：空着只有木架，上架了摆一个礼盒
+export function createShelfSlot(hasBox, tint = 0xe8b23a) {
+  const g = new THREE.Group();
+  const wood = mat(0x8a5a34);
+  g.add(mesh(new THREE.BoxGeometry(2.1, 0.16, 1.5), wood, 0, 0.08, 0));            // 底板
+  [-0.95, 0.95].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.14, 1.2, 1.5), wood, x, 0.68, 0)));
+  g.add(mesh(new THREE.BoxGeometry(2.1, 0.14, 1.5), wood, 0, 1.35, 0));            // 顶板
+  if (hasBox) {
+    const box = new THREE.Group();
+    box.add(mesh(new THREE.BoxGeometry(1.15, 0.7, 0.85), mat(tint)));              // 盒身
+    box.add(mesh(new THREE.BoxGeometry(1.22, 0.12, 0.92), mat(0xd8434a), 0, 0.4, 0)); // 盒盖
+    box.add(mesh(new THREE.BoxGeometry(0.13, 0.72, 0.87), mat(0xd8434a)));         // 竖丝带
+    box.add(mesh(new THREE.BoxGeometry(1.17, 0.72, 0.13), mat(0xd8434a)));         // 横丝带
+    // 蝴蝶结
+    [-1, 1].forEach(s => box.add(mesh(new THREE.SphereGeometry(0.13, 7, 6), mat(0xd8434a), s * 0.15, 0.5, 0)));
+    box.position.set(0, 0.51, 0);
+    box.userData.giftBox = true;   // main.js 让它轻轻上下浮动
+    g.add(box);
+  }
+  return g;
+}

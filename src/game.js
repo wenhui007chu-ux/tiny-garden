@@ -20,6 +20,7 @@ import {
   weatherOfDay, OBSERVATORY, WEATHER_INFO,
   WAREHOUSE, warehouseCap,
   BREWERY_POS, BREW, winePrice,
+  SHOP_POS, GIFTBOX, giftboxPrice,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -38,6 +39,7 @@ import {
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
+  createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -301,6 +303,20 @@ export class Game {
     this.vatMeshes = [];
     this.rackMeshes = [];
 
+    // 食品店：农田右前方的临街店面 + 藏在岛下的后堂货架
+    // 货架格：{ keys:[4个作物key], price, soldAt } 或 null；soldAt 是「到点自动成交」的时刻
+    this.shelf = Array(GIFTBOX.slots).fill(null);
+    const foodShop = createFoodShop();
+    foodShop.position.set(12.5, -0.51, 8.2);
+    foodShop.rotation.y = -0.45;
+    this.group.add(foodShop);
+    this.foodShopMeshes = [];
+    foodShop.traverse(o => { if (o.isMesh) this.foodShopMeshes.push(o); });
+    this.foodShopHall = createFoodShopInterior();
+    this.foodShopHall.position.set(SHOP_POS.x, SHOP_POS.y, SHOP_POS.z);
+    this.group.add(this.foodShopHall);
+    this.shelfMeshes = [];
+
     // 仓库：农田左后方，避开二层农田台面的遮挡视线
     this.warehouse = {};        // key -> 件数
     this.warehouseLevel = 1;
@@ -356,6 +372,7 @@ export class Game {
     this.addSign(observatory, '🔭', 'observatory');
     this.addSign(warehouse, '📦', 'warehouse');
     this.addSign(brewery, '🍷', 'brewery');
+    this.addSign(foodShop, '🎁', 'foodshop');
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -1750,6 +1767,97 @@ export class Game {
     });
   }
 
+  /* ---------- 食品店：礼盒挂单 ---------- */
+
+  // 能装盒的跟能酿酒的是同一批：田里收的作物本体
+  giftCandidates() {
+    return Object.keys(this.inventory).filter(k => (this.inventory[k] ?? 0) > 0 && this.brewable(k));
+  }
+
+  // 装盒上架：扣掉 4 件作物，随机一个成交时刻挂在货架上
+  listGiftbox(keys) {
+    const slot = this.shelf.indexOf(null);
+    if (slot < 0) { this.onToast(`货架 ${GIFTBOX.slots} 格都满了，先等等或者下架一盒`); sfx.play('deny'); return false; }
+    if (!keys || keys.length !== GIFTBOX.size) {
+      this.onToast(`要凑够 ${GIFTBOX.size} 种作物才能装一盒`); sfx.play('deny'); return false;
+    }
+    // 先按 key 汇总需求量再统一校验：选了两份同种作物时，逐个判断会漏掉数量不足
+    const need = {};
+    keys.forEach(k => { need[k] = (need[k] ?? 0) + 1; });
+    for (const k in need) {
+      if (!this.brewable(k)) { this.onToast('礼盒只装田里收的作物'); sfx.play('deny'); return false; }
+      if ((this.inventory[k] ?? 0) < need[k]) { this.onToast('背包里的作物不够'); sfx.play('deny'); return false; }
+    }
+    const price = giftboxPrice(keys.reduce((s, k) => s + keyInfo(k).price, 0));
+    for (const k in need) {
+      this.inventory[k] -= need[k];
+      if (this.inventory[k] <= 0) delete this.inventory[k];
+    }
+    const wait = GIFTBOX.minWait + Math.random() * (GIFTBOX.maxWait - GIFTBOX.minWait);
+    this.shelf[slot] = { keys: [...keys], price, soldAt: this.time + wait };
+    this.onToast(`🎁 礼盒上架！标价 ${price}💰，等人来买`);
+    sfx.play('done');
+    this.refreshShelf();
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 下架：作物原样退回背包，等于零成本反悔
+  unlistGiftbox(slot) {
+    const box = this.shelf[slot];
+    if (!box) return false;
+    box.keys.forEach(k => { this.inventory[k] = (this.inventory[k] ?? 0) + 1; });
+    this.shelf[slot] = null;
+    this.onToast(`📤 ${slot + 1} 号礼盒下架，${GIFTBOX.size} 件作物退回背包`);
+    sfx.play('tap');
+    this.refreshShelf();
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 到点的礼盒自动成交，钱直接进账（tick 每帧调用，离线结算也走它）
+  tickShelf() {
+    let sold = 0, income = 0;
+    this.shelf.forEach((box, k) => {
+      if (!box || this.time < box.soldAt) return;
+      this.shelf[k] = null;
+      income += box.price;
+      sold += 1;
+    });
+    if (!sold) return;
+    this.gain(income);
+    this.onToast(`🎁 卖出 ${sold} 份礼盒，+${income}💰 已入账`);
+    sfx.play('coin');
+    this.refreshShelf();
+    this.save();
+  }
+
+  // 重建货架上的 5 个格子
+  refreshShelf() {
+    if (!this.foodShopHall) return;
+    this.shelfMeshes.forEach(m => this.foodShopHall.remove(m));
+    this.shelfMeshes = [];
+    this.shelf.forEach((box, k) => {
+      // 盒子颜色按标价分档，一排看过去知道哪盒是大单
+      const tint = box ? this.giftTint(box.price) : 0;
+      const m = createShelfSlot(!!box, tint);
+      const s = SHELF_SPOTS[k];
+      m.position.set(s.x, 0, s.z);
+      this.foodShopHall.add(m);
+      this.shelfMeshes.push(m);
+    });
+  }
+
+  // 标价越高，盒子越往金紫走（跟酒瓶同一套分档思路）
+  giftTint(price) {
+    if (price >= 20000) return 0x8a3ab0;  // 紫
+    if (price >= 5000) return 0xd8b048;   // 金
+    if (price >= 800) return 0xe08a3a;    // 橙
+    return 0xe8b23a;                      // 常规黄
+  }
+
   /* ---------- 仓库 ---------- */
 
   warehouseUsed() { return Object.values(this.warehouse).reduce((a, b) => a + b, 0); }
@@ -2418,6 +2526,7 @@ export class Game {
     this.refreshHybridStations();
     this.refreshPetRoom();
     this.refreshGreenhouse();
+    this.refreshShelf();
   }
 
   /* ---------- 主循环 ---------- */
@@ -2476,6 +2585,7 @@ export class Game {
     }
 
     this.tickFishing(dt);
+    this.tickShelf();
 
     // 成就：每秒统一比对一次，省得在几十个动作里各插一遍钩子
     this._achTimer = (this._achTimer ?? 0) + dt;
@@ -2550,6 +2660,7 @@ export class Game {
       windTimer: this.windTimer,
       dayCount: this.dayCount,
       weatherSeed: this.weatherSeed,
+      shelf: this.shelf.map(b => b ? { keys: b.keys, price: b.price, remain: Math.max(0, b.soldAt - this.time) } : null),
       brewery: this.brewery.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
       cellar: this.cellar.map(c => c ? { key: c.key, agedDays: Math.max(0, this.dayCount - c.sinceDay) } : null),
       warehouse: this.warehouse,
@@ -2634,6 +2745,13 @@ export class Game {
       this._pendingHeal = true; // 隔了一天，之前的天灾都该消退了
       if (this.badWeather()) this._pendingDamage = true; // 地块数据还没读完，稍后再毁地
     }
+    // 食品店：离线期间挂单照常倒计时。已经到点的不在这里直接给钱——
+    // 留给 tick 里的 tickShelf 统一成交，省得入账逻辑写两份
+    this.shelf = Array(GIFTBOX.slots).fill(null);
+    (data.shelf ?? []).forEach((b, k) => {
+      if (b && k < this.shelf.length) this.shelf[k] = { keys: b.keys, price: b.price, soldAt: this.time + Math.max(0, b.remain - elapsed) };
+    });
+    this.refreshShelf();
     // 酒庄：离线期间照常酿造；窖藏天数换算回 sinceDay
     this.brewery = Array(BREW.slots).fill(null);
     (data.brewery ?? []).forEach((b, k) => {

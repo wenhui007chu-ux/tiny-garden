@@ -5,6 +5,7 @@ import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } 
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
 import { BREWERY_POS, BREW, winePrice } from './config.js';
+import { SHOP_POS, GIFTBOX, giftboxPrice } from './config.js';
 import { music, sfx } from './music.js';
 import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
@@ -73,6 +74,7 @@ export class UI {
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
     $('#brew-close').addEventListener('click', () => this.exitBrewery());
+    $('#shop2-close').addEventListener('click', () => this.exitFoodShop());
     $('#ware-close').addEventListener('click', () => $('#ware').classList.add('hidden'));
     $('#black-close').addEventListener('click', () => $('#black').classList.add('hidden'));
     $('#items-btn').addEventListener('click', () => {
@@ -93,6 +95,7 @@ export class UI {
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
       if (!$('#brew').classList.contains('hidden')) this.renderBrewery();
+      if (!$('#shop2').classList.contains('hidden')) this.renderFoodShop();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -323,7 +326,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -334,12 +337,13 @@ export class UI {
     this.exitAchievement();
     this.exitAquarium();
     this.exitBrewery();
+    this.exitFoodShop();
   }
 
   // 加 !! 保证返回真正的布尔：|| 链在全部 falsy 时会返回最后一项（undefined）
   inside() {
     return !!(this.inHouse || this.inCodex || this.inFishing || this.inHybridLab
-      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium || this.inBrewery);
+      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium || this.inBrewery || this.inFoodShop);
   }
 
   /* ---------- 主动钓鱼 ---------- */
@@ -381,6 +385,184 @@ export class UI {
       this.controls.update();
       this._fishCamBackup = null;
     }
+  }
+
+  /* ---------- 食品店 ---------- */
+
+  openFoodShop() {
+    this.closePanels();
+    $('#shop2').classList.remove('hidden');
+    if (!this.inFoodShop && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = SHOP_POS;
+      // 跟酒窖同样的道理：3D 按整个视口渲染，右边被面板盖住，
+      // 相机和目标一起右移半个面板宽，货架才落在露出来的那半屏中间
+      // dist 要跟下面相机到目标的实际距离对上（√(10²+17.4²)≈20），
+      // 否则算出来的 shift 是按错的距离推的，货架还是会被面板压住
+      const dist = 20;
+      const visH = 2 * dist * Math.tan((this.camera.fov * Math.PI / 180) / 2);
+      const shift = visH * this.camera.aspect * (this.shopPanelWidth() / window.innerWidth) / 2;
+      this.controls.target.set(p.x + shift, p.y + 1, p.z + 0.6);
+      this.camera.position.set(p.x + shift, p.y + 11, p.z + 18);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inFoodShop = true;
+    }
+    this.giftSel = [];      // 正在往盒子里放的作物
+    this.giftPicking = false; // 是否停在「挑作物」那一屏
+    this.renderFoodShop();
+    $('#shop2-body').scrollTop = 0;
+  }
+
+  shopPanelWidth() {
+    const w = $('#shop2').getBoundingClientRect().width;
+    return w || Math.min(480, window.innerWidth * 0.4);
+  }
+
+  exitFoodShop() {
+    $('#shop2').classList.add('hidden');
+    if (!this.inFoodShop) return;
+    this.inFoodShop = false;
+    this.giftSel = [];
+    this.giftPicking = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderFoodShop() {
+    const g = this.game;
+    const body = $('#shop2-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    this.giftSel = this.giftSel || [];
+
+    // ① 挑作物那一屏
+    if (this.giftPicking) {
+      body.insertAdjacentHTML('beforeend',
+        `<div id="gift-top"><b>🧺 ${tp('gift.pickTitle', { n: GIFTBOX.size })}</b>`
+        + `<small>${tp('gift.pickHint', { n: GIFTBOX.size, mult: GIFTBOX.mult })}</small></div>`);
+      const back = document.createElement('button');
+      back.className = 'brew-back';
+      back.textContent = `↩︎ ${t('gift.back')}`;
+      back.addEventListener('click', () => { this.giftPicking = false; this.renderFoodShop(); });
+      body.appendChild(back);
+      body.appendChild(this.giftBasket());
+
+      const list = g.giftCandidates();
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend', `<div class="brew-empty">${t('gift.noCrop')}</div>`);
+      } else {
+        const grid = document.createElement('div');
+        grid.id = 'brew-fruits';
+        list.sort((a, b) => keyInfo(b).price - keyInfo(a).price).forEach(key => {
+          const info = keyInfo(key);
+          // 背包里的数量要减掉已经放进盒子的，否则能超量选
+          const avail = g.inventory[key] - this.giftSel.filter(x => x === key).length;
+          const el = document.createElement('button');
+          el.className = 'brew-fruit';
+          el.innerHTML = `<b>${info.icon}</b><span>${info.label}</span><small>×${avail} · ${info.price}💰</small>`;
+          el.disabled = avail <= 0 || this.giftSel.length >= GIFTBOX.size;
+          el.addEventListener('click', () => { this.giftSel.push(key); this.renderFoodShop(); });
+          grid.appendChild(el);
+        });
+        body.appendChild(grid);
+      }
+      body.scrollTop = 0;
+      return;
+    }
+
+    // ② 货架总览
+    const used = g.shelf.filter(Boolean).length;
+    const pending = g.shelf.reduce((s, b) => s + (b ? b.price : 0), 0);
+    body.insertAdjacentHTML('beforeend',
+      `<div id="gift-top"><b>🎁 ${t('gift.shelf')} ${used} / ${GIFTBOX.slots}</b>`
+      + `<small>${tp('gift.shelfHint', { min: GIFTBOX.minWait, max: Math.round(GIFTBOX.maxWait / 60) })}</small>`
+      + (used ? `<em>${t('gift.pending')} ${pending}💰</em>` : '') + `</div>`);
+
+    const add = document.createElement('button');
+    add.id = 'gift-add';
+    add.disabled = used >= GIFTBOX.slots;
+    add.textContent = used >= GIFTBOX.slots ? `🈵 ${t('gift.full')}` : `➕ ${t('gift.add')}`;
+    add.addEventListener('click', () => { this.giftPicking = true; this.giftSel = []; this.renderFoodShop(); });
+    body.appendChild(add);
+
+    g.shelf.forEach((box, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!box) {
+        el.innerHTML = `<div class="icon">🗄️</div><div class="info"><b>${tp('gift.slotN', { n: k + 1 })}</b><p>${t('gift.slotEmpty')}</p></div>`;
+      } else {
+        const remain = Math.max(0, box.soldAt - g.time);
+        const icons = box.keys.map(key => keyInfo(key).icon).join('');
+        el.innerHTML = `<div class="icon">🎁</div><div class="info"><b>${icons}</b>`
+          + `<p>${tp('gift.waiting', { p: box.price, m: fmtTime(remain) })}</p></div>`;
+        const btn = document.createElement('button');
+        btn.className = 'gift-unlist';
+        btn.textContent = `📤 ${t('gift.unlist')}`;
+        btn.addEventListener('click', () => { g.unlistGiftbox(k); this.renderFoodShop(); });
+        el.appendChild(btn);
+      }
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled;
+  }
+
+  // 待装的四格 + 实时总价 + 卖出键，挑作物那一屏顶上常驻
+  giftBasket() {
+    const wrap = document.createElement('div');
+    wrap.id = 'gift-basket';
+    const row = document.createElement('div');
+    row.className = 'gift-slots';
+    this.giftSel.forEach((key, idx) => {
+      const chip = document.createElement('button');
+      chip.className = 'gift-chip';
+      chip.innerHTML = `${keyInfo(key).icon}<i>✕</i>`;
+      chip.title = t('gift.removeTip');
+      chip.addEventListener('click', () => { this.giftSel.splice(idx, 1); this.renderFoodShop(); });
+      row.appendChild(chip);
+    });
+    for (let i = this.giftSel.length; i < GIFTBOX.size; i++) {
+      const empty = document.createElement('span');
+      empty.className = 'gift-chip empty';
+      empty.textContent = '➕';
+      row.appendChild(empty);
+    }
+    wrap.appendChild(row);
+
+    // 总价随选随算，没选满也先给个当前小计
+    const sum = this.giftSel.reduce((s, k) => s + keyInfo(k).price, 0);
+    const price = giftboxPrice(sum);
+    const info = document.createElement('div');
+    info.className = 'gift-sum';
+    info.innerHTML = this.giftSel.length
+      ? `${t('gift.sum')} ${sum}💰 × ${GIFTBOX.mult} = <b>${price}💰</b>`
+      : `<span class="gift-sum-hint">${tp('gift.pickMore', { n: GIFTBOX.size })}</span>`;
+    wrap.appendChild(info);
+
+    const sell = document.createElement('button');
+    sell.id = 'gift-sell';
+    sell.disabled = this.giftSel.length !== GIFTBOX.size;
+    sell.textContent = this.giftSel.length === GIFTBOX.size
+      ? `🎁 ${tp('gift.sell', { p: price })}`
+      : `${tp('gift.needMore', { n: GIFTBOX.size - this.giftSel.length })}`;
+    sell.addEventListener('click', () => {
+      if (this.game.listGiftbox([...this.giftSel])) {
+        this.giftSel = [];
+        this.giftPicking = false;   // 上架成功回到货架总览，能立刻看见新盒子
+        this.renderFoodShop();
+      }
+    });
+    wrap.appendChild(sell);
+    return wrap;
   }
 
   /* ---------- 酒庄 ---------- */

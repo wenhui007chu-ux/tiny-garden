@@ -184,18 +184,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2 {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body { padding: 12px; overflow-y: auto; flex: 1; }
 #pet-close, #greenhouse-close, #ach-close, #aqua-close { font-size: 14px !important; font-weight: 700; color: #8a5a2b !important; }
 
 /* 背后有 3D 场景、点进去镜头会切进内部的那几个面板（酒庄/水族馆/成就大厅/
@@ -203,7 +203,7 @@ body {
    铺满会把 3D 场景整个盖住。原来固定 330px，做酒庄时试过 420px，
    玩下来一个觉得偏窄一个偏宽，折中定在视口的 1/2.5（40%）。
    clamp 夹住两头：窗口很窄时别挤没内容，很宽的桌面屏上也别把 3D 遮去一大半。 */
-#codex, #hybrid, #pet, #house, #greenhouse, #ach, #brew, #aqua {
+#codex, #hybrid, #pet, #house, #greenhouse, #ach, #brew, #aqua, #shop2 {
   width: clamp(300px, 40vw, 480px);
 }
 
@@ -877,3 +877,55 @@ body {
 .brew-empty {
   text-align: center; color: #a1834f; font-size: 14px; line-height: 1.8; padding: 30px 0;
 }
+
+/* ---------- 食品店 ---------- */
+#gift-top {
+  border: 2px solid #e0a86a; border-radius: 14px; background: #fdf2e2;
+  padding: 10px 12px; margin-bottom: 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+#gift-top b { color: #8a5226; font-size: 15px; }
+#gift-top small { color: #a1834f; font-size: 12px; line-height: 1.5; }
+#gift-top em {
+  font-style: normal; font-weight: 800; color: #8a5a2b; font-size: 15px;
+  background: #fff4d8; border-radius: 8px; padding: 3px 8px; width: fit-content; margin-top: 2px;
+}
+#gift-add {
+  width: 100%; padding: 10px; margin-bottom: 10px; cursor: pointer;
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 12px; font-weight: 700; font-size: 14px;
+}
+#gift-add:hover:not(:disabled) { background: #cfeec4; }
+#gift-add:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }
+.gift-unlist {
+  border: 2px solid #d98a6a; background: #fdeee6; color: #a8532f;
+  border-radius: 10px; padding: 6px 10px; cursor: pointer; font-weight: 700; font-size: 12px;
+  white-space: nowrap;
+}
+
+/* 待装的四格：常驻在挑作物那一屏顶上，随选随算 */
+#gift-basket {
+  border: 2px solid #e0a86a; border-radius: 14px; background: #fff;
+  padding: 10px; margin-bottom: 12px;
+}
+.gift-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gift-chip {
+  position: relative; border: 2px solid #e8c68f; border-radius: 12px; background: #fff8ec;
+  min-height: 54px; font-size: 26px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.gift-chip.empty { border-style: dashed; border-color: #ddd; background: #fafafa; color: #c4b498; font-size: 18px; cursor: default; }
+.gift-chip i {
+  position: absolute; top: -6px; right: -6px; font-style: normal;
+  background: #d9534f; color: #fff; border-radius: 999px;
+  width: 18px; height: 18px; line-height: 18px; font-size: 11px; text-align: center;
+}
+.gift-sum { text-align: center; font-size: 13px; color: #a1834f; margin: 10px 0 8px; }
+.gift-sum b { color: #8a5a2b; font-size: 17px; }
+.gift-sum-hint { color: #b9a88a; }
+#gift-sell {
+  width: 100%; padding: 10px; cursor: pointer;
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 12px; font-weight: 700; font-size: 14px;
+}
+#gift-sell:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }
