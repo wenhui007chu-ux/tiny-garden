@@ -1,6 +1,8 @@
-import { seedName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
+import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
+import { BUTCHER, CUTS, cutById, cutName, cutPrice } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
@@ -68,6 +70,8 @@ export class UI {
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
     $('#greenhouse-close').addEventListener('click', () => this.exitGreenhouse());
+    $('#ranch-close').addEventListener('click', () => this.exitRanch());
+    $('#butcher-close').addEventListener('click', () => this.exitButcher());
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
@@ -93,6 +97,8 @@ export class UI {
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
       }
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
+      if (!$('#ranch').classList.contains('hidden')) this.renderRanch();
+      if (!$('#butcher').classList.contains('hidden') && this.butcherPicking === null) this.renderButcher();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
       // 酒庄/食品店的「挑东西」那一屏整屏都是静态的（背包里的作物不会自己变），
       // 定时重绘除了把滚动条弹回顶上，还可能正好在两次点击之间把按钮换掉、吞掉一下点击。
@@ -329,7 +335,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -341,6 +347,7 @@ export class UI {
     this.exitAquarium();
     this.exitBrewery();
     this.exitFoodShop();
+    this.exitRanch(); // 漏了这条的后果：在牧场点开别的面板，镜头会卡在岛东回不来
   }
 
   // 加 !! 保证返回真正的布尔：|| 链在全部 falsy 时会返回最后一项（undefined）
@@ -1004,20 +1011,20 @@ export class UI {
 
     body.insertAdjacentHTML('beforeend',
       `<div id="aqua-progress">🐠 ${used} / ${AQUARIUM_SLOTS}
-        <small>钓上来的水产可以养在这儿，养不下的留在背包照常卖</small></div>`);
+        <small>${t('aqua.hint')}</small></div>`);
 
     // 挑一样放进去
     if (this.aquaPicking) {
       const back = document.createElement('button');
       back.className = 'sorter-pick';
-      back.innerHTML = '<span class="icon">↩️</span><span class="info"><b>返回鱼缸列表</b></span>';
+      back.innerHTML = `<span class="icon">↩️</span><span class="info"><b>${t('aqua.backToTanks')}</b></span>`;
       back.addEventListener('click', () => { this.aquaPicking = false; this.renderAquarium(); });
       body.appendChild(back);
 
       const list = g.aquariumCandidates().sort((a, b) => keyInfo(b).price - keyInfo(a).price);
       if (!list.length) {
         body.insertAdjacentHTML('beforeend',
-          '<div class="bag-empty">背包里没有水产<br>去左边的抓鱼水滩钓几条 🎣</div>');
+          `<div class="bag-empty">${t('aqua.noSeafood')}</div>`);
         return;
       }
       list.forEach(key => {
@@ -1029,7 +1036,7 @@ export class UI {
           <span class="icon">${info.icon}</span>
           <span class="info">
             <b>${info.label} ×${g.inventory[key]}</b>
-            <small>${isEgg ? '放进去会孵化成 🦞恐龙虾' : `值 ${info.price}💰`}</small>
+            <small>${isEgg ? t('aqua.willHatch') : tp('aqua.worth', { n: info.price })}</small>
           </span>`;
         btn.addEventListener('click', () => {
           if (g.addToAquarium(key)) this.renderAquarium();
@@ -1042,7 +1049,7 @@ export class UI {
     if (used < AQUARIUM_SLOTS) {
       const add = document.createElement('button');
       add.id = 'aqua-add';
-      add.textContent = '＋ 放一只进来';
+      add.textContent = t('aqua.add');
       add.addEventListener('click', () => { this.aquaPicking = true; this.renderAquarium(); });
       body.appendChild(add);
     }
@@ -1053,14 +1060,14 @@ export class UI {
       if (id) {
         const sf = seafoodById(id);
         el.innerHTML = `<div class="icon">${sf.emoji}</div>
-          <div class="info"><b>${k + 1} 号缸 · ${sf.name}</b><p>值 ${sf.sell}💰</p></div>`;
+          <div class="info"><b>${tp('aqua.tankOf', { n: k + 1, name: seafoodName(sf) })}</b><p>${tp('aqua.worth', { n: sf.sell })}</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = '捞回背包';
+        btn.textContent = t('aqua.takeBack');
         btn.addEventListener('click', () => { g.takeFromAquarium(k); this.renderAquarium(); });
         el.appendChild(btn);
       } else {
         el.innerHTML = `<div class="icon">🫧</div>
-          <div class="info"><b>${k + 1} 号缸</b><p>空着</p></div>`;
+          <div class="info"><b>${tp('aqua.tankN', { n: k + 1 })}</b><p>${t('fish.slotEmpty')}</p></div>`;
       }
       body.appendChild(el);
     });
@@ -1424,7 +1431,7 @@ export class UI {
         body.appendChild(el);
       });
       const back = document.createElement('button');
-      back.textContent = '← 返回';
+      back.textContent = t('ui.back');
       back.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;';
       back.addEventListener('click', () => { this.codexChoosing = null; this.renderCodex(); });
       body.appendChild(back);
@@ -1448,7 +1455,7 @@ export class UI {
         el.innerHTML = `<div class="icon">🏆</div>
           <div class="info"><b>${k + 1} 号金台</b><p>空着</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = '摆放';
+        btn.textContent = t('ui.place');
         btn.addEventListener('click', () => { this.codexChoosing = k; this.renderCodex(); });
         el.appendChild(btn);
       }
@@ -1580,6 +1587,212 @@ export class UI {
     });
   }
 
+  /* ---------- 屠宰场 ---------- */
+
+  openButcher() {
+    this.closePanels();
+    this.enterEast(); // 屠宰场就在牧场旁边，共用岛东那段镜头
+    $('#butcher').classList.remove('hidden');
+    this.butcherPicking = null;
+    this.renderButcher();
+  }
+
+  exitButcher() {
+    $('#butcher').classList.add('hidden');
+    this.exitRanch(); // 把镜头搬回农田
+  }
+
+  renderButcher() {
+    const g = this.game;
+    const body = $('#butcher-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+
+    const total = BUTCHER.killTime + BUTCHER.cutTime;
+    body.insertAdjacentHTML('beforeend', `<div id="butcher-note">${tp('butcher.note', {
+      kill: fmtTime(BUTCHER.killTime), cut: fmtTime(BUTCHER.cutTime), all: fmtTime(total),
+      n: CUTS.length, mult: BUTCHER.mult,
+      cuts: CUTS.map(c => `${c.emoji}${cutName(c)}`).join('、'),
+    })}</div>`);
+
+    // 正在挑动物：列出背包里所有整只动物
+    if (this.butcherPicking !== null) {
+      const slot = this.butcherPicking;
+      const back = document.createElement('button');
+      back.className = 'sorter-pick';
+      back.innerHTML = `<span class="icon">↩️</span><span class="info"><b>${t('butcher.back')}</b></span>`;
+      back.addEventListener('click', () => { this.butcherPicking = null; this.renderButcher(); });
+      body.appendChild(back);
+
+      const list = g.butcherable().sort((a, b) => keyInfo(b).price - keyInfo(a).price);
+      if (!list.length) {
+        body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('butcher.noAnimal')}</div>`);
+        body.scrollTop = scrolled;
+        return;
+      }
+      list.forEach(key => {
+        const aid = key.slice(2);
+        const an = animalById(aid);
+        const n = g.inventory[key];
+        const parts = CUTS.reduce((s, c) => s + cutPrice(aid, c.id), 0);
+        const btn = document.createElement('button');
+        btn.className = 'sorter-pick';
+        btn.innerHTML = `
+          <span class="icon">${an.emoji}</span>
+          <span class="info">
+            <b>${animalName(an)} ×${n}</b>
+            <small>${tp('butcher.compare', { whole: an.sell.toLocaleString(), parts: parts.toLocaleString() })}</small>
+          </span>
+          <span class="gain">+${(parts - an.sell).toLocaleString()}💰</span>`;
+        btn.addEventListener('click', () => {
+          if (g.startButcher(slot, key)) { this.butcherPicking = null; this.renderButcher(); }
+        });
+        body.appendChild(btn);
+      });
+      body.scrollTop = scrolled;
+      return;
+    }
+
+    // 工位
+    g.butcher.forEach((b, k) => {
+      const stage = g.butcherStage(k);
+      const el = document.createElement('div');
+      el.className = 'sorter-slot' + (stage === 'done' ? ' ready' : b ? ' busy' : '');
+      if (!b) {
+        el.innerHTML = `<div class="head"><span class="icon">🔪</span><b>${tp('butcher.slotIdle', { n: k + 1 })}</b></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = t('butcher.put');
+        btn.addEventListener('click', () => { this.butcherPicking = k; this.renderButcher(); });
+        el.appendChild(btn);
+      } else {
+        const an = animalById(b.key.slice(2));
+        const left = Math.max(0, b.readyAt - g.time);
+        if (stage === 'done') {
+          const aid = b.key.slice(2);
+          el.innerHTML = `<div class="head"><span class="icon">${an.emoji}</span><b>${tp('butcher.slotDone', { n: k + 1, name: animalName(an) })}</b></div>
+            <div class="butcher-cuts">${CUTS.map(c =>
+              `<span>${c.emoji}${cutName(c)} <i>${cutPrice(aid, c.id).toLocaleString()}💰</i></span>`).join('')}</div>`;
+          const btn = document.createElement('button');
+          btn.textContent = t('butcher.take');
+          btn.addEventListener('click', () => { g.collectButcher(k); this.renderButcher(); });
+          el.appendChild(btn);
+        } else {
+          const phase = stage === 'kill' ? t('butcher.phaseKill') : t('butcher.phaseCut');
+          el.innerHTML = `<div class="head"><span class="icon">${stage === 'kill' ? '🔪' : '🍖'}</span>
+            <b>${tp('butcher.slotBusy', { n: k + 1, name: animalName(an), phase })}</b></div>
+            <div class="butcher-left">${fmtTime(left)}</div>`;
+        }
+      }
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled;
+  }
+
+  /* ---------- 牧场 ---------- */
+
+  // 牧场和屠宰场都在岛东边，离农田很远，进任一个都得把镜头挪过去；退出时还原。
+  // 两栋楼挨着，共用同一段镜头，来回搬运动物时才不会一步一跳。
+  enterEast() {
+    if (this.inRanch || !this.camera) return;
+    this._camBackup = {
+      pos: this.camera.position.clone(),
+      target: this.controls.target.clone(),
+      minD: this.controls.minDistance,
+    };
+    this.controls.target.set(RANCH_POS.x, 0.5, RANCH_POS.z);
+    this.camera.position.set(RANCH_POS.x + 9, 11, RANCH_POS.z + 13);
+    this.controls.minDistance = 4;
+    this.controls.update();
+    this.inRanch = true;
+  }
+
+  openRanch() {
+    this.closePanels();
+    this.enterEast();
+    $('#ranch').classList.remove('hidden');
+    this.renderRanch();
+  }
+
+  exitRanch() {
+    $('#ranch').classList.add('hidden');
+    if (!this.inRanch) return;
+    this.inRanch = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderRanch() {
+    const g = this.game;
+    const body = $('#ranch-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+
+    // 挂机收益汇总
+    body.insertAdjacentHTML('beforeend',
+      `<div class="ranch-idle">${tp('ranch.idleTotal', { n: g.ranchIdleRate().toLocaleString(), g: g.ranchGrownCount() })}</div>
+       <p class="ranch-hint">${t('ranch.hint')}</p>`);
+
+    // 选幼崽
+    body.insertAdjacentHTML('beforeend', `<div class="gh-title">${t('ranch.pick')}</div>`);
+    const pick = document.createElement('div');
+    pick.className = 'ranch-pick';
+    ANIMALS.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'ranch-animal' + (this.selectedAnimal === a.id ? ' active' : '');
+      b.disabled = g.coins < a.cost;
+      b.innerHTML = `${a.emoji}<span>${animalName(a)}</span><i>${a.cost.toLocaleString()}💰</i>`;
+      b.title = tp('ranch.buyLine', { cost: a.cost.toLocaleString(), t: fmtTime(a.grow),
+        sell: a.sell.toLocaleString(), idle: a.idle.toLocaleString() });
+      b.addEventListener('click', () => { this.selectedAnimal = a.id; this.renderRanch(); });
+      pick.appendChild(b);
+    });
+    body.appendChild(pick);
+
+    // 栏位
+    const used = g.ranchPens.filter(Boolean).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div class="gh-title">${tp('ranch.pens', { n: used, max: g.ranchPens.length })}</div>`);
+    const grid = document.createElement('div');
+    grid.className = 'ranch-pens';
+    g.ranchPens.forEach((p, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'ranch-pen';
+      if (!p) {
+        cell.classList.add('empty');
+        const sel = this.selectedAnimal ? animalById(this.selectedAnimal) : null;
+        cell.innerHTML = `<span class="gh-empty">${t('ranch.empty')}</span>`;
+        if (sel) {
+          const btn = document.createElement('button');
+          btn.innerHTML = tp('ranch.put', { emoji: sel.emoji });
+          btn.addEventListener('click', () => { g.buyAnimal(i, sel.id); this.renderRanch(); });
+          cell.appendChild(btn);
+        }
+      } else {
+        const an = animalById(p.id);
+        const grown = g.time >= p.readyAt;
+        if (grown) {
+          cell.classList.add('grown');
+          cell.innerHTML = `<span>${an.emoji}</span><b>${animalName(an)}</b>`;
+          const btn = document.createElement('button');
+          btn.textContent = t('ranch.collect');
+          btn.addEventListener('click', () => { g.collectAnimal(i); this.renderRanch(); });
+          cell.appendChild(btn);
+        } else {
+          cell.innerHTML = `<span style="opacity:.6">${an.emoji}</span><b>${animalName(an)}</b>`
+            + `<i>${fmtTime(p.readyAt - g.time)}</i>`;
+        }
+      }
+      grid.appendChild(cell);
+    });
+    body.appendChild(grid);
+    body.scrollTop = scrolled; // 定时重绘别把滚动位置弹回顶部
+  }
+
   /* ---------- 花房温室 ---------- */
 
   openGreenhouse() {
@@ -1623,7 +1836,7 @@ export class UI {
     // —— 选花种 ——
     const seedTitle = document.createElement('div');
     seedTitle.className = 'gh-title';
-    seedTitle.textContent = '🌱 选花种（点空花圃种下）';
+    seedTitle.textContent = t('gh.pickSeed');
     body.appendChild(seedTitle);
     const seedBox = document.createElement('div');
     seedBox.className = 'gh-seeds';
@@ -1631,7 +1844,7 @@ export class UI {
       const b = document.createElement('button');
       b.className = 'gh-seed' + (this.selectedFlower === f.id ? ' active' : '');
       b.style.borderColor = POND_RARITY[f.rarity].color;
-      b.innerHTML = `${f.emoji}<span>${f.name}</span><i>${f.seed}💰</i>`;
+      b.innerHTML = `${f.emoji}<span>${flowerName(f)}</span><i>${f.seed}💰</i>`;
       b.addEventListener('click', () => { this.selectedFlower = f.id; this.renderGreenhouse(); });
       seedBox.appendChild(b);
     });
@@ -1641,7 +1854,7 @@ export class UI {
     const grown = g.flowerPlots.filter(Boolean).length;
     const plotTitle = document.createElement('div');
     plotTitle.className = 'gh-title';
-    plotTitle.textContent = `🪴 花圃 ${grown}/${g.flowerPlots.length}`;
+    plotTitle.textContent = tp('gh.plots', { n: grown, max: g.flowerPlots.length });
     body.appendChild(plotTitle);
     const plotBox = document.createElement('div');
     plotBox.className = 'gh-plots';
@@ -1651,24 +1864,24 @@ export class UI {
       if (!p) {
         cell.classList.add('empty');
         const sel = this.selectedFlower ? flowerById(this.selectedFlower) : null;
-        cell.innerHTML = `<span class="gh-empty">空</span>`;
+        cell.innerHTML = `<span class="gh-empty">${t('gh.empty')}</span>`;
         if (sel) {
           const btn = document.createElement('button');
-          btn.innerHTML = `种 ${sel.emoji}`;
+          btn.innerHTML = tp('gh.plant', { emoji: sel.emoji });
           btn.addEventListener('click', () => { g.plantFlower(i, sel.id); this.renderGreenhouse(); });
           cell.appendChild(btn);
         }
       } else {
         const fl = flowerById(p.id);
         if (g.time >= p.readyAt) {
-          cell.innerHTML = `<span>${fl.emoji}</span><b>${fl.name}</b>`;
+          cell.innerHTML = `<span>${fl.emoji}</span><b>${flowerName(fl)}</b>`;
           const btn = document.createElement('button');
           btn.className = 'gh-harvest';
-          btn.textContent = '🌸 收';
+          btn.textContent = t('gh.harvest');
           btn.addEventListener('click', () => { g.harvestFlower(i); this.renderGreenhouse(); });
           cell.appendChild(btn);
         } else {
-          cell.innerHTML = `<span>🌱</span><b>${fl.name}</b><i>${fmtTime(p.readyAt - g.time)}</i>`;
+          cell.innerHTML = `<span>🌱</span><b>${flowerName(fl)}</b><i>${fmtTime(p.readyAt - g.time)}</i>`;
         }
       }
       plotBox.appendChild(cell);
@@ -1679,13 +1892,13 @@ export class UI {
     this.bouquetSel = this.bouquetSel || [];
     const bqTitle = document.createElement('div');
     bqTitle.className = 'gh-title';
-    bqTitle.textContent = `💐 扎花台（任选 ${BOUQUET_SIZE} 朵 ×${BOUQUET_MULT} 卖出）`;
+    bqTitle.textContent = tp('gh.bench', { n: BOUQUET_SIZE, mult: BOUQUET_MULT });
     body.appendChild(bqTitle);
     const bag = document.createElement('div');
     bag.className = 'gh-seeds';
     const flowerKeys = Object.keys(g.inventory).filter(k => k.startsWith('f:') && g.inventory[k] > 0);
     if (!flowerKeys.length) {
-      bag.innerHTML = `<p class="gh-empty">背包里还没有花，先种花收花吧</p>`;
+      bag.innerHTML = `<p class="gh-empty">${t('gh.noFlowers')}</p>`;
     } else {
       flowerKeys.forEach(k => {
         const info = keyInfo(k);
@@ -1701,11 +1914,11 @@ export class UI {
     body.appendChild(bag);
     const basket = document.createElement('div');
     basket.className = 'gh-basket';
-    basket.innerHTML = `<b>待扎：</b>`;
+    basket.innerHTML = `<b>${t('gh.pending')}</b>`;
     this.bouquetSel.forEach((k, idx) => {
       const chip = document.createElement('button');
       chip.textContent = keyInfo(k).icon;
-      chip.title = '点击移除';
+      chip.title = t('gh.removeTip');
       chip.addEventListener('click', () => { this.bouquetSel.splice(idx, 1); this.renderGreenhouse(); });
       basket.appendChild(chip);
     });
@@ -1720,7 +1933,7 @@ export class UI {
       const price = Math.floor(this.bouquetSel.reduce((s, k) => s + keyInfo(k).price, 0) * BOUQUET_MULT);
       const btn = document.createElement('button');
       btn.className = 'gh-bouquet';
-      btn.textContent = `💐 扎成花束卖出（${price}💰）`;
+      btn.textContent = tp('gh.sellBouquet', { n: price });
       btn.addEventListener('click', () => { g.makeBouquet([...this.bouquetSel]); this.bouquetSel = []; this.renderGreenhouse(); });
       body.appendChild(btn);
     }
@@ -1981,21 +2194,21 @@ export class UI {
         // 鱼在钩上！狂点收杆
         const pct = Math.round(((c.total - c.clicksLeft) / c.total) * 100);
         body.insertAdjacentHTML('beforeend', `
-          <div id="kitchen-progress">🐟 咬钩了！！<small>${c.label}上的鱼值 ${c.value}💰，越肥的鱼越难拉</small></div>
+          <div id="kitchen-progress">${t('fish.bite')}<small>${tp('fish.biteHint', { label: c.label, v: c.value })}</small></div>
           <div class="ws-slot done"><div class="icon">💪</div>
-            <div class="info"><b>拉扯进度 ${pct}%</b>
+            <div class="info"><b>${tp('fish.reelPct', { pct })}</b>
             <div class="bar"><i style="width:${pct}%"></i></div></div></div>
-          ${g.catchQueue.length ? `<p class="shop-note">后面还排着 ${g.catchQueue.length} 条鱼等着收！</p>` : ''}`);
+          ${g.catchQueue.length ? `<p class="shop-note">${tp('fish.queued', { n: g.catchQueue.length })}</p>` : ''}`);
         const reel = document.createElement('button');
         reel.id = 'reel-btn';
-        reel.textContent = `🎣 收杆！还差 ${c.clicksLeft} 下`;
+        reel.textContent = tp('fish.reelBtn', { n: c.clicksLeft });
         reel.style.cssText = 'width:100%;padding:22px 0;border-radius:16px;border:3px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:800;font-size:19px;cursor:pointer;';
         reel.addEventListener('click', () => {
           g.reelClick();
           // 没拉完就只更新文字，别整块重绘打断连点
           const cc = g.pendingCatch;
           if (cc && cc.clicksLeft < cc.total && cc === c) {
-            reel.textContent = `🎣 收杆！还差 ${cc.clicksLeft} 下`;
+            reel.textContent = tp('fish.reelBtn', { n: cc.clicksLeft });
           } else this.renderFishing();
         });
         body.appendChild(reel);
@@ -2005,23 +2218,23 @@ export class UI {
       const gearCfg = usingRod ? ROD : CASTNET;
       const next = Math.max(0, Math.ceil(60 - g.fishingTimer));
       body.insertAdjacentHTML('beforeend', `
-        <div id="kitchen-progress">${usingRod ? '🎣 鱼竿垂钓中…' : '🥅 渔网捕捞中…'}</div>
+        <div id="kitchen-progress">${t(usingRod ? 'fish.rodOn' : 'fish.netOn')}</div>
         <div class="ws-slot"><div class="icon">⏳</div>
-          <div class="info"><b>下次动静还有 ${next} 秒</b>
+          <div class="info"><b>${tp('fish.nextIn', { n: next })}</b>
           <div class="bar"><i style="width:${Math.round((1 - next / 60) * 100)}%"></i></div></div></div>
         <div class="ws-slot done"><div class="icon">${usingRod ? '🎣' : '🥅'}</div>
-          <div class="info"><b>${usingRod ? '鱼竿' : '渔网'}</b><p>每分钟 ${gearCfg.chance * 100}% 咬钩，鱼值 ${gearCfg.min}~${gearCfg.max}💰（收杆点 ${gearCfg.min + 5}~${gearCfg.max + 5} 下）</p></div></div>
+          <div class="info"><b>${t(usingRod ? 'fish.rod' : 'fish.net')}</b><p>${tp('fish.gearDesc', { p: gearCfg.chance * 100, min: gearCfg.min, max: gearCfg.max, cmin: gearCfg.min + 5, cmax: gearCfg.max + 5 })}</p></div></div>
         <div class="ws-slot"><div class="icon">💰</div>
-          <div class="info"><b>本次已钓 ${g.fishingEarned}💰</b></div></div>`);
+          <div class="info"><b>${tp('fish.earned', { n: g.fishingEarned })}</b></div></div>`);
       if ((g.items[usingRod ? 'castnet' : 'rod'] ?? 0) > 0) {
         const sw = document.createElement('button');
-        sw.textContent = usingRod ? '🥅 换用渔网（搏大的）' : '🎣 换用鱼竿（求稳）';
+        sw.textContent = t(usingRod ? 'fish.toNet' : 'fish.toRod');
         sw.style.cssText = 'width:100%;margin-bottom:8px;padding:10px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;';
         sw.addEventListener('click', () => { g.switchGear(); this.renderFishing(); });
         body.appendChild(sw);
       }
       const btn = document.createElement('button');
-      btn.textContent = '🎣 收竿结束';
+      btn.textContent = t('fish.stop');
       btn.style.cssText = 'width:100%;padding:11px;border-radius:12px;border:2px solid #e09b3d;background:#ffe9b8;color:#8a5a2b;font-weight:700;cursor:pointer;';
       btn.addEventListener('click', () => this.exitFishing());
       body.appendChild(btn);
@@ -2029,16 +2242,16 @@ export class UI {
     }
 
     // —— 钓鱼入口：选一件装备下水 ——
-    [['rod', '🎣', '鱼竿垂钓', `${ROD.chance * 100}% 咬钩 · 鱼值 ${ROD.min}~${ROD.max}💰 · 求稳`],
-     ['castnet', '🥅', '渔网捕捞', `${CASTNET.chance * 100}% 咬钩 · 鱼值 ${CASTNET.min}~${CASTNET.max}💰 · 搏大的`]]
+    [['rod', '🎣', t('fish.rodTitle'), tp('fish.rodPitch', { p: ROD.chance * 100, min: ROD.min, max: ROD.max })],
+     ['castnet', '🥅', t('fish.netTitle'), tp('fish.netPitch', { p: CASTNET.chance * 100, min: CASTNET.min, max: CASTNET.max })]]
       .forEach(([gear, icon, name, desc]) => {
         const owned = (g.items[gear] ?? 0) > 0;
         const row = document.createElement('div');
         row.className = 'ws-slot' + (owned ? ' done' : '');
         row.innerHTML = `<div class="icon">${icon}</div>
-          <div class="info"><b>${name}</b><p>${owned ? desc : `未拥有 · 商场 ${itemById(gear).cost}💰`}</p></div>`;
+          <div class="info"><b>${name}</b><p>${owned ? desc : tp('fish.notOwned', { n: itemById(gear).cost })}</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = owned ? '下水' : '没装备';
+        btn.textContent = t(owned ? 'fish.dive' : 'fish.noGear');
         btn.disabled = !owned;
         if (owned) btn.addEventListener('click', () => this.enterFishing(gear));
         else btn.style.cssText = 'border-color:#ccc;background:#f0f0f0;color:#aaa;cursor:default;';
@@ -2054,15 +2267,15 @@ export class UI {
         const el = document.createElement('div');
         el.className = 'ws-slot';
         el.innerHTML = `<div class="icon">🦆</div>
-          <div class="info"><b>${d.name}</b><p style="color:${POND_RARITY[d.rarity].color}">${POND_RARITY[d.rarity].name}</p></div>`;
+          <div class="info"><b>${pondName(d)}</b><p style="color:${POND_RARITY[d.rarity].color}">${tf(`rarity.${d.rarity}`, POND_RARITY[d.rarity].name)}</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = '摆放';
+        btn.textContent = t('ui.place');
         btn.addEventListener('click', () => { g.placePondDecor(d.id); this.pondChoosing = false; this.renderFishing(); });
         el.appendChild(btn);
         body.appendChild(el);
       });
       const back = document.createElement('button');
-      back.textContent = '← 返回';
+      back.textContent = t('ui.back');
       back.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;margin-bottom:8px;';
       back.addEventListener('click', () => { this.pondChoosing = false; this.renderFishing(); });
       body.appendChild(back);
@@ -2074,10 +2287,10 @@ export class UI {
         const el = document.createElement('div');
         el.className = 'ws-slot done';
         el.innerHTML = `<div class="icon">🦆</div>
-          <div class="info"><b>${d.name}</b><p style="color:${POND_RARITY[d.rarity].color}">${POND_RARITY[d.rarity].name} · 塘里游着呢</p></div>`;
+          <div class="info"><b>${tf(`pond.${d.id}`, d.name)}</b><p style="color:${POND_RARITY[d.rarity].color}">${tf(`rarity.${d.rarity}`, POND_RARITY[d.rarity].name)} · ${t('fish.swimming')}</p></div>`;
         const btn = document.createElement('button');
         btn.className = 'collect';
-        btn.textContent = '收起';
+        btn.textContent = t('fish.takeBack');
         btn.addEventListener('click', () => { g.removePondDecor(id); this.renderFishing(); });
         el.appendChild(btn);
         body.appendChild(el);
@@ -2085,7 +2298,7 @@ export class UI {
       const unplacedCount = ownedDecors.length - g.pondPlaced.length;
       if (unplacedCount > 0 && g.pondPlaced.length < POND_MAX_PLACED) {
         const btn = document.createElement('button');
-        btn.textContent = `🦆 摆放装饰（${g.pondPlaced.length}/${POND_MAX_PLACED}）`;
+        btn.textContent = tp('fish.placeDecor', { n: g.pondPlaced.length, max: POND_MAX_PLACED });
         btn.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;margin-bottom:8px;';
         btn.addEventListener('click', () => { this.pondChoosing = true; this.renderFishing(); });
         body.appendChild(btn);
@@ -2097,9 +2310,9 @@ export class UI {
       const el = document.createElement('div');
       el.className = 'ws-slot';
       if (!n) {
-        el.innerHTML = `<div class="icon">🌊</div><div class="info"><b>${k + 1} 号网位</b><p>空着</p></div>`;
+        el.innerHTML = `<div class="icon">🌊</div><div class="info"><b>${tp('fish.netSlot', { n: k + 1 })}</b><p>${t('fish.slotEmpty')}</p></div>`;
         const btn = document.createElement('button');
-        btn.textContent = '摆网';
+        btn.textContent = t('fish.setNet');
         if (nets <= 0) { btn.disabled = true; btn.style.opacity = 0.5; }
         btn.addEventListener('click', () => { g.placeNet(k); this.renderFishing(); });
         el.appendChild(btn);
@@ -2108,16 +2321,16 @@ export class UI {
         if (remain > 0) {
           const pct = Math.round((1 - remain / FISHING.time) * 100);
           el.innerHTML = `<div class="icon">🕸️</div>
-            <div class="info"><b>${k + 1} 号网 捕捞中</b>
-            <p>还剩 ${fmtTime(remain)}</p>
+            <div class="info"><b>${tp('fish.netWorking', { n: k + 1 })}</b>
+            <p>${tp('fish.netRemain', { t: fmtTime(remain) })}</p>
             <div class="bar"><i style="width:${pct}%"></i></div></div>`;
         } else {
           el.classList.add('done');
           el.innerHTML = `<div class="icon">🐟</div>
-            <div class="info"><b>${k + 1} 号网 有动静了！</b><p>快收网看看捞到多少</p></div>`;
+            <div class="info"><b>${tp('fish.netReady', { n: k + 1 })}</b><p>${t('fish.netReadyHint')}</p></div>`;
           const btn = document.createElement('button');
           btn.className = 'collect';
-          btn.textContent = '收网';
+          btn.textContent = t('fish.collect');
           btn.addEventListener('click', () => { g.collectNet(k); this.renderFishing(); });
           el.appendChild(btn);
         }
@@ -2209,7 +2422,7 @@ export class UI {
     Object.entries(HOUSE_SKINS).forEach(([part, def]) => {
       const row = document.createElement('div');
       row.className = 'skin-row';
-      row.innerHTML = `<span class="skin-part">${def.emoji} ${def.name}</span>`;
+      row.innerHTML = `<span class="skin-part">${def.emoji} ${tf(`skin.${part}`, def.name)}</span>`;
       const chips = document.createElement('div');
       chips.className = 'style-chips';
       const cur = g.houseSkin[part] ?? 0;
@@ -2234,7 +2447,7 @@ export class UI {
         ? `已解锁 Lv.${lv}/${FURNITURE_MAX_LEVEL} · 正在展示「${f.levelNames[shown - 1]}」`
         : `未拥有 · 商场「内饰」页 ${f.cost}💰`;
       el.innerHTML = `<div class="icon">${f.emoji}</div>
-        <div class="info"><b>${f.name}</b><p>${desc}</p></div>`;
+        <div class="info"><b>${tf(`furn.${f.id}`, f.name)}</b><p>${desc}</p></div>`;
       // 已解锁的外观随便换
       if (lv >= 2) {
         const chips = document.createElement('div');
@@ -2554,7 +2767,7 @@ export class UI {
         body.appendChild(el);
       });
       const back = document.createElement('button');
-      back.textContent = '← 返回';
+      back.textContent = t('ui.back');
       back.style.cssText = 'width:100%;padding:9px;border-radius:12px;border:2px solid #d9b071;background:#fff8ec;color:#8a5a2b;font-weight:700;cursor:pointer;';
       back.addEventListener('click', () => { this.wsChoosing = null; this.renderWorkshop(); });
       body.appendChild(back);
@@ -2661,7 +2874,7 @@ export class UI {
       b.style.position = 'relative';
       b.appendChild(del);
     });
-    addBtn('← 返回', () => this.openQuickMenu('main'));
+    addBtn(t('ui.back'), () => this.openQuickMenu('main'));
   }
 
   /* ---------- 挂机 ---------- */
@@ -2711,6 +2924,18 @@ export class UI {
       { icon: '🥕', k: 'crops', v: {
         table: `<table class="wtable"><tr><th>${th('crop')}</th><th>${th('seed')}</th><th>${th('sell')}</th><th>${th('grow')}</th><th>${th('unlock')}</th></tr>
           ${SEEDS.map(s => `<tr><td>${s.emoji}${seedName(s)}${s.special ? ' ✨' : ''}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || dft}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '\ud83d\udc04', k: 'ranch', v: {
+        n: ANIMALS.length, pens: RANCH_GRID * RANCH_GRID, tick: '1',
+        table: `<table class="wtable"><tr><th>${th('animal')}</th><th>${th('buy')}</th><th>${th('grow')}</th><th>${th('sell')}</th><th>${th('idle')}</th></tr>
+          ${ANIMALS.map(a => `<tr><td>${a.emoji}${animalName(a)}</td><td>${a.cost.toLocaleString()}</td><td>${fmtTime(a.grow)}</td><td>${a.sell.toLocaleString()}</td><td>${a.idle.toLocaleString()}</td></tr>`).join('')}</table>`,
+      } },
+      { icon: '\ud83d\udd2a', k: 'butcher', v: {
+        kill: fmtTime(BUTCHER.killTime), cut: fmtTime(BUTCHER.cutTime),
+        all: fmtTime(BUTCHER.killTime + BUTCHER.cutTime), mult: BUTCHER.mult, slots: BUTCHER.slots,
+        table: `<table class="wtable"><tr><th>${th('cut')}</th><th>${th('share')}</th><th>${th('egCow')}</th></tr>
+          ${CUTS.map(c => `<tr><td>${c.emoji}${cutName(c)}</td><td>\u00d7${c.share}</td><td>${cutPrice('cow', c.id).toLocaleString()}</td></tr>`).join('')}
+          <tr><td><b>${th('total')}</b></td><td><b>\u00d7${BUTCHER.mult}</b></td><td><b>${CUTS.reduce((s, c) => s + cutPrice('cow', c.id), 0).toLocaleString()}</b></td></tr></table>`,
       } },
       { icon: '✨', k: 'special', v: {
         n: SPECIAL_SEEDS.length, base: CODEX_SEEDS.length,

@@ -9,7 +9,7 @@ import { startWatchdog } from './watchdog.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
-  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery', 'foodshop'];
+  'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery', 'foodshop', 'ranch', 'butcher'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
 ['pointerdown', 'keydown'].forEach(ev =>
@@ -71,7 +71,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
      ...game.kitchenMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
-     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.foodShopMeshes, ...game.signMeshes], false);
+     ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.foodShopMeshes, ...game.ranchMeshes, ...game.butcherMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
 
@@ -251,6 +251,25 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 水族馆：点击进馆
   if (hit.userData.aquarium) {
     ui.openAquarium();
+    return;
+  }
+
+  // 屠宰场：点击开面板
+  if (hit.userData.butcher) {
+    ui.openButcher();
+    return;
+  }
+
+  // 牧场：点栏位——成年的直接收走，空栏/幼崽则打开面板挑幼崽
+  if (hit.userData.penIndex !== undefined) {
+    const pen = game.ranchPens[hit.userData.penIndex];
+    if (pen && game.time >= pen.readyAt) game.collectAnimal(hit.userData.penIndex);
+    else ui.openRanch();
+    return;
+  }
+  // 牧场围栏/招牌：点开面板
+  if (hit.userData.ranch) {
+    ui.openRanch();
     return;
   }
 

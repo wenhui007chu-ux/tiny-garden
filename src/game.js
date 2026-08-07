@@ -7,15 +7,17 @@ import {
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   CODEX_POS, CODEX_QUALITIES, PEST, POISON,
   DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
-  pondDecorById, POND_MAX_PLACED, HYBRIDS, hybridById,
+  pondDecorById, pondName, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
   PETS, petById, PET_DECORS, petDecorById, PET_POS,
   FURNITURE_MAX_LEVEL,
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
-  FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
+  FLOWERS, flowerById, flowerName, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
   ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
   SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
-  SEAFOOD, seafoodById, rollSeafood, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
+  SEAFOOD, seafoodById, seafoodName, rollSeafood,
+  ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS, RANCH_IDLE_TICK,
+  BUTCHER, CUTS, cutPrice, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
   BLACK_MARKET, blackMarketMood, blackMoodOf,
   weatherOfDay, OBSERVATORY, WEATHER_INFO,
   WAREHOUSE, warehouseCap,
@@ -33,6 +35,7 @@ import {
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
+  createAnimalMesh, createRanchPen, createRanchGround, ranchPos, createButcher,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
@@ -242,6 +245,37 @@ export class Game {
     this.sorterMeshes = [];
     sorter.traverse(o => { if (o.isMesh) this.sorterMeshes.push(o); });
 
+    // 牧场：岛东侧的 6×6 围栏。新手玩农场，老手玩牧场——
+    // 买幼崽 → 长大 → 收进背包卖掉，或者留着吃每分钟的挂机收益。
+    const ranch = createRanchGround();
+    ranch.position.set(RANCH_POS.x, -0.51, RANCH_POS.z);
+    this.group.add(ranch);
+    this.ranchMeshes = [];
+    ranch.traverse(o => { if (o.isMesh) this.ranchMeshes.push(o); });
+    this.ranchPens = Array(RANCH_GRID * RANCH_GRID).fill(null); // 每栏：null 或 { id, readyAt }
+    this.ranchAnimalMeshes = {};   // 栏位序号 -> 动物模型
+    this.ranchTimer = 0;           // 挂机收益的计时器
+    for (let j = 0; j < RANCH_GRID; j++) {
+      for (let i = 0; i < RANCH_GRID; i++) {
+        const pen = createRanchPen();
+        const { x, y, z } = ranchPos(i, j);
+        pen.position.set(RANCH_POS.x + x, y - 0.44, RANCH_POS.z + z);
+        pen.userData.penIndex = j * RANCH_GRID + i;
+        this.group.add(pen);
+        this.ranchMeshes.push(pen);
+      }
+    }
+
+    // 屠宰场：牧场北边。整只动物送进来，3 分钟后拆成 4 个部位，分开卖多五成
+    const butcher = createButcher();
+    butcher.position.set(24, -0.51, -12);
+    butcher.rotation.y = 0.6;
+    this.group.add(butcher);
+    this.butcherMeshes = [];
+    butcher.traverse(o => { if (o.isMesh) this.butcherMeshes.push(o); });
+    this.butcher = Array(BUTCHER.slots).fill(null); // { key, readyAt } 或 null
+    this.butcherBuilding = butcher; // 名牌统一在下面挂（那时 signMeshes 才建好）
+
     this.petsOwned = {};        // 买下的宠物
     this.petShown = null;       // 当前展示的那只
     this.petDecorsOwned = {};   // 房间装饰：id -> 已解锁最高等级(1~3)
@@ -373,6 +407,7 @@ export class Game {
     this.addSign(warehouse, '📦', 'warehouse');
     this.addSign(brewery, '🍷', 'brewery');
     this.addSign(foodShop, '🎁', 'foodshop');
+    this.addSign(this.butcherBuilding, '🔪', 'butcher');
 
     this._booting = true; // 读档期间不弹虫害提示
     this.load();
@@ -1265,14 +1300,16 @@ export class Game {
 
   startFishing(gear = 'rod') {
     if ((this.items[gear] ?? 0) <= 0) {
-      this.onToast(gear === 'rod' ? '先去商场买根 🎣 鱼竿（100💰）' : '先去商场买张 🥅 渔网（110💰）');
+      this.onToast(gear === 'rod'
+        ? tp('t.needRod', { n: itemById('rod').cost })
+        : tp('t.needNet', { n: itemById('castnet').cost }));
       return false;
     }
     this.fishing = true;
     this.fishingGear = gear;
     this.fishingTimer = 0;
     this.fishingEarned = 0;
-    this.onToast(gear === 'rod' ? '🎣 甩竿！安心钓鱼，每分钟看一次动静' : '🥅 撒网！每分钟收一次网');
+    this.onToast(t(gear === 'rod' ? 't.castRod' : 't.castNet'));
     return true;
   }
 
@@ -1291,10 +1328,10 @@ export class Game {
     const escaped = (this.pendingCatch ? 1 : 0) + this.catchQueue.length;
     this.pendingCatch = null;
     this.catchQueue = [];
-    if (escaped > 0) this.onToast(`💨 ${escaped} 条没收完杆的鱼跑掉了…`);
+    if (escaped > 0) this.onToast(tp('t.fishEscaped', { n: escaped }));
     this.onToast(this.fishingEarned > 0
-      ? `🎣 收竿！这趟一共钓了 ${this.fishingEarned}💰`
-      : '🎣 收竿，空手而归也是一种修行');
+      ? tp('t.reelEnd', { n: this.fishingEarned })
+      : t('t.reelEndEmpty'));
   }
 
   // 咬钩后排进收杆队列：点击次数 = 金额 + 5（5块10下、6块11下…）
@@ -1333,11 +1370,11 @@ export class Game {
     const usingRod = this.fishingGear === 'rod';
     const cfg = usingRod ? ROD : CASTNET;
     if (Math.random() < cfg.chance) {
-      this.queueCatch(usingRod ? '🎣 鱼竿' : '🥅 渔网', rollSeafood(cfg.min, cfg.max));
-      this.onToast('🐟 有鱼咬钩了！快点收杆！');
+      this.queueCatch(`${usingRod ? '🎣' : '🥅'} ${t(usingRod ? 'fish.rod' : 'fish.net')}`, rollSeafood(cfg.min, cfg.max));
+      this.onToast(t('t.fishOn'));
       sfx.play('bite');
     } else {
-      this.onToast(usingRod ? '🎣 没咬钩…' : '🥅 空网…');
+      this.onToast(t(usingRod ? 't.noBiteRod' : 't.noBiteNet'));
     }
     this.onState();
   }
@@ -1347,10 +1384,10 @@ export class Game {
   buyPondDecor(id) {
     const d = pondDecorById(id);
     if (!d) return;
-    if (this.pondOwned[id]) { this.onToast(`${d.name}已经买过了`); return; }
+    if (this.pondOwned[id]) { this.onToast(tp('t.decorOwned', { name: pondName(d) })); return; }
     if (!this.spend(d.cost)) return;
     this.pondOwned[id] = true;
-    this.onToast(`🦆 买下了${d.name}，去水塘摆出来吧`);
+    this.onToast(tp('t.decorBought', { name: pondName(d) }));
     this.onState();
     this.save();
   }
@@ -1359,12 +1396,12 @@ export class Game {
     const d = pondDecorById(id);
     if (!d || !this.pondOwned[id] || this.pondPlaced.includes(id)) return;
     if (this.pondPlaced.length >= POND_MAX_PLACED) {
-      this.onToast(`水塘最多摆 ${POND_MAX_PLACED} 个装饰，先收一个`);
+      this.onToast(tp('t.pondFull', { n: POND_MAX_PLACED }));
       return;
     }
     this.pondPlaced.push(id);
     this.refreshPondDecors();
-    this.onToast(`🦆 ${d.name}下水啦！`);
+    this.onToast(tp('t.decorPlaced', { name: pondName(d) }));
     this.onState();
     this.save();
   }
@@ -1374,7 +1411,7 @@ export class Game {
     if (i < 0) return;
     this.pondPlaced.splice(i, 1);
     this.refreshPondDecors();
-    this.onToast(`收起了${pondDecorById(id).name}`);
+    this.onToast(tp('t.decorRemoved', { name: pondName(pondDecorById(id)) }));
     this.onState();
     this.save();
   }
@@ -1393,12 +1430,12 @@ export class Game {
 
   placeNet(k) {
     if (this.fishNets[k]) return;
-    if ((this.items.net ?? 0) <= 0) { this.onToast('没有抓鱼网了，商场有售 100💰'); return; }
+    if ((this.items.net ?? 0) <= 0) { this.onToast(tp('t.noNetItem', { n: itemById('net').cost })); return; }
     this.items.net -= 1;
     if (this.items.net === 0) delete this.items.net;
     this.fishNets[k] = { readyAt: this.time + FISHING.time };
     this.refreshNets();
-    this.onToast(`🕸️ 网摆好了，${FISHING.time / 60} 分钟后来收`);
+    this.onToast(tp('t.netPlaced', { n: FISHING.time / 60 }));
     this.onState();
     this.save();
   }
@@ -1411,7 +1448,7 @@ export class Game {
     this.fishNets[k] = null;
     this.refreshNets();
     this.inventory[`s:${sf.id}`] = (this.inventory[`s:${sf.id}`] ?? 0) + 1;
-    this.onToast(`🕸️ 收网！捞到${sf.emoji}${sf.name}（值 ${sf.sell}💰）`);
+    this.onToast(tp('t.netCollect', { name: `${sf.emoji}${seafoodName(sf)}`, n: sf.sell }));
     sfx.play('done');
     this.onState();
     this.save();
@@ -1481,11 +1518,12 @@ export class Game {
   plantFlower(slot, flowerId) {
     const fl = flowerById(flowerId);
     if (!fl || slot < 0 || slot >= this.flowerPlots.length) return;
-    if (this.flowerPlots[slot]) { this.onToast('这个花圃里已经种着花了'); return; }
+    if (this.flowerPlots[slot]) { this.onToast(t('t.plotBusy')); return; }
     if (!this.spend(fl.seed)) return;
     this.flowerPlots[slot] = { id: flowerId, readyAt: this.time + fl.grow };
     this.refreshGreenhousePlot(slot);
-    this.onToast(`${fl.emoji} 种下了${fl.name}，${fl.grow >= 60 ? Math.round(fl.grow / 60) + ' 分钟' : fl.grow + ' 秒'}后开花`);
+    this.onToast(tp('t.flowerSown', { emoji: fl.emoji, name: flowerName(fl),
+      t: fl.grow >= 60 ? `${Math.round(fl.grow / 60)} ${t('unit.min')}` : `${fl.grow} ${t('unit.sec')}` }));
     sfx.play('plant');
     this.onState();
     this.save();
@@ -1495,13 +1533,13 @@ export class Game {
   harvestFlower(slot) {
     const p = this.flowerPlots[slot];
     if (!p) return;
-    if (this.time < p.readyAt) { this.onToast('还没开花，再等等'); return; }
+    if (this.time < p.readyAt) { this.onToast(t('t.notBloomed')); return; }
     const fl = flowerById(p.id);
     const key = 'f:' + p.id;
     this.inventory[key] = (this.inventory[key] ?? 0) + 1;
     this.flowerPlots[slot] = null;
     this.refreshGreenhousePlot(slot);
-    this.onToast(`🌸 收下一朵${fl.name}，进背包了`);
+    this.onToast(tp('t.flowerPicked', { name: flowerName(fl) }));
     sfx.play('harvest');
     this.onState();
     this.save();
@@ -1509,16 +1547,16 @@ export class Game {
 
   // 扎花束：任选 5 朵花（可跨品种），扣花，直接卖钱（总价 × 倍率）
   makeBouquet(keys) {
-    if (!keys || keys.length !== BOUQUET_SIZE) { this.onToast(`要凑够 ${BOUQUET_SIZE} 朵花才能扎一束`); return; }
+    if (!keys || keys.length !== BOUQUET_SIZE) { this.onToast(tp('t.needFlowers', { n: BOUQUET_SIZE })); return; }
     const need = {};
     keys.forEach(k => { need[k] = (need[k] ?? 0) + 1; });
-    for (const k in need) { if ((this.inventory[k] ?? 0) < need[k]) { this.onToast('背包里的花不够'); return; } }
+    for (const k in need) { if ((this.inventory[k] ?? 0) < need[k]) { this.onToast(t('t.notEnoughFlowers')); return; } }
     let sum = 0;
     keys.forEach(k => { sum += keyInfo(k).price; });
     const price = Math.floor(sum * BOUQUET_MULT);
     for (const k in need) { this.inventory[k] -= need[k]; if (this.inventory[k] <= 0) delete this.inventory[k]; }
     this.coins += price;
-    this.onToast(`💐 扎了一束花，卖了 ${price}💰`);
+    this.onToast(tp('t.bouquetSold', { n: price }));
     sfx.play('bouquet');
     this.onState();
     this.save();
@@ -1966,6 +2004,126 @@ export class Game {
     return !!o && o.fromDay !== undefined && this.dayCount > o.fromDay + OBSERVATORY.days - 1;
   }
 
+  /* ---------- 牧场 ---------- */
+
+  // 当前每分钟的挂机总收益（只算已成年、还留在栏里的）
+  ranchIdleRate() {
+    return this.ranchPens.reduce((sum, p) => {
+      if (!p || this.time < p.readyAt) return sum;
+      return sum + (animalById(p.id)?.idle ?? 0);
+    }, 0);
+  }
+
+  ranchGrownCount() {
+    return this.ranchPens.filter(p => p && this.time >= p.readyAt).length;
+  }
+
+  // 买一只幼崽放进空栏
+  buyAnimal(pen, animalId) {
+    const an = animalById(animalId);
+    if (!an || pen < 0 || pen >= this.ranchPens.length) return;
+    if (this.ranchPens[pen]) { this.onToast(t('t.penBusy')); return; }
+    if (!this.spend(an.cost)) return;
+    this.ranchPens[pen] = { id: animalId, readyAt: this.time + an.grow };
+    this.refreshRanchPen(pen);
+    this.onToast(tp('t.animalBought', { name: `${an.emoji}${animalName(an)}`,
+      t: `${Math.round(an.grow / 60)} ${t('unit.min')}` }));
+    sfx.play('plant');
+    this.onState();
+    this.save();
+  }
+
+  // 收走成年动物 → 进背包（背包/黑市都能卖）。不收的话它会一直产挂机收益
+  collectAnimal(pen) {
+    const p = this.ranchPens[pen];
+    if (!p) return;
+    if (this.time < p.readyAt) { this.onToast(t('t.animalYoung')); return; }
+    const an = animalById(p.id);
+    const key = 'a:' + p.id;
+    this.inventory[key] = (this.inventory[key] ?? 0) + 1;
+    this.ranchPens[pen] = null;
+    this.refreshRanchPen(pen);
+    this.onToast(tp('t.animalCollected', { name: `${an.emoji}${animalName(an)}`, n: an.sell }));
+    sfx.play('harvest');
+    this.onState();
+    this.save();
+  }
+
+  refreshRanch() {
+    for (let i = 0; i < this.ranchPens.length; i++) this.refreshRanchPen(i);
+  }
+
+  // 空栏不显示，未成年显示幼崽，成年显示成体
+  refreshRanchPen(i) {
+    const cur = this.ranchAnimalMeshes[i];
+    if (cur) { this.group.remove(cur); delete this.ranchAnimalMeshes[i]; }
+    const p = this.ranchPens[i];
+    if (!p) return;
+    const grown = this.time >= p.readyAt;
+    const m = createAnimalMesh(p.id, grown);
+    const { x, y, z } = ranchPos(i % RANCH_GRID, Math.floor(i / RANCH_GRID));
+    m.position.set(RANCH_POS.x + x, y - 0.44, RANCH_POS.z + z);
+    this.group.add(m);
+    this.ranchAnimalMeshes[i] = m;
+  }
+
+  /* ---------- 屠宰场 ---------- */
+
+  // 背包里能送进屠宰场的：只有整只动物（a: 前缀）
+  butcherable() {
+    return Object.keys(this.inventory).filter(k => k.startsWith('a:') && this.inventory[k] > 0);
+  }
+
+  // 某个工位当前处在哪一段：'kill' 屠宰中 / 'cut' 细分中 / 'done' 可取
+  butcherStage(slot) {
+    const b = this.butcher[slot];
+    if (!b) return null;
+    const remain = b.readyAt - this.time;
+    if (remain <= 0) return 'done';
+    return remain > BUTCHER.cutTime ? 'kill' : 'cut';
+  }
+
+  startButcher(slot, key) {
+    if (slot < 0 || slot >= this.butcher.length) return false;
+    if (this.butcher[slot]) { this.onToast(t('t.butcherBusy')); return false; }
+    if (!key.startsWith('a:') || (this.inventory[key] ?? 0) <= 0) { this.onToast(t('t.butcherOnlyAnimals')); return false; }
+    this.inventory[key] -= 1;
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.butcher[slot] = { key, readyAt: this.time + BUTCHER.killTime + BUTCHER.cutTime };
+    const info = keyInfo(key);
+    this.onToast(tp('t.butcherStart', { name: `${info.icon}${info.label}`,
+      t: `${(BUTCHER.killTime + BUTCHER.cutTime) / 60} ${t('unit.min')}` }));
+    sfx.play('open');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 取出：一只动物拆成 4 个部位，总价 = 整只 × 1.5
+  collectButcher(slot) {
+    const b = this.butcher[slot];
+    if (!b) return;
+    if (this.time < b.readyAt) { this.onToast(t('t.butcherWorking')); return; }
+    const animalId = b.key.slice(2);
+    let total = 0;
+    CUTS.forEach(c => {
+      const k = `c:${animalId}:${c.id}`;
+      this.inventory[k] = (this.inventory[k] ?? 0) + 1;
+      total += cutPrice(animalId, c.id);
+    });
+    this.butcher[slot] = null;
+    const an = animalById(animalId);
+    this.onToast(tp('t.butcherDone', { name: `${an.emoji}${animalName(an)}`,
+      n: CUTS.length, total: total.toLocaleString() }));
+    sfx.play('harvest');
+    this.onState();
+    this.save();
+  }
+
+  butcherBusyCount() {
+    return this.butcher.filter(b => b && this.time < b.readyAt).length;
+  }
+
   /* ---------- 黑市 ---------- */
 
   // 半天序号：白天和夜晚各占一个，天亮/天黑时 +1，行情就跟着翻牌
@@ -2029,8 +2187,8 @@ export class Game {
     this.refreshAquarium();
     const sf = seafoodById(id);
     this.onToast(hatched
-      ? `🥚 恐龙虾卵孵化了！${sf.emoji}${sf.name}住进 ${slot + 1} 号缸`
-      : `${sf.emoji} ${sf.name}住进 ${slot + 1} 号缸（${this.aquariumCount()}/${AQUARIUM_SLOTS}）`);
+      ? tp('t.eggHatched', { name: `${sf.emoji}${seafoodName(sf)}`, n: slot + 1 })
+      : tp('t.aquaAdded', { name: `${sf.emoji}${seafoodName(sf)}`, n: slot + 1, cur: this.aquariumCount(), max: AQUARIUM_SLOTS }));
     sfx.play(hatched ? 'upgrade' : 'done');
     this.onState();
     this.save();
@@ -2526,6 +2684,7 @@ export class Game {
     this.refreshHybridStations();
     this.refreshPetRoom();
     this.refreshGreenhouse();
+    this.refreshRanch();
     this.refreshShelf();
   }
 
@@ -2553,6 +2712,24 @@ export class Game {
     else if (night !== this._night) {
       this._night = night;
       this.onToast(night ? '🌙 夜幕降临，作物生长变慢了' : '☀️ 天亮啦，作物恢复生长');
+    }
+
+    // 牧场：长大的那一刻把幼崽换成成体
+    for (let i = 0; i < this.ranchPens.length; i++) {
+      const p = this.ranchPens[i];
+      if (p && !p._grown && this.time >= p.readyAt) { p._grown = true; this.refreshRanchPen(i); }
+    }
+    // 牧场挂机收益：留在栏里的成年动物每分钟产一次
+    const idleRate = this.ranchIdleRate();
+    if (idleRate > 0) {
+      this.ranchTimer += dt;
+      if (this.ranchTimer >= RANCH_IDLE_TICK) {
+        const payouts = Math.floor(this.ranchTimer / RANCH_IDLE_TICK);
+        this.ranchTimer -= payouts * RANCH_IDLE_TICK;
+        const got = idleRate * payouts;
+        this.gain(got);
+        this.onToast(tp('t.ranchIdle', { n: got }));
+      }
     }
 
     // 风车发电：每台每分钟 +1💰
@@ -2658,6 +2835,9 @@ export class Game {
       petDecorStyle: this.petDecorStyle,
       clock: this.clock,
       windTimer: this.windTimer,
+      ranchTimer: this.ranchTimer,
+      butcher: this.butcher.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
+      ranchPens: this.ranchPens.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       dayCount: this.dayCount,
       weatherSeed: this.weatherSeed,
       shelf: this.shelf.map(b => b ? { keys: b.keys, price: b.price, remain: Math.max(0, b.soldAt - this.time) } : null),
@@ -2817,6 +2997,29 @@ export class Game {
     // 风车离线也发电（最多结算 12 小时，防止一夜暴富）
     this.windTimer = data.windTimer ?? 0;
     const mills = this.decorSlots.filter(s => s.decor?.id === 'windmill').length;
+    // 屠宰场：离线照常屠宰细分
+    this.butcher = (data.butcher ?? []).slice(0, BUTCHER.slots).map(b =>
+      b && b.key?.startsWith('a:') && animalById(b.key.slice(2))
+        ? { key: b.key, readyAt: this.time + Math.max(0, (b.remain ?? 0) - elapsed) } : null);
+    while (this.butcher.length < BUTCHER.slots) this.butcher.push(null);
+
+    // 牧场：离线照常长大，成年后的那段时间也照付挂机收益（和风车一样最多算 12 小时）
+    this.ranchTimer = data.ranchTimer ?? 0;
+    this.ranchPens = (data.ranchPens ?? []).slice(0, RANCH_GRID * RANCH_GRID).map(p =>
+      p && animalById(p.id) ? { id: p.id, readyAt: this.time + Math.max(0, (p.remain ?? 0) - elapsed) } : null);
+    while (this.ranchPens.length < RANCH_GRID * RANCH_GRID) this.ranchPens.push(null);
+    if (elapsed > 0) {
+      const window = Math.min(elapsed, 43200);
+      let earned = 0;
+      (data.ranchPens ?? []).forEach(p => {
+        if (!p || !animalById(p.id)) return;
+        // 这一栏在离线窗口里「已成年」的秒数
+        const matureSec = Math.max(0, window - (p.remain ?? 0));
+        earned += animalById(p.id).idle * (matureSec / RANCH_IDLE_TICK);
+      });
+      if (earned > 0) this.coins += Math.floor(earned);
+    }
+
     if (mills > 0 && elapsed > 0) {
       const total = this.windTimer + Math.min(elapsed, 43200);
       this.coins += mills * Math.floor(total / 60);

@@ -11,9 +11,10 @@ export function createScene(container) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xfdf3e3);
-  scene.fog = new THREE.Fog(0xfdf3e3, 70, 135);
+  // 岛扩大到半径 54 后，雾和远裁剪面都得跟着推远，否则牧场那头会被雾吃掉/裁掉
+  scene.fog = new THREE.Fog(0xfdf3e3, 120, 240);
 
-  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 400);
   camera.position.set(10, 13, 13);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -22,7 +23,7 @@ export function createScene(container) {
   controls.dampingFactor = 0.08;
   controls.enablePan = false;
   controls.minDistance = 7;
-  controls.maxDistance = 85;
+  controls.maxDistance = 150; // 岛大了，得拉得更远才看得全
   controls.minPolarAngle = 0.5;
   controls.maxPolarAngle = 1.25; // 保持斜俯视，不能钻到地下
   controls.update();

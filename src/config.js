@@ -9,8 +9,49 @@ export const LEVELS = 2;        // 两层梯田
 export const UPPER_Y = 4.2;     // 二层农田高度
 export const UPPER_Z = -7.1;    // 二层农田往后错开的距离
 export const TILE = 1;          // 每格世界坐标尺寸
-export const LAWN_R = 31;       // 草地半径：预留出盖新建筑的地方
+export const LAWN_R = 54;       // 草地半径：岛被建筑塞满后扩了约 3 倍面积，东边空地留给牧场
 export const UNLOCK_COST = 1000; // 二层每块地的解锁价
+
+// ===== 牧场：岛东侧的 6×6 围栏，思路和农田一样 =====
+// 买幼崽放进栏 → 等它长大 → 点一下收进背包（背包/黑市都能卖）；
+// 也可以不收，成年动物留在栏里每分钟产一笔挂机收益（离线照算）。
+// 数值规则：卖价 = 买价 × 2.4；挂机收益/分钟 = 卖价 ÷ 90
+//（也就是「不收的话，挂机约 90 分钟 ≈ 卖掉那一笔」，急着用钱就卖，长线就养着）
+export const RANCH_GRID = 6;                       // 6×6 = 36 个栏位
+export const RANCH_TILE = 1.6;                     // 栏位比菜地格大，animal 站得下
+export const RANCH_POS = { x: 30, z: 0 };          // 岛东侧空地，避开所有建筑
+export const RANCH_IDLE_TICK = 60;                 // 每 60 秒结算一次挂机收益
+export const ANIMALS = [
+  { id: 'chick',   name: '小鸡',   emoji: '🐣', cost: 500,     grow: 300,  sell: 1200,    idle: 13 },
+  { id: 'rabbit',  name: '兔子',   emoji: '🐰', cost: 1300,    grow: 420,  sell: 3100,    idle: 34 },
+  { id: 'duck',    name: '鸭子',   emoji: '🦆', cost: 3200,    grow: 540,  sell: 7700,    idle: 85 },
+  { id: 'goat',    name: '山羊',   emoji: '🐐', cost: 7800,    grow: 720,  sell: 18700,   idle: 208 },
+  { id: 'sheep',   name: '绵羊',   emoji: '🐑', cost: 19000,   grow: 900,  sell: 45600,   idle: 507 },
+  { id: 'pig',     name: '猪',     emoji: '🐖', cost: 46000,   grow: 1140, sell: 110000,  idle: 1222 },
+  { id: 'cow',     name: '奶牛',   emoji: '🐄', cost: 110000,  grow: 1440, sell: 264000,  idle: 2933 },
+  { id: 'horse',   name: '马',     emoji: '🐎', cost: 270000,  grow: 1800, sell: 648000,  idle: 7200 },
+  { id: 'deer',    name: '梅花鹿', emoji: '🦌', cost: 650000,  grow: 2220, sell: 1560000, idle: 17333 },
+  { id: 'unicorn', name: '独角兽', emoji: '🦄', cost: 1600000, grow: 2700, sell: 3840000, idle: 42666 },
+];
+export const animalById = (id) => ANIMALS.find(a => a.id === id);
+export const animalName = (a) => (a ? tf(`animal.${a.id}`, a.name) : '');
+
+// ===== 屠宰场：把整只动物拆成部位，分开卖总价是原价的 1.5 倍 =====
+// 两段式：先屠宰 1 分钟，再细分 2 分钟，共 3 分钟（离线照常进行）。
+// 想改成总共 2 分钟，把 cutTime 调成 60 就行。
+export const BUTCHER = { slots: 3, killTime: 60, cutTime: 120, mult: 1.5 };
+// 四个部位的分成，加起来正好 = BUTCHER.mult（1.5），所以拆开卖必定比整只卖多五成
+export const CUTS = [
+  { id: 'meat', name: '肉',   emoji: '🥩', share: 0.75 },
+  { id: 'rib',  name: '排骨', emoji: '🍖', share: 0.35 },
+  { id: 'hide', name: '皮毛', emoji: '🧥', share: 0.25 },
+  { id: 'bone', name: '骨',   emoji: '🦴', share: 0.15 },
+];
+export const cutById = (id) => CUTS.find(c => c.id === id);
+export const cutName = (c) => (c ? tf(`cut.${c.id}`, c.name) : '');
+// 部位卖价 = 整只卖价 × 该部位分成
+export const cutPrice = (animalId, cutId) =>
+  Math.max(1, Math.round(animalById(animalId).sell * cutById(cutId).share));
 export const WET_DURATION = 45; // 浇一次水保持湿润的秒数
 export const START_COINS = 20;
 
@@ -297,6 +338,8 @@ export const SEAFOOD = [
   { id: 'dino',     name: '恐龙虾', emoji: '🦞', kind: 'shrimp', sell: 260, c1: 0x6ac0a0, c2: 0xe0f0a0, hatchOnly: true, glow: 0.35 },
 ];
 export const seafoodById = (id) => SEAFOOD.find(s => s.id === id);
+// 水产名走翻译，查不到回落到配置里的中文名
+export const seafoodName = (sf) => (sf ? tf(`sea.${sf.id}`, sf.name) : '');
 // 按价值区间抽一种（恐龙虾除外，它只能孵）
 export const rollSeafood = (min, max) => {
   const pool = SEAFOOD.filter(s => !s.hatchOnly && s.sell >= min && s.sell <= max);
@@ -384,6 +427,8 @@ export const POND_DECORS = [
   { id: 'jelly',     name: '发光水母', rarity: 'legend', cost: 4000, kind: 'jelly', color: 0x6ae0d0, glow: true, anim: { type: 'hover', radius: 1.4, speed: 0.8 } },
 ];
 export const pondDecorById = (id) => POND_DECORS.find(d => d.id === id);
+// 水塘装饰名走翻译，查不到回落到中文名
+export const pondName = (d) => (d ? tf(`pond.${d.id}`, d.name) : '');
 
 // 杂交室：两种指定品质的作物合成一个杂交作物，卖价极高（约原料 5 倍）
 // a/b: [作物id, 品质 0普通/1白银/2黄金]
@@ -523,6 +568,8 @@ export const FLOWERS = [
   { id: 'spiderlily', name: '彼岸花',   emoji: '🔥', rarity: 'legend', seed: 1400, sell: 4800, grow: 1150 },
 ];
 export const flowerById = (id) => FLOWERS.find(f => f.id === id);
+// 花名走翻译，查不到回落到中文名
+export const flowerName = (f) => (f ? tf(`flower.${f.id}`, f.name) : '');
 export const COOK_SLOTS = 3;   // 3 个灶位可以同时开火
 export const DISHES = [
   // —— 一档：家常小菜（便宜作物·普通品质）——
@@ -976,7 +1023,7 @@ export function keyInfo(key) {
   }
   if (key.startsWith('f:')) {
     const fl = flowerById(key.slice(2));
-    return { seed: null, quality: undefined, processed: false, stunted: false, flower: true, price: fl.sell, label: fl.name, icon: fl.emoji };
+    return { seed: null, quality: undefined, processed: false, stunted: false, flower: true, price: fl.sell, label: flowerName(fl), icon: fl.emoji };
   }
   // 酒：w:<原果key>:<窖藏天数>，原果 key 自己可能带冒号，所以从尾巴切天数
   if (key.startsWith('w:')) {
@@ -992,7 +1039,22 @@ export function keyInfo(key) {
   }
   if (key.startsWith('s:')) {
     const sf = seafoodById(key.slice(2));
-    return { seed: null, quality: undefined, processed: false, stunted: false, seafood: sf.id, price: sf.sell, label: sf.name, icon: sf.emoji };
+    return { seed: null, quality: undefined, processed: false, stunted: false, seafood: sf.id, price: sf.sell, label: seafoodName(sf), icon: sf.emoji };
+  }
+  if (key.startsWith('a:')) {
+    const an = animalById(key.slice(2));
+    return { seed: null, quality: undefined, processed: false, stunted: false, animal: an.id, price: an.sell, label: animalName(an), icon: an.emoji };
+  }
+  // c:<动物>:<部位> —— 屠宰场拆出来的部位，只能卖，不能再加工
+  if (key.startsWith('c:')) {
+    const [aid, cid] = key.slice(2).split(':');
+    const an = animalById(aid), cut = cutById(cid);
+    return {
+      seed: null, quality: undefined, processed: false, stunted: false,
+      cut: cid, animal: aid, price: cutPrice(aid, cid),
+      label: [animalName(an), cutName(cut)].filter(Boolean).join(nameSep()),
+      icon: cut.emoji,
+    };
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');

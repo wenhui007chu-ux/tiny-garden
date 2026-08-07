@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD } from './config.js';
+import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
+  RANCH_GRID, RANCH_TILE } from './config.js';
 
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...opts });
@@ -786,6 +787,204 @@ export function createPetMesh(def) {
     l.position.y = 0.7;
     g.add(l);
   }
+  return g;
+}
+
+/* ================= 牧场：10 种家畜 + 围栏 =================
+   一句话定位：新手玩农场，老手玩牧场。
+   鸡/兔/猪/羊/鹿直接复用宠物那套模型，只补 5 种牧场专有的。 */
+
+// 牧场专有的 5 种（宠物里没有的）
+const ranchKinds = {
+  duck(c1, c2) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.3, 9, 7), mat(c1), 0, 0.3, 0);
+    body.scale.set(1.35, 0.95, 1);
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.18, 9, 7), mat(c1), 0.3, 0.62, 0));      // 头
+    g.add(mesh(new THREE.BoxGeometry(0.22, 0.05, 0.12), mat(c2), 0.5, 0.58, 0));   // 扁嘴
+    [[-0.06], [0.06]].forEach(([z]) =>
+      g.add(mesh(new THREE.SphereGeometry(0.03, 5, 4), mat(0x2a2a30), 0.38, 0.68, z)));
+    const tail = mesh(new THREE.ConeGeometry(0.12, 0.22, 5), mat(c1), -0.36, 0.36, 0);
+    tail.rotation.z = 1.9;
+    g.add(tail);
+    [[-0.1], [0.1]].forEach(([z]) =>
+      g.add(mesh(new THREE.BoxGeometry(0.14, 0.03, 0.1), mat(c2), 0.02, 0.03, z)));  // 蹼
+    return g;
+  },
+  goat(c1, c2) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.27, 8, 7), mat(c1), 0, 0.42, 0);
+    body.scale.set(1.4, 1, 1);
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.17, 8, 7), mat(c1), 0.34, 0.62, 0));     // 头
+    [[-0.07], [0.07]].forEach(([z]) => {                                            // 弯角
+      const horn = mesh(new THREE.ConeGeometry(0.045, 0.26, 5), mat(c2), 0.3, 0.84, z);
+      horn.rotation.z = -0.5;
+      g.add(horn);
+    });
+    g.add(mesh(new THREE.ConeGeometry(0.06, 0.16, 5), mat(c2), 0.42, 0.48, 0).rotateZ(0.3)); // 胡子
+    [[-0.16, 0.1], [0.16, 0.1], [-0.16, -0.1], [0.16, -0.1]].forEach(([x, z]) =>
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.32, 5), mat(c2), x, 0.16, z)));
+    return g;
+  },
+  cow(c1, c2) {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.36, 9, 7), mat(c1), 0, 0.5, 0);
+    body.scale.set(1.5, 1, 1.1);
+    g.add(body);
+    // 奶牛斑块
+    [[0.1, 0.62, 0.3], [-0.22, 0.46, -0.32], [0.3, 0.4, 0.2]].forEach(([x, y, z]) => {
+      const p = mesh(new THREE.SphereGeometry(0.14, 7, 6), mat(c2), x, y, z);
+      p.scale.set(1.1, 0.8, 0.6);
+      g.add(p);
+    });
+    g.add(mesh(new THREE.SphereGeometry(0.22, 8, 7), mat(c1), 0.5, 0.66, 0));      // 头
+    g.add(mesh(new THREE.SphereGeometry(0.12, 7, 6), mat(0xf2b0b8), 0.68, 0.6, 0)); // 鼻子
+    [[-0.12], [0.12]].forEach(([z]) =>
+      g.add(mesh(new THREE.ConeGeometry(0.05, 0.14, 4), mat(0xe8e2d0), 0.46, 0.86, z)));  // 角
+    g.add(mesh(new THREE.SphereGeometry(0.11, 7, 6), mat(0xf2b0b8), -0.05, 0.24, 0));     // 乳房
+    [[-0.22, 0.16], [0.22, 0.16], [-0.22, -0.16], [0.22, -0.16]].forEach(([x, z]) =>
+      g.add(mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.36, 6), mat(c2), x, 0.18, z)));
+    return g;
+  },
+  horse(c1, c2, def) {
+    const g = new THREE.Group();
+    const glow = def?.glow ? { emissive: c2, emissiveIntensity: def.glow } : {};
+    const body = mesh(new THREE.SphereGeometry(0.34, 9, 7), mat(c1, glow), 0, 0.58, 0);
+    body.scale.set(1.55, 1, 1);
+    g.add(body);
+    const neck = mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.42, 7), mat(c1, glow), 0.42, 0.82, 0);
+    neck.rotation.z = -0.55;
+    g.add(neck);
+    const head = mesh(new THREE.BoxGeometry(0.3, 0.17, 0.16), mat(c1, glow), 0.64, 0.98, 0);
+    head.rotation.z = -0.25;
+    g.add(head);
+    [[-0.05], [0.05]].forEach(([z]) =>
+      g.add(mesh(new THREE.ConeGeometry(0.04, 0.12, 4), mat(c1, glow), 0.52, 1.12, z)));  // 耳
+    // 鬃毛
+    for (let k = 0; k < 5; k++) {
+      g.add(mesh(new THREE.BoxGeometry(0.07, 0.13, 0.06), mat(c2, glow), 0.3 + k * 0.08, 0.94 + k * 0.03, 0));
+    }
+    const tail = mesh(new THREE.ConeGeometry(0.09, 0.4, 5), mat(c2, glow), -0.52, 0.6, 0);
+    tail.rotation.z = 2.5;
+    g.add(tail);
+    [[-0.24, 0.13], [0.24, 0.13], [-0.24, -0.13], [0.24, -0.13]].forEach(([x, z]) =>
+      g.add(mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.5, 6), mat(c1, glow), x, 0.25, z)));
+    return g;
+  },
+  unicorn(c1, c2, def) {
+    // 就是马，外加一支发光独角和一圈光环
+    const g = ranchKinds.horse(c1, c2, { glow: def?.glow ?? 0.25 });
+    const horn = mesh(new THREE.ConeGeometry(0.06, 0.34, 6),
+      mat(0xfff0b8, { emissive: 0xffd45a, emissiveIntensity: 1 }), 0.66, 1.24, 0);
+    horn.rotation.z = -0.3;
+    g.add(horn);
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      const star = mesh(new THREE.OctahedronGeometry(0.05),
+        mat(0xfff2c8, { emissive: 0xffcf5a, emissiveIntensity: 1, transparent: true, opacity: 0.9 }),
+        Math.cos(a) * 0.5, 1.35 + Math.sin(k * 1.7) * 0.1, Math.sin(a) * 0.5);
+      star.userData.spin = true;
+      g.add(star);
+    }
+    const l = new THREE.PointLight(0xffe6a0, 0.7, 5, 2);
+    l.position.set(0, 1.1, 0);
+    g.add(l);
+    return g;
+  },
+};
+
+// 每种家畜的外观：kind 指向 ranchKinds 或 petKinds
+const ANIMAL_LOOK = {
+  chick:   { kind: 'chick',   c1: 0xf7d154, c2: 0xe8843f },
+  rabbit:  { kind: 'bunny',   c1: 0xf5f0e6, c2: 0xf2a7c3 },
+  duck:    { kind: 'duck',    c1: 0xf7f2e4, c2: 0xf2a83c },
+  goat:    { kind: 'goat',    c1: 0xe8e0cc, c2: 0xa8917a },
+  sheep:   { kind: 'lamb',    c1: 0xf7f4ec, c2: 0x3a3a44 },
+  pig:     { kind: 'piglet',  c1: 0xf2b0bc, c2: 0xe08a9a },
+  cow:     { kind: 'cow',     c1: 0xf7f4ec, c2: 0x3a3a40 },
+  horse:   { kind: 'horse',   c1: 0x9a6a42, c2: 0x4a3320 },
+  deer:    { kind: 'deer',    c1: 0xc99a5a, c2: 0xf5f0e6 },
+  unicorn: { kind: 'unicorn', c1: 0xf7f2ea, c2: 0xd9a8e0, glow: 0.3 },
+};
+
+// grown=false 是幼崽（同一个模型缩小），true 是成年
+export function createAnimalMesh(id, grown = true) {
+  const look = ANIMAL_LOOK[id] ?? ANIMAL_LOOK.chick;
+  const build = ranchKinds[look.kind] ?? petKinds[look.kind];
+  const g = build(look.c1, look.c2, look);
+  g.scale.setScalar(grown ? 1 : 0.5);
+  if (grown) g.userData.petIdle = true; // 成年了会有待机小动作
+  return g;
+}
+
+// 栏位坐标（牧场局部坐标，牧场整体再挪到岛东侧）
+export function ranchPos(i, j) {
+  const half = (RANCH_GRID - 1) / 2;
+  return { x: (i - half) * RANCH_TILE, y: 0.12, z: (j - half) * RANCH_TILE };
+}
+
+// 单个栏位的地面
+export function createRanchPen() {
+  const m = mesh(new THREE.BoxGeometry(RANCH_TILE * 0.94, 0.16, RANCH_TILE * 0.94), mat(0x8aba6a), 0, 0, 0);
+  m.userData.ranchPen = true;
+  return m;
+}
+
+// 屠宰场：牧场北边的红顶砖房，门口挂块肉招牌
+export function createButcher() {
+  const g = new THREE.Group();
+  const wall = mat(0xefe3d2), roof = mat(0xb0433c), trim = mat(0x8a5a35);
+  g.add(mesh(new THREE.BoxGeometry(3.4, 2.1, 2.8), wall, 0, 1.05, 0));
+  const r = mesh(new THREE.ConeGeometry(2.7, 1.3, 4), roof, 0, 2.75, 0);
+  r.rotation.y = Math.PI / 4;
+  g.add(r);
+  g.add(mesh(new THREE.BoxGeometry(0.42, 0.9, 0.42), mat(0xa2705a), 1.1, 3.1, -0.5)); // 烟囱
+  g.add(mesh(new THREE.BoxGeometry(0.9, 1.4, 0.1), trim, -0.5, 0.7, 1.42));           // 门
+  g.add(mesh(new THREE.BoxGeometry(0.9, 0.75, 0.1), mat(0xbfe3f0), 0.9, 1.25, 1.42)); // 窗
+  // 门口的肉招牌
+  g.add(mesh(new THREE.BoxGeometry(0.12, 1.1, 0.12), trim, 1.9, 0.55, 1.2));
+  g.add(mesh(new THREE.BoxGeometry(0.9, 0.5, 0.08), mat(0xf5e6c8), 1.9, 1.3, 1.2));
+  g.add(mesh(new THREE.SphereGeometry(0.16, 8, 6), mat(0xd9534f), 1.9, 1.32, 1.28));
+  // 屋侧的挂肉钩
+  [[-1.75, 1.3], [-1.75, 0.3]].forEach(([x, z]) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), mat(0x8a8a92), x, 1.5, z));
+    const m = mesh(new THREE.SphereGeometry(0.17, 7, 6), mat(0xd9707a), x, 1.15, z);
+    m.scale.set(0.8, 1.3, 0.8);
+    g.add(m);
+  });
+  g.traverse(o => { if (o.isMesh) o.userData.butcher = true; });
+  return g;
+}
+
+// 牧场整体：草地基座 + 一圈木栅栏 + 门
+export function createRanchGround() {
+  const g = new THREE.Group();
+  const span = RANCH_GRID * RANCH_TILE;
+  const pad = 1.4;
+  const w = span + pad * 2;
+  g.add(mesh(new THREE.BoxGeometry(w, 0.3, w), mat(0x7fb063), 0, -0.08, 0));      // 草地
+  const post = mat(0xb98a5a), rail = mat(0xd0a878);
+  const half = w / 2;
+  // 四边栅栏：立柱 + 两道横杆
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const along = dx ? 'z' : 'x';
+    for (let t = -half; t <= half; t += 1.6) {
+      const p = mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), post,
+        dx ? dx * half : t, 0.45, dz ? dz * half : t);
+      g.add(p);
+    }
+    [0.34, 0.66].forEach(h => {
+      const bar = mesh(new THREE.BoxGeometry(dx ? 0.09 : w, 0.09, dx ? w : 0.09), rail,
+        dx ? dx * half : 0, h, dz ? dz * half : 0);
+      g.add(bar);
+    });
+  }
+  // 牧场招牌
+  g.add(mesh(new THREE.BoxGeometry(0.16, 1.3, 0.16), post, -half + 0.4, 0.65, half + 0.1));
+  g.add(mesh(new THREE.BoxGeometry(1.6, 0.5, 0.1), mat(0xe8c68f), -half + 1.2, 1.2, half + 0.1));
+  g.traverse(o => { if (o.isMesh) o.userData.ranch = true; });
   return g;
 }
 
