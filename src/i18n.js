@@ -60,6 +60,8 @@ const DICT = {
     // 设置菜单
     'set.title': '⚙️ 设置', 'set.music': '背景音乐', 'set.sfx': '操作音效',
     'set.tips': '消息提示', 'set.lang': '语言 / Language', 'set.on': '开', 'set.off': '关',
+    'set.fps': '帧率显示', 'set.autoQuality': '自动调画质', 'set.quality': '画质',
+    'quality.high': '高', 'quality.medium': '中', 'quality.low': '低', 'quality.potato': '流畅',
     'set.langHint': '切换后会重新载入，存档不受影响',
     // 建筑名牌（浮在屋顶上那块）
     'sign.workshop': '工坊', 'sign.mall': '商场', 'sign.house': '我的小屋',
@@ -619,6 +621,8 @@ const DICT = {
     'btn.close': '✕', 'btn.exit': '🚪 Leave', 'btn.exitHall': '🚪 Leave',
     'set.title': '⚙️ Settings', 'set.music': 'Music', 'set.sfx': 'Sound Effects',
     'set.tips': 'Notifications', 'set.lang': 'Language / 语言', 'set.on': 'On', 'set.off': 'Off',
+    'set.fps': 'Show FPS', 'set.autoQuality': 'Auto quality', 'set.quality': 'Quality',
+    'quality.high': 'High', 'quality.medium': 'Med', 'quality.low': 'Low', 'quality.potato': 'Fast',
     'set.langHint': 'The page reloads on switch; your save is untouched',
     'sign.workshop': 'Workshop', 'sign.mall': 'Mall', 'sign.house': 'My House',
     'sign.pond': 'Fishing Pond', 'sign.bank': 'Bank', 'sign.kitchen': 'Kitchen',
@@ -1171,6 +1175,8 @@ const DICT = {
     'btn.close': '✕', 'btn.exit': '🚪 Выйти', 'btn.exitHall': '🚪 Выйти',
     'set.title': '⚙️ Настройки', 'set.music': 'Музыка', 'set.sfx': 'Звуки',
     'set.tips': 'Уведомления', 'set.lang': 'Язык / Language', 'set.on': 'Вкл', 'set.off': 'Выкл',
+    'set.fps': 'Показать FPS', 'set.autoQuality': 'Авто-качество', 'set.quality': 'Качество',
+    'quality.high': 'Выс', 'quality.medium': 'Сред', 'quality.low': 'Низ', 'quality.potato': 'Быстро',
     'set.langHint': 'Страница перезагрузится, сохранение не пострадает',
     'sign.workshop': 'Мастерская', 'sign.mall': 'Магазин', 'sign.house': 'Мой дом',
     'sign.pond': 'Пруд', 'sign.bank': 'Банк', 'sign.kitchen': 'Кухня',

@@ -9,6 +9,7 @@ import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js'
 import { BREWERY_POS, BREW, winePrice } from './config.js';
 import { SHOP_POS, GIFTBOX, giftboxPrice } from './config.js';
 import { music, sfx } from './music.js';
+import { perf, QUALITY } from './perf.js';
 import { t, tf, tp, nameSep, lang, LANGS, setLang, applyStaticI18n } from './i18n.js';
 
 // 秒数显示成「X分X秒」
@@ -3041,6 +3042,29 @@ export class UI {
       localStorage.setItem('farm-tips-on', this.tipsOn ? '1' : '0');
       if (this.tipsOn) this.toast('💬 提示已打开');
     });
+    row('📊', t('set.fps'), perf.showFps, () => perf.toggleFps());
+    row('🤖', t('set.autoQuality'), perf.auto, () => perf.setAuto(!perf.auto));
+
+    // 画质档位：四个档随便切，切了就关掉自动
+    const qRow = document.createElement('div');
+    qRow.className = 'music-row';
+    qRow.innerHTML = `<b>⚙️ ${t('set.quality')}</b>`;
+    const chips = document.createElement('div');
+    chips.className = 'style-chips';
+    Object.keys(QUALITY).forEach(key => {
+      const b = document.createElement('button');
+      b.textContent = t(`quality.${key}`);
+      b.className = perf.level === key ? 'active' : '';
+      b.addEventListener('click', () => {
+        perf.setAuto(false);
+        perf.setLevel(key);
+        this.toast(`⚙️ ${t(`quality.${key}`)}`);
+        this.renderSettingsMenu();
+      });
+      chips.appendChild(b);
+    });
+    qRow.appendChild(chips);
+    menu.appendChild(qRow);
 
     // 语言：点一下展开三个选项，选中的高亮
     const cur = LANGS.find(l => l.id === lang);

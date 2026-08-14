@@ -6,6 +6,7 @@ import { INTERIOR_POS, SLEEP_SPEED } from './config.js';
 import { music, sfx } from './music.js';
 import { applyStaticI18n } from './i18n.js';
 import { startWatchdog } from './watchdog.js';
+import { perf } from './perf.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
 const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen',
@@ -33,6 +34,8 @@ const { renderer, scene, camera, controls, ensureSize, lights } = createScene(do
 const game = new Game(scene);
 const ui = new UI(game);
 ui.attachCamera(camera, controls);
+perf.attach(renderer, scene, lights);
+perf.onAuto = (msg) => ui.toast(msg); // 自动升降档时告诉玩家一声
 
 /* ---------- 拾取与交互 ---------- */
 
@@ -361,6 +364,28 @@ const suns = new THREE.Group();
 suns.visible = false;
 scene.add(suns);
 
+// 这些 userData 标记意味着「这个对象每帧要动」，其余的一律不用管
+const ANIM_KEYS = ['bob', 'spin', 'windmill', 'gear', 'sorterDrum', 'signBaseY',
+  'sorterLamp', 'lampLight', 'houseWindow', 'giftBox', 'brewBubble', 'pondAnim',
+  'petIdle', 'pestBug', 'flame', 'lampBulb', 'aquaFish', 'ranchAnimal'];
+let animList = [];
+let animAcc = 999; // 首帧就建一次
+
+function refreshAnimList(dt) {
+  animAcc += dt;
+  if (animAcc < 0.5) return;
+  animAcc = 0;
+  animList = [];
+  game.group.traverse(obj => {
+    const u = obj.userData;
+    for (const k of ANIM_KEYS) {
+      if (u[k] !== undefined && u[k] !== false) { animList.push(obj); return; }
+    }
+  });
+  // 光源清单也顺带跟着刷新，新盖的建筑带的灯才会纳入裁剪
+  perf.collectLights(game.group, THREE);
+}
+
 function animate() {
   requestAnimationFrame(animate);
   let dt = Math.min(clock.getDelta(), 0.1);
@@ -373,7 +398,11 @@ function animate() {
 
   const t = game.time;
   const f = game.dayFactor();
-  game.group.traverse(obj => {
+  // 场景后期有 3800+ 对象，但真正需要每帧动的只有 200 出头。
+  // 全量 traverse 是纯浪费，改成缓存一份「会动的」清单，每 0.5 秒重建一次
+  // （新盖的建筑/新种的作物最迟半秒后开始动，肉眼看不出来）
+  refreshAnimList(dt);
+  for (const obj of animList) {
     if (obj.userData.bob) {
       const s = (1 + Math.sin(t * 5 + obj.position.x * 3) * 0.05)
         * (game.badWeather() && obj.userData.plantRoot ? 0.85 : 1); // 恶劣天气作物缩水一圈
@@ -449,7 +478,7 @@ function animate() {
       obj.material.emissiveIntensity = 1 + Math.sin(t * 13) * 0.3;
     }
     if (obj.userData.lampBulb) obj.material.emissiveIntensity = 0.3 + (1 - f) * 1.2;
-  });
+  }
 
   // 死亡期间连视角都不能转
   controls.enabled = !game.isDead() && !dragging;
@@ -464,23 +493,26 @@ function animate() {
   scene.fog.color.copy(bg);
   suns.visible = game.drought && f > 0.05; // 三个太阳只在旱天的白昼高挂
 
-  // 暴雨：雨点下落
+  // 暴雨：雨点下落（低画质只算前一部分粒子，省下的循环很可观）
   rainDrops.visible = game.rain;
   if (game.rain) {
     const p = rainGeo.attributes.position.array;
-    for (let k = 0; k < RAIN_COUNT; k++) {
+    const n = Math.min(RAIN_COUNT, perf.cfg.rain);
+    rainGeo.setDrawRange(0, n);
+    for (let k = 0; k < n; k++) {
       p[k * 3 + 1] -= dt * 24;
       if (p[k * 3 + 1] < -0.5) p[k * 3 + 1] = 24 + Math.random() * 3;
     }
     rainGeo.attributes.position.needsUpdate = true;
   }
 
+  perf.tick(dt, camera); // 统计帧率、按档位裁剪装饰光源
   renderer.render(scene, camera);
 }
 animate();
 
 setInterval(() => game.save(), 10000);
-window.__debug = { renderer, scene, camera, game, ui, music, sfx };
+window.__debug = { renderer, scene, camera, game, ui, music, sfx, perf };
 
 startWatchdog(game); // 服务器掉线时提示并自动重连
 window.addEventListener('beforeunload', () => game.save());
