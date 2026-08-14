@@ -646,6 +646,83 @@ export function dishPrice(dish) {
   return dish.recipe.reduce((sum, [id, q, n]) => sum + seedById(id).sell * [1, 2, 3][q] * n, 0) * DISH_MULT;
 }
 
+/* ===================== 高级料理工坊 =====================
+ * 这是全岛唯一「五路进货」的建筑：一道菜要同时用到
+ *   屠宰场的部位 + 水潭的水产 + 料理工坊的成品菜 + 杂交室的果 + 地里的作物，
+ * 后 10 道再加一瓶酒窖的酒。做不出来通常不是没钱，是某条产线断了。
+ *
+ * 和普通料理工坊的区别：那边只吃作物，本质是「作物换钱」；
+ * 这边吃的全是别的系统的产物，本质是「把六条产线拧成一股」。
+ *
+ * 25 道菜正好对上 25 种杂交果，一道一种不重样。
+ */
+// 岛东北角：料理工坊往东 2 格、牧场围栏往北 1.5 格的空地。
+// 别往南挪——牧场占到 x[23.7,36.3] z[-6.3,6.4]，挪过去整栋楼会插进围栏里
+export const ADV_COOK_POS = { x: 24, z: 11.5 };
+export const ADV_COOK_SLOTS = 2;              // 只有两口大灶——比普通工坊的三口还少，慢工出细活
+export const ADV_COOK_TIME = 900;             // 一道菜 15 分钟（普通料理是 6 分钟）
+export const ADV_DISH_MULT = 2.5;             // 成品价 = 全部原料现价之和 × 2.5
+
+// 配方每项 [来源, id, 数量]，来源决定去背包哪个前缀底下找：
+//   'cut'  屠宰部位  → c:<动物>:<部位>
+//   'sea'  水产      → s:<id>
+//   'dish' 料理成品  → k:<id>
+//   'hyb'  杂交果    → h:<id>
+//   'crop' 普通作物  → 裸 key，可带品质（'rainbow:gold'）
+//   'wine' 酒        → w:<原果key>:<窖藏天数>，天数不限，下锅时自动挑最便宜的那瓶
+export const ADV_DISHES = [
+  // —— 前 15 道：五样原料，不用酒 ——
+  { id: 'g01', name: '鸡骨高汤面', emoji: '🍜', recipe: [['cut', 'chick:bone', 1], ['sea', 'fry', 1], ['dish', 'd1', 1], ['hyb', 'h1', 1], ['crop', 'sweetpot', 1]] },
+  { id: 'g02', name: '脆皮鸡卷',   emoji: '🌯', recipe: [['cut', 'chick:hide', 1], ['sea', 'ricesh', 1], ['dish', 'd3', 1], ['hyb', 'h2', 1], ['crop', 'radish', 1]] },
+  { id: 'g03', name: '蜜汁鸡排',   emoji: '🍗', recipe: [['cut', 'chick:rib', 1], ['sea', 'mussel', 1], ['dish', 'd5', 1], ['hyb', 'h3', 1], ['crop', 'potato', 1]] },
+  { id: 'g04', name: '兔骨浓汤',   emoji: '🍲', recipe: [['cut', 'rabbit:bone', 1], ['sea', 'minnow', 1], ['dish', 'd13', 1], ['hyb', 'h4', 1], ['crop', 'cabbage', 1]] },
+  { id: 'g05', name: '麻辣兔丝',   emoji: '🌶️', recipe: [['cut', 'rabbit:hide', 1], ['sea', 'loach', 1], ['dish', 'd7', 1], ['hyb', 'h5', 1], ['crop', 'tomato', 1]] },
+  { id: 'g06', name: '招牌炖鸡',   emoji: '🍲', recipe: [['cut', 'chick:meat', 1], ['sea', 'shrimp', 1], ['dish', 'd9', 1], ['hyb', 'h21', 1], ['crop', 'pepper', 1]] },
+  { id: 'g07', name: '柴火烤兔排', emoji: '🔥', recipe: [['cut', 'rabbit:rib', 1], ['sea', 'snail', 1], ['dish', 'd11', 1], ['hyb', 'h6', 1], ['crop', 'corn', 1]] },
+  { id: 'g08', name: '鸭架煲仔饭', emoji: '🍚', recipe: [['cut', 'duck:bone', 1], ['sea', 'sardine', 1], ['dish', 'd15', 1], ['hyb', 'h11', 1], ['crop', 'strawberry', 1]] },
+  { id: 'g09', name: '脆皮烤鸭',   emoji: '🦆', recipe: [['cut', 'duck:hide', 1], ['sea', 'crab', 1], ['dish', 'd17', 1], ['hyb', 'h7', 1], ['crop', 'broccoli', 1]] },
+  { id: 'g10', name: '红烧兔肉',   emoji: '🍖', recipe: [['cut', 'rabbit:meat', 1], ['sea', 'whitebait', 1], ['dish', 'd18', 1], ['hyb', 'h22', 1], ['crop', 'pumpkin', 1]] },
+  { id: 'g11', name: '酱烧鸭方',   emoji: '🍗', recipe: [['cut', 'duck:rib', 1], ['sea', 'prawn', 1], ['dish', 'd21', 1], ['hyb', 'h8', 1], ['crop', 'eggplant', 1]] },
+  { id: 'g12', name: '羊骨胡辣汤', emoji: '🍲', recipe: [['cut', 'goat:bone', 1], ['sea', 'clam', 1], ['dish', 'd19', 1], ['hyb', 'h12', 1], ['crop', 'grape', 1]] },
+  { id: 'g13', name: '羊杂拼盘',   emoji: '🥘', recipe: [['cut', 'goat:hide', 1], ['sea', 'crucian', 1], ['dish', 'd20', 1], ['hyb', 'h9', 1], ['crop', 'watermelon', 1]] },
+  { id: 'g14', name: '八宝全鸭',   emoji: '🍱', recipe: [['cut', 'duck:meat', 1], ['sea', 'hairycrab', 1], ['dish', 'd22', 1], ['hyb', 'h23', 1], ['crop', 'pineapple', 1]] },
+  { id: 'g15', name: '手抓羊排',   emoji: '🍖', recipe: [['cut', 'goat:rib', 1], ['sea', 'icefish', 1], ['dish', 'd23', 1], ['hyb', 'h16', 1], ['crop', 'avocado', 1]] },
+  // —— 后 10 道：六样原料，多一瓶酒 ——
+  { id: 'g16', name: '羊骨药膳锅', emoji: '🍲', recipe: [['cut', 'sheep:bone', 1], ['sea', 'grasssh', 1], ['dish', 'd37', 1], ['hyb', 'h10', 1], ['crop', 'crystal', 1], ['wine', 'grape', 1]] },
+  { id: 'g17', name: '绵羊三吃',   emoji: '🥩', recipe: [['cut', 'sheep:hide', 1], ['sea', 'carp', 1], ['dish', 'd29', 1], ['hyb', 'h14', 1], ['crop', 'peach', 1], ['wine', 'watermelon', 1]] },
+  { id: 'g18', name: '全羊盛宴',   emoji: '🎊', recipe: [['cut', 'goat:meat', 1], ['sea', 'bass', 1], ['dish', 'd39', 1], ['hyb', 'h17', 1], ['crop', 'starfruit', 1], ['wine', 'pineapple', 1]] },
+  { id: 'g19', name: '迷迭香羊排', emoji: '🌿', recipe: [['cut', 'sheep:rib', 1], ['sea', 'oyster', 1], ['dish', 'd31', 1], ['hyb', 'h15', 1], ['crop', 'cherry', 1], ['wine', 'crystal', 1]] },
+  { id: 'g20', name: '水晶肘子',   emoji: '💠', recipe: [['cut', 'pig:hide', 1], ['sea', 'seabream', 1], ['dish', 'd45', 1], ['hyb', 'h13', 1], ['crop', 'rainbow', 1], ['wine', 'peach', 1]] },
+  { id: 'g21', name: '烤全羊',     emoji: '🔥', recipe: [['cut', 'sheep:meat', 1], ['sea', 'yellowcr', 1], ['dish', 'd33', 1], ['hyb', 'h24', 1], ['crop', 'moonfruit', 1], ['wine', 'starfruit', 1]] },
+  { id: 'g22', name: '东坡肉宴',   emoji: '🍖', recipe: [['cut', 'pig:meat', 1], ['sea', 'octopus', 1], ['dish', 'd41', 1], ['hyb', 'h18', 1], ['crop', 'rainbow:gold', 1], ['wine', 'cherry', 1]] },
+  { id: 'g23', name: '和牛盛宴',   emoji: '🥩', recipe: [['cut', 'cow:meat', 1], ['sea', 'grouper', 1], ['dish', 'd43', 1], ['hyb', 'h19', 1], ['crop', 'nebula', 1], ['wine', 'rainbow', 1]] },
+  { id: 'g24', name: '御膳双烤',   emoji: '👑', recipe: [['cut', 'horse:meat', 1], ['sea', 'lobster', 1], ['dish', 'd47', 1], ['hyb', 'h25', 1], ['crop', 'moonfruit:gold', 1], ['wine', 'moonfruit', 1]] },
+  { id: 'g25', name: '独角兽神宴', emoji: '🦄', recipe: [['cut', 'unicorn:meat', 1], ['sea', 'tuna', 1], ['dish', 'd50', 1], ['hyb', 'h20', 1], ['crop', 'nebula:gold', 1], ['wine', 'nebula', 1]] },
+];
+export const advDishById = (id) => ADV_DISHES.find(d => d.id === id);
+
+// 配方某一项对应的背包 key。酒返回的是「前缀」（w:<原果>:），
+// 因为真正的 key 尾巴上还挂着窖藏天数，得去背包里搜。
+export const advIngKey = (src, id) => {
+  if (src === 'cut') return `c:${id}`;
+  if (src === 'sea') return `s:${id}`;
+  if (src === 'dish') return `k:${id}`;
+  if (src === 'hyb') return `h:${id}`;
+  if (src === 'wine') return `w:${id}:`; // 前缀，不是完整 key
+  return id;                             // crop：裸 key，可能自带 :silver / :gold
+};
+
+// 配方某一项的单价。酒按「刚出窖」的底价估，实际下锅时按真正用掉的那瓶重算，
+// 所以列表里看到的是保底价，用陈年酒做只会更贵、不会更便宜。
+export const advIngPrice = (src, id) =>
+  src === 'wine' ? winePrice(keyInfo(id).price, 0) : keyInfo(advIngKey(src, id)).price;
+
+// 标价：全部原料现价之和 × 倍率
+export function advDishPrice(dish) {
+  const sum = dish.recipe.reduce((s, [src, id, n]) => s + advIngPrice(src, id) * n, 0);
+  return Math.max(1, Math.floor(sum * ADV_DISH_MULT));
+}
+
 // 房子内饰：床是白送的，其余去商场「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
 export const INTERIOR_POS = { x: 0, y: -60, z: 0 }; // 3D 房间藏在岛屿下方，进屋时镜头切过去
@@ -1016,6 +1093,17 @@ export function keyInfo(key) {
   if (key.startsWith('k:')) {
     const dish = dishById(key.slice(2));
     return { seed: null, quality: undefined, processed: false, stunted: false, dish: true, price: dishPrice(dish), label: dish.name, icon: dish.emoji };
+  }
+  // 高级料理：g:<菜id>:<成交价>。价格在下锅那一刻按真正用掉的原料算死，
+  // 所以写进 key 里——同一道菜用陈年酒做出来就是比用新酒值钱，不能事后重算。
+  if (key.startsWith('g:')) {
+    const parts = key.slice(2).split(':');
+    const price = parseInt(parts.pop(), 10) || 0;
+    const dish = advDishById(parts.join(':'));
+    return {
+      seed: null, quality: undefined, processed: false, stunted: false,
+      advDish: true, price, label: dish.name, icon: dish.emoji,
+    };
   }
   if (key.startsWith('h:')) {
     const hy = hybridById(key.slice(2));

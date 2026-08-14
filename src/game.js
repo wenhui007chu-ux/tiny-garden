@@ -23,6 +23,8 @@ import {
   WAREHOUSE, warehouseCap,
   BREWERY_POS, BREW, winePrice,
   SHOP_POS, GIFTBOX, giftboxPrice,
+  advDishById, advDishPrice, advIngKey,
+  ADV_COOK_POS, ADV_COOK_SLOTS, ADV_COOK_TIME, ADV_DISH_MULT,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -43,6 +45,7 @@ import {
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
+  createGourmetKitchen,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -74,6 +77,9 @@ export class Game {
     this.poisonUntil = 0;   // 中毒倒计时：到点还没解毒就死
     this.deadUntil = 0;     // 死亡复活倒计时：这期间什么都干不了
     this.cookSlots = Array(COOK_SLOTS).fill(null); // 灶位：{ id, readyAt } 或 null
+    // 高级料理的大灶：{ id, price, readyAt } 或 null。price 在下锅时就算死，
+    // 因为用的酒窖藏多久不一样，出锅后不能再倒推
+    this.advCookSlots = Array(ADV_COOK_SLOTS).fill(null);
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
@@ -178,6 +184,14 @@ export class Game {
     this.group.add(kitchen);
     this.kitchenMeshes = [];
     kitchen.traverse(o => { if (o.isMesh) this.kitchenMeshes.push(o); });
+
+    // 高级料理工坊：岛东，夹在料理工坊、银行和牧场之间
+    const gourmet = createGourmetKitchen();
+    gourmet.position.set(ADV_COOK_POS.x, -0.51, ADV_COOK_POS.z);
+    gourmet.rotation.y = -0.6;
+    this.group.add(gourmet);
+    this.gourmetMeshes = [];
+    gourmet.traverse(o => { if (o.isMesh) this.gourmetMeshes.push(o); });
 
     // 杂交室：前方偏左的玻璃穹顶实验室
     const lab = createHybridLab();
@@ -395,6 +409,7 @@ export class Game {
     this.addSign(this.pond, '🎣', 'pond');
     this.addSign(bank, '🏦', 'bank');
     this.addSign(kitchen, '🍳', 'kitchen');
+    this.addSign(gourmet, '👨‍🍳', 'gourmet');
     this.addSign(lab, '🧬', 'hybridLab');
     this.addSign(petHouse, '🐾', 'petHouse');
     this.addSign(greenhouse, '🌸', 'greenhouse');
@@ -1091,6 +1106,84 @@ export class Game {
     this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
     this.cookSlots[slot] = null;
     this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+  }
+
+  /* ---------- 高级料理工坊 ---------- */
+
+  // 背包里所有「原果正好是 srcKey」的酒，便宜的排前面。
+  // 注意不能用 `w:grape:` 这样的前缀去匹配——黄金葡萄酒的 key 是
+  // `w:grape:gold:5`，前缀一样会被误吃掉。得剥掉尾巴的窖藏天数再整体比对。
+  advWineKeys(srcKey) {
+    return Object.keys(this.inventory).filter(k => {
+      if (!k.startsWith('w:') || this.inventory[k] <= 0) return false;
+      const parts = k.slice(2).split(':');
+      parts.pop();                       // 去掉窖藏天数
+      return parts.join(':') === srcKey; // 原果必须完全一致
+    }).sort((a, b) => keyInfo(a).price - keyInfo(b).price);
+  }
+
+  // 配方某一项现在有几件。酒要把所有年份的加起来
+  advIngHave(src, id) {
+    if (src === 'wine') {
+      return this.advWineKeys(id).reduce((n, k) => n + this.inventory[k], 0);
+    }
+    return this.inventory[advIngKey(src, id)] ?? 0;
+  }
+
+  canAdvCook(dishId) {
+    const dish = advDishById(dishId);
+    return !!dish && dish.recipe.every(([src, id, n]) => this.advIngHave(src, id) >= n);
+  }
+
+  advCook(dishId) {
+    const dish = advDishById(dishId);
+    if (!dish) return false;
+    const slot = this.advCookSlots.findIndex(s => !s);
+    if (slot < 0) { this.onToast(tp('t.advBusy', { n: ADV_COOK_SLOTS })); sfx.play('deny'); return false; }
+    if (!this.canAdvCook(dishId)) { this.onToast(t('t.advLack')); sfx.play('deny'); return false; }
+
+    // 边扣原料边累计真实成本：酒每瓶价钱不同，只能一瓶一瓶算
+    let sum = 0;
+    dish.recipe.forEach(([src, id, n]) => {
+      if (src === 'wine') {
+        let left = n;
+        // 优先用最便宜（最新）的酒，把陈年好酒留给玩家自己卖
+        for (const key of this.advWineKeys(id)) {
+          if (left <= 0) break;
+          const take = Math.min(left, this.inventory[key]);
+          sum += keyInfo(key).price * take;
+          left -= take;
+          this.inventory[key] -= take;
+          if (this.inventory[key] <= 0) delete this.inventory[key];
+        }
+        return;
+      }
+      const key = advIngKey(src, id);
+      sum += keyInfo(key).price * n;
+      this.inventory[key] -= n;
+      if (this.inventory[key] <= 0) delete this.inventory[key];
+    });
+
+    const price = Math.max(1, Math.floor(sum * ADV_DISH_MULT));
+    this.advCookSlots[slot] = { id: dishId, price, readyAt: this.time + ADV_COOK_TIME };
+    this.onToast(tp('t.advCooking', { name: `${dish.emoji}${dish.name}`, n: Math.round(ADV_COOK_TIME / 60) }));
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  collectAdvDish(slot) {
+    const s = this.advCookSlots[slot];
+    if (!s || this.time < s.readyAt) return;
+    const dish = advDishById(s.id);
+    const key = `g:${s.id}:${s.price}`;
+    this.inventory[key] = (this.inventory[key] ?? 0) + 1;
+    this.advCookSlots[slot] = null;
+    this.onToast(tp('t.advDone', { name: `${dish.emoji}${dish.name}`, n: s.price.toLocaleString() }));
     sfx.play('done');
     this.onState();
     this.save();
@@ -2507,6 +2600,7 @@ export class Game {
     if (key.startsWith('y:')) { this.onToast('打过药的只能直接卖，加工不了'); return; }
     if (key.startsWith('f:')) { this.onToast('花是拿来看的，装什么罐头'); return; }
     if (key.startsWith('w:')) { this.onToast('酒装进罐头就糟蹋了，直接卖吧'); return; }
+    if (key.startsWith('g:')) { this.onToast('大厨的作品塞罐头里？出去'); return; }
     // 兜底白名单：上面的黑名单每加一种新前缀就得补一次，漏了就会产出
     // 「p:怪key」这种解析不了的罐头。不认识的一律拒收，宁可少装一罐
     if (!seedById(key.split(':')[0])) { this.onToast('这个东西做不成罐头'); return; }
@@ -2826,6 +2920,8 @@ export class Game {
       sorter: this.sorter.map(s => s ? { key: s.key, remain: Math.max(0, s.readyAt - this.time) } : null),
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
+      // 高级料理还要存下锅时定死的价钱，不然出锅就不知道值多少了
+      advCookSlots: this.advCookSlots.map(s => s ? { id: s.id, price: s.price, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
       hybridSlots: this.hybridSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
@@ -3064,6 +3160,17 @@ export class Game {
     (data.cookSlots ?? []).forEach((s, k) => {
       if (s && k < this.cookSlots.length && dishById(s.id)) {
         this.cookSlots[k] = { id: s.id, readyAt: this.time + Math.max(0, s.remain - elapsed) };
+      }
+    });
+    // 高级料理的大灶：同样离线照炖。老存档没这个字段，?? [] 兜住，
+    // 价钱缺失就按现价补一个，免得出锅是 0 元
+    (data.advCookSlots ?? []).forEach((s, k) => {
+      if (s && k < this.advCookSlots.length && advDishById(s.id)) {
+        this.advCookSlots[k] = {
+          id: s.id,
+          price: s.price ?? advDishPrice(advDishById(s.id)),
+          readyAt: this.time + Math.max(0, s.remain - elapsed),
+        };
       }
     });
     // 培养罩：离线也照常培养

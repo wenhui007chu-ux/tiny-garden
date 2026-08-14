@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -67,6 +67,7 @@ export class UI {
     $('#fish-close').addEventListener('click', () => this.exitFishing());
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
+    $('#gourmet-close').addEventListener('click', () => $('#gourmet').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
@@ -93,6 +94,7 @@ export class UI {
     setInterval(() => {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
       if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
+      if (!$('#gourmet').classList.contains('hidden')) this.renderGourmet();
       if (!$('#hybrid').classList.contains('hidden')) {
         this.renderHybrid();
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
@@ -336,7 +338,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1410,7 +1412,8 @@ export class UI {
       note.textContent = `选一个作物摆上 ${k + 1} 号金台：`;
       body.appendChild(note);
       const crops = Object.entries(g.inventory)
-        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:') && !key.startsWith('k:') && key !== 'egg');
+        .filter(([key, n]) => n > 0 && !key.startsWith('p:') && !key.startsWith('x:')
+          && !key.startsWith('k:') && !key.startsWith('g:') && key !== 'egg');
       if (!crops.length) {
         body.insertAdjacentHTML('beforeend',
           '<div class="bag-empty">背包里没有作物<br>收获一些满意的再来吧 🌱</div>');
@@ -1460,6 +1463,92 @@ export class UI {
         btn.addEventListener('click', () => { this.codexChoosing = k; this.renderCodex(); });
         el.appendChild(btn);
       }
+      body.appendChild(el);
+    });
+  }
+
+  /* ---------- 高级料理工坊 ---------- */
+
+  openGourmet() {
+    this.closePanels();
+    $('#gourmet').classList.remove('hidden');
+    this.renderGourmet();
+  }
+
+  renderGourmet() {
+    const body = $('#gourmet-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const cookable = ADV_DISHES.filter(d => g.canAdvCook(d.id)).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="kitchen-progress">👨‍🍳 共 ${ADV_DISHES.length} 道大菜 · 现在能做 ${cookable} 道</div>
+       <div id="gourmet-src">每道菜要同时用到 🍖屠宰部位 · 🐟水产 · 🍳料理 · 🧬杂交果 · 🌱作物，后 10 道再加一瓶 🍷酒。<br>
+       酒不挑年份，下锅时自动用最便宜的那瓶，陈年好酒给你留着。</div>`);
+
+    // 两口大灶
+    g.advCookSlots.forEach((s, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!s) {
+        el.innerHTML = `<div class="icon">🔥</div><div class="info"><b>${k + 1} 号大灶</b><p>空着</p></div>`;
+      } else {
+        const dish = advDishById(s.id);
+        const remain = Math.max(0, s.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / ADV_COOK_TIME) * 100);
+          el.innerHTML = `<div class="icon">${dish.emoji}</div>
+            <div class="info"><b>${dish.name} 烹饪中</b><p>还剩 ${Math.ceil(remain)} 秒</p>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.classList.add('done');
+          el.innerHTML = `<div class="icon">${dish.emoji}</div>
+            <div class="info"><b>${dish.name} 出锅啦！</b><p>可卖 ${s.price.toLocaleString()}💰</p></div>`;
+          const btn = document.createElement('button');
+          btn.className = 'collect';
+          btn.textContent = '端走';
+          btn.addEventListener('click', () => { g.collectAdvDish(k); this.renderGourmet(); });
+          el.appendChild(btn);
+        }
+      }
+      body.appendChild(el);
+    });
+
+    const filterBtn = document.createElement('button');
+    filterBtn.id = 'kitchen-filter';
+    filterBtn.className = this.gourmetReadyOnly ? 'on' : '';
+    filterBtn.textContent = this.gourmetReadyOnly ? '✓ 只显示现在能做的' : `🔍 只看现在能做的（${cookable}）`;
+    filterBtn.addEventListener('click', () => { this.gourmetReadyOnly = !this.gourmetReadyOnly; this.renderGourmet(); });
+    body.appendChild(filterBtn);
+
+    const list = this.gourmetReadyOnly ? ADV_DISHES.filter(d => g.canAdvCook(d.id)) : ADV_DISHES;
+    if (!list.length) {
+      body.insertAdjacentHTML('beforeend',
+        '<div class="bag-empty">一道也凑不齐<br>先看看缺的是哪一路：肉？鱼？菜？果？酒？ 🍳</div>');
+      return;
+    }
+    // 每样原料标出「有几个 / 要几个」，缺哪一路一眼看得出来
+    const SRC_ICON = { cut: '🍖', sea: '🐟', dish: '🍳', hyb: '🧬', crop: '🌱', wine: '🍷' };
+    list.forEach(dish => {
+      const ready = g.canAdvCook(dish.id);
+      const el = document.createElement('div');
+      el.className = 'dish-row' + (ready ? ' ready' : '');
+      const ings = dish.recipe.map(([src, id, n]) => {
+        const have = g.advIngHave(src, id);
+        // 酒是一类而不是一件，标签直接写「XX酒」，不写具体年份
+        const label = src === 'wine'
+          ? `${keyInfo(id).label}${t('mod.wine') || '酒'}`
+          : keyInfo(advIngKey(src, id)).label;
+        return `<span class="ing ${have >= n ? 'ok' : 'no'}">${SRC_ICON[src]}${label} ${have}/${n}</span>`;
+      }).join('');
+      el.innerHTML = `<div class="icon">${dish.emoji}</div>
+        <div class="info"><b>${dish.name}</b> <span class="price">约 ${advDishPrice(dish).toLocaleString()}💰</span>
+        <div class="recipe">${ings}</div></div>`;
+      const slotFree = g.advCookSlots.some(s => !s);
+      const btn = document.createElement('button');
+      btn.textContent = slotFree ? '下锅' : '灶满';
+      btn.disabled = !ready || !slotFree;
+      if (ready && slotFree) btn.addEventListener('click', () => { g.advCook(dish.id); this.renderGourmet(); });
+      el.appendChild(btn);
       body.appendChild(el);
     });
   }

@@ -381,6 +381,94 @@ export function createKitchen() {
   return g;
 }
 
+/* ================= 高级料理工坊 =================
+ * 比普通料理工坊高一头的石砌餐厅：深色石墙 + 金顶 + 两根冒火的大烟囱，
+ * 招牌是一顶会转的厨师帽 + 三颗米其林小星星。
+ * 全部用基本几何体拼，没有任何外部素材。
+ */
+
+export function createGourmetKitchen() {
+  const g = new THREE.Group();
+  const stone = mat(0xa8907c);       // 暖砂岩，比旁边橙黄的料理工坊沉一档，但不能真发黑
+  const trim = mat(0xeee2cf);        // 米白腰线
+  const gold = mat(0xe0b64a, { metalness: 0.3, roughness: 0.5 });
+  const roof = mat(0x9a3f52);        // 酒红屋顶
+
+  // 主楼：比普通工坊宽一圈、高一层
+  g.add(mesh(new THREE.BoxGeometry(4.2, 2.8, 3.2), stone, 0, 1.4, 0));
+  // 腰线和台基
+  g.add(mesh(new THREE.BoxGeometry(4.4, 0.18, 3.4), trim, 0, 1.5, 0));
+  g.add(mesh(new THREE.BoxGeometry(4.6, 0.22, 3.6), trim, 0, 0.11, 0));
+
+  // 四坡金边屋顶：抬高到 1.7，太扁的话俯视就是一块平板
+  const rf = mesh(new THREE.ConeGeometry(3.1, 1.7, 4), roof, 0, 3.68, 0);
+  rf.rotation.y = Math.PI / 4;
+  g.add(rf);
+  g.add(mesh(new THREE.BoxGeometry(4.5, 0.14, 3.5), gold, 0, 2.85, 0));
+  // 屋脊小金球
+  g.add(mesh(new THREE.SphereGeometry(0.17, 8, 6), gold, 0, 4.62, 0));
+
+  // 两根石烟囱，各顶一簇跳动的火苗
+  // 火苗材质必须每根单独 new：flame 动画直接改 material.emissiveIntensity，
+  // 共用材质的话两根会互相覆盖（其实是同一个对象）
+  [-1.35, 1.35].forEach(x => {
+    g.add(mesh(new THREE.BoxGeometry(0.46, 1.3, 0.46), mat(0x8a7364), x, 3.4, -0.9));
+    const fire = mesh(new THREE.ConeGeometry(0.2, 0.45, 6),
+      mat(0xf07a2a, { emissive: 0xd94a10, emissiveIntensity: 0.85 }), x, 4.28, -0.9);
+    fire.userData.flame = true;
+    g.add(fire);
+  });
+
+  // 拱门 + 门口两盏暖灯
+  g.add(mesh(new THREE.BoxGeometry(1.05, 1.7, 0.1), mat(0x6a4632), 0, 0.95, 1.62));
+  g.add(mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.1, 12, 1, false, 0, Math.PI), mat(0x6a4632), 0, 1.8, 1.62));
+  [-0.95, 0.95].forEach(x => {
+    g.add(mesh(new THREE.SphereGeometry(0.13, 7, 6),
+      mat(0xffe0a0, { emissive: 0xf0c060, emissiveIntensity: 0.7 }), x, 1.9, 1.62));
+  });
+  // 落地长窗，透出橘黄的灯光
+  [-1.5, 1.5].forEach(x => {
+    g.add(mesh(new THREE.BoxGeometry(0.85, 1.25, 0.07),
+      mat(0xf0c878, { emissive: 0xc08830, emissiveIntensity: 0.35 }), x, 1.2, 1.62));
+  });
+  // 门口雨篷：一块向外下斜的板子。
+  // 别用半圆柱——CylinderGeometry 开一半再转 90°，在这个视角下会糊成一大坨暗红色
+  const awn = mesh(new THREE.BoxGeometry(2.7, 0.12, 1.15), roof, 0, 2.3, 2.06);
+  awn.rotation.x = -0.42;
+  g.add(awn);
+  g.add(mesh(new THREE.BoxGeometry(2.7, 0.1, 0.1), gold, 0, 2.08, 2.58)); // 篷檐金边
+
+  // 露天小餐位：两张圆桌，坐实「餐厅」而不是「工厂」
+  [[-3.0, 2.4], [3.0, 2.4]].forEach(([x, z]) => {
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 6), mat(0x6a5a4a), x, 0.45, z));
+    g.add(mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.09, 12), trim, x, 0.84, z));
+    g.add(mesh(new THREE.SphereGeometry(0.1, 6, 5), mat(0xd94a6a), x, 0.97, z)); // 桌上一朵小花
+  });
+
+  // 招牌：会转的厨师帽 + 三颗米其林星，做成门边一块落地立牌。
+  // 两个坑都别踩：放屋顶会被 addSign() 的浮空招牌压在一起（它按整栋楼包围盒顶部摆），
+  // 贴正面墙又会被雨篷挡住。挪到门右边的空地上，两样都躲开了
+  g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.25, 6), mat(0x6a5a4a), 1.7, 0.72, 2.3));
+  const sign = new THREE.Group();
+  // 厨师帽的形要靠「细帽箍 + 鼓帽顶」的对比撑起来。
+  // 上下一样宽（之前帽箍 0.3、帽顶 0.34）远看就是个灰垃圾桶
+  const hatBand = mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.2, 12), mat(0xf0ebe0), 0, 0, 0);
+  const hatTop = mesh(new THREE.SphereGeometry(0.38, 12, 9), mat(0xfbf8f2), 0, 0.28, 0);
+  hatTop.scale.set(1, 0.92, 1);
+  sign.add(hatBand, hatTop);
+  [-0.56, 0, 0.56].forEach((x, k) => {
+    const star = mesh(new THREE.OctahedronGeometry(0.14), gold, x, -0.42, 0);
+    star.rotation.z = 0.4 + k;
+    sign.add(star);
+  });
+  sign.position.set(1.7, 1.85, 2.3);
+  sign.userData.spin = true;
+  g.add(sign);
+
+  g.traverse(o => { if (o.isMesh) o.userData.gourmet = true; });
+  return g;
+}
+
 /* ================= 杂交室 ================= */
 
 export function createHybridLab() {
