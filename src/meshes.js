@@ -4592,6 +4592,7 @@ export function createTower(plan) {
   }
 
   let y = 0.56;
+  const eaves = [];   // 每层屋檐：挂件就挂在这儿
   plan.floors.forEach((f, i) => {
     const w = 4.2 - i * 0.115;                 // 越往上越窄，塔身自然收分
     const [tBody, tWin, tRail, tLamp] = f.tiers;
@@ -4621,8 +4622,40 @@ export function createTower(plan) {
       [[r, r], [-r, -r]].forEach(([x, z]) =>
         g.add(mesh(new THREE.SphereGeometry(0.1 + tLamp * 0.012, 6, 5), bulb, x, y + f.h - 0.18, z)));
     }
+    eaves.push({ y: y + f.h, r: (w + 0.36) / 2 });
     y += f.h;
   });
+
+  // 小挂件：填掉那 38 个「装修步数没动」的等级，保证每升一级都看得见东西。
+  // 第 k 件挂在第 floor(k/4) 层屋檐的第 k%4 个角，种类也按角位固定，
+  // 所以每层四角依次是 灯笼 / 旗幡 / 檐铃 / 盆栽
+  const CORNERS = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+  for (let k = 0; k < (plan.ornaments || 0); k++) {
+    const fi = Math.floor(k / 4);
+    if (fi >= eaves.length) break;   // 楼层还没盖到，先不挂
+    const e = eaves[fi];
+    const c = k % 4;
+    const ox = e.r * CORNERS[c][0], oz = e.r * CORNERS[c][1];
+    if (c === 0) {            // 红灯笼：挂绳 + 灯身，自发光
+      g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4), mat(0x5a4a3a), ox, e.y - 0.09, oz));
+      const lamp = mesh(new THREE.SphereGeometry(0.15, 8, 6),
+        mat(0xd94a3a, { emissive: 0xc03020, emissiveIntensity: 0.5 }), ox, e.y - 0.3, oz);
+      lamp.scale.set(1, 0.82, 1);
+      g.add(lamp);
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 6), mat(0xe0b64a), ox, e.y - 0.17, oz));
+    } else if (c === 1) {     // 旗幡：一根杆挑一面小旗
+      g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), mat(0x6a5a4a), ox, e.y + 0.25, oz));
+      const flag = mesh(new THREE.BoxGeometry(0.26, 0.2, 0.02), mat(0xd9534f), ox + 0.14, e.y + 0.38, oz);
+      flag.userData.bob = true;
+      g.add(flag);
+    } else if (c === 2) {     // 檐铃：小铃铛加一颗铃舌
+      g.add(mesh(new THREE.ConeGeometry(0.09, 0.13, 7), mat(0xc9a05a), ox, e.y - 0.16, oz));
+      g.add(mesh(new THREE.SphereGeometry(0.035, 6, 5), mat(0x8a6a3a), ox, e.y - 0.25, oz));
+    } else {                  // 盆栽：檐上摆一盆绿的
+      g.add(mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.12, 8), mat(0xb5654a), ox, e.y + 0.13, oz));
+      g.add(mesh(new THREE.SphereGeometry(0.12, 7, 6), mat(0x5c9b52), ox, e.y + 0.26, oz));
+    }
+  }
 
   // 尖顶：用全塔最高的那一档，封顶时是水晶星穹
   const top = Math.max(...plan.floors.flatMap(f => f.tiers));

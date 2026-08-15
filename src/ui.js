@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, towerPlan, towerCost } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -1585,10 +1585,11 @@ export class UI {
         <div class="lv">🗼 ${lv} <s>/ ${TOWER_MAX_LEVEL}</s></div>
         <div class="bar"><i style="width:${(lv / TOWER_MAX_LEVEL * 100).toFixed(1)}%"></i></div>
       </div>
-      <div class="tower-stat"><b>楼层</b><span>${plan.floors.length} / ${22} 层</span></div>
+      <div class="tower-stat"><b>楼层</b><span>${plan.floors.length} / ${TOWER_FLOORS_MAX} 层</span></div>
       <div class="tower-stat"><b>高度</b><span>${plan.height.toFixed(2)} 米</span></div>
       <div class="tower-stat"><b>装修</b><span>${tierTxt}</span></div>
       <div class="tower-stat"><b>装修进度</b><span>${plan.points} / ${plan.maxPoints}</span></div>
+      <div class="tower-stat"><b>挂件</b><span>${plan.ornaments} / ${plan.ornamentMax} 件</span></div>
     `);
 
     if (maxed) {

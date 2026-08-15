@@ -1222,11 +1222,18 @@ export const TOWER_FINISHES = [
 export const TOWER_STEPS_PER_FLOOR = 1 + TOWER_PARTS * (TOWER_TIERS - 1); // 21
 export const TOWER_TOTAL_STEPS = TOWER_FLOORS_MAX * TOWER_STEPS_PER_FLOOR; // 462
 
-// 到 lv 级一共干完了多少步工程。用 ceil 不用 floor——
-// 1 级就必须看得见第一层，floor 会让 1 级还是个土堆
+// 盖楼装修一共 462 步，可是有 500 级——差的 38 级不能什么都不发生，
+// 那 38 级各挂一件小东西（灯笼/旗幡/檐铃/盆栽）。挂件均匀撒在 500 级里。
+export const TOWER_ORNAMENT_TOTAL = TOWER_MAX_LEVEL - TOWER_TOTAL_STEPS; // 38
+export const towerOrnaments = (lv) =>
+  Math.min(TOWER_ORNAMENT_TOTAL,
+    Math.floor(Math.max(0, lv) * TOWER_ORNAMENT_TOTAL / TOWER_MAX_LEVEL));
+
+// 到 lv 级干完了多少步工程 = 等级 - 已挂的挂件数。
+// 这么写的好处是：每升一级，要么 work +1，要么挂件 +1，绝不会两个都不动，
+// 所以 500 级里每一级都看得见变化，一级都不空
 export const towerWork = (lv) =>
-  Math.min(TOWER_TOTAL_STEPS,
-    Math.ceil(Math.max(0, lv) * TOWER_TOTAL_STEPS / TOWER_MAX_LEVEL));
+  Math.max(0, Math.min(TOWER_TOTAL_STEPS, Math.floor(Math.max(0, lv)) - towerOrnaments(lv)));
 
 // 有几层：只要某层「盖起来」那一步干完了就算一层
 export const towerFloors = (lv) => {
@@ -1267,5 +1274,11 @@ export function towerPlan(lv) {
     height += TOWER_HEIGHTS[spec];
   }
   if (nFloors > 0) height += 1.4; // 尖顶
-  return { level, floors, height, points: w, maxPoints: TOWER_TOTAL_STEPS };
+  // 挂件挂在低层的屋檐四角：第 k 件 → 第 floor(k/4) 层的第 k%4 个角，
+  // 种类按 k%4 轮换，所以每层四个角是灯笼/旗幡/檐铃/盆栽各一个
+  const orn = towerOrnaments(level);
+  return {
+    level, floors, height, points: w, maxPoints: TOWER_TOTAL_STEPS,
+    ornaments: orn, ornamentMax: TOWER_ORNAMENT_TOTAL,
+  };
 }
