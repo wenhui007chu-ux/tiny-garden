@@ -1216,46 +1216,56 @@ export const TOWER_FINISHES = [
   { name: '星穹', body: 0x8ae0e0, trim: 0x5aa8d8, glow: 0.55 },
 ];
 
-// 到 n 级时塔有几层：前期猛长，到 300 级封顶 22 层
-export const towerFloors = (lv) =>
-  Math.round(TOWER_FLOORS_MAX * (1 - Math.exp(-lv / 60)));
+// 一层一层来：先把这一层盖起来，装修到顶，再起下一层。
+// 一层的工程量 = 1 步盖起来 + 4 个部位各升 5 次档 = 21 步；22 层共 462 步。
+// 462 步摊到 500 级 = 每级 0.924 步，所以 500 级里约 92% 都看得见变化。
+export const TOWER_STEPS_PER_FLOOR = 1 + TOWER_PARTS * (TOWER_TIERS - 1); // 21
+export const TOWER_TOTAL_STEPS = TOWER_FLOORS_MAX * TOWER_STEPS_PER_FLOOR; // 462
 
-// 到 n 级时一共攒了多少「装修步数」，L500 正好 440 步满档
-const TOWER_FINISH_STEPS = TOWER_FLOORS_MAX * TOWER_PARTS * (TOWER_TIERS - 1);
-export const towerFinishPoints = (lv) =>
-  Math.floor(Math.max(0, lv) * TOWER_FINISH_STEPS / TOWER_MAX_LEVEL);
+// 到 lv 级一共干完了多少步工程。用 ceil 不用 floor——
+// 1 级就必须看得见第一层，floor 会让 1 级还是个土堆
+export const towerWork = (lv) =>
+  Math.min(TOWER_TOTAL_STEPS,
+    Math.ceil(Math.max(0, lv) * TOWER_TOTAL_STEPS / TOWER_MAX_LEVEL));
 
-/* 把等级摊成一张施工图：哪几层、每层多高、每个部位装修到第几档。
+// 有几层：只要某层「盖起来」那一步干完了就算一层
+export const towerFloors = (lv) => {
+  const w = towerWork(lv);
+  return w <= 0 ? 0
+    : Math.min(TOWER_FLOORS_MAX, Math.floor((w - 1) / TOWER_STEPS_PER_FLOOR) + 1);
+};
+
+/* 把等级摊成一张施工图。
  *
- * 装修顺序是「从下往上、一层一部位」地扫：先把全塔每个部位刷到 1 档，
- * 再从头刷 2 档……扫 5 遍就满了。所以玩家看到的是塔从下往上一点点变好看，
- * 而不是某一级突然整体换皮。
+ * 和第一版的区别（第一版是错的）：那一版让 22 层先一起长出来、再整塔反复刷装修，
+ * 结果 50 级时是一座「12 层夯土烂尾楼」——没人会那样盖房子。
+ * 现在改成一层一层交付：第 i 层盖好并装修满 21 步，才轮到第 i+1 层动土。
+ * 所以玩家看到的永远是「下面几层已经装修完，最顶上那层正在施工」。
  *
- * 注意扫描基数用固定的 22 层而不是「当前层数」：
- * 用当前层数的话，每加一层分母就变大，已经刷好的档位会被算回低档，
- * 玩家花了钱塔反而变丑——花钱变丑是绝对不能出的 bug。
+ * 装修顺序在层内轮着来：主体→窗→栏杆→檐灯 各升 1 档，再回头升第 2 档，
+ * 这样同一层的四个部位是均匀变好的，不会出现「主体已是水晶、窗还是夯土」。
  */
 export function towerPlan(lv) {
   const level = Math.max(0, Math.min(TOWER_MAX_LEVEL, Math.floor(lv || 0)));
+  const w = towerWork(level);
   const nFloors = towerFloors(level);
-  const pts = towerFinishPoints(level);
-  const unit = TOWER_FLOORS_MAX * TOWER_PARTS; // 刷满一遍要 88 步
-  const baseTier = Math.floor(pts / unit);
-  const rem = pts % unit;
+  const maxDecor = TOWER_PARTS * (TOWER_TIERS - 1); // 一层最多 20 步装修
 
   const floors = [];
   let height = 0.5; // 台基
   for (let i = 0; i < nFloors; i++) {
-    const spec = towerSpecOf(i);
+    const local = w - i * TOWER_STEPS_PER_FLOOR;          // 这一层干完了几步
+    const d = Math.max(0, Math.min(maxDecor, local - 1)); // 扣掉「盖起来」那一步
+    const base = Math.floor(d / TOWER_PARTS);
+    const extra = d % TOWER_PARTS;
     const tiers = [];
     for (let p = 0; p < TOWER_PARTS; p++) {
-      // 这一遍扫到 rem 步；序号在 rem 之前的部位已经吃到下一档了
-      const idx = i * TOWER_PARTS + p;
-      tiers.push(Math.min(TOWER_TIERS - 1, baseTier + (idx < rem ? 1 : 0)));
+      tiers.push(Math.min(TOWER_TIERS - 1, base + (p < extra ? 1 : 0)));
     }
+    const spec = towerSpecOf(i);
     floors.push({ spec, h: TOWER_HEIGHTS[spec], tiers });
     height += TOWER_HEIGHTS[spec];
   }
   if (nFloors > 0) height += 1.4; // 尖顶
-  return { level, floors, height, points: pts, maxPoints: TOWER_FINISH_STEPS };
+  return { level, floors, height, points: w, maxPoints: TOWER_TOTAL_STEPS };
 }
