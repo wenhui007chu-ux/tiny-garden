@@ -1219,11 +1219,17 @@ export const TOWER_FINISHES = [
 // 一层一层来：先把这一层盖起来，装修到顶，再起下一层。
 // 一层的工程量 = 1 步盖起来 + 4 个部位各升 5 次档 = 21 步；22 层共 462 步。
 // 462 步摊到 500 级 = 每级 0.924 步，所以 500 级里约 92% 都看得见变化。
-export const TOWER_STEPS_PER_FLOOR = 1 + TOWER_PARTS * (TOWER_TIERS - 1); // 21
+// 一层 = 1 步盖起来 + 5 步换料。装修不按部位拆了——
+// 拆成 4 个部位的话每级只换一个部位，而相邻两档颜色本来就近
+// （夯土 0x9a7a5a → 木构 0xb98a5a 都是土褐色），一级根本看不出变化，
+// 要连升 4 级才「全塔升档」。整层一次换料，一眼就看得见
+export const TOWER_STEPS_PER_FLOOR = 1 + (TOWER_TIERS - 1); // 6
 export const TOWER_TOTAL_STEPS = TOWER_FLOORS_MAX * TOWER_STEPS_PER_FLOOR; // 462
 
-// 盖楼装修一共 462 步，可是有 500 级——差的 38 级不能什么都不发生，
-// 那 38 级各挂一件小东西（灯笼/旗幡/檐铃/盆栽）。挂件均匀撒在 500 级里。
+// 盖楼换料一共 132 步，剩下的 368 级全给挂件。
+// 挂件比装修多得多是故意的：换料一层只换 5 次，靠它撑不满 500 级，
+// 而挂件是「凭空多出一件东西」，再小也一眼看得见。
+// 位置：前 16 件摆台基一圈，之后每层 16 件（4 个角 × 灯笼/旗幡/檐铃/盆栽）。
 export const TOWER_ORNAMENT_TOTAL = TOWER_MAX_LEVEL - TOWER_TOTAL_STEPS; // 38
 export const towerOrnaments = (lv) =>
   Math.min(TOWER_ORNAMENT_TOTAL,
@@ -1256,19 +1262,15 @@ export function towerPlan(lv) {
   const level = Math.max(0, Math.min(TOWER_MAX_LEVEL, Math.floor(lv || 0)));
   const w = towerWork(level);
   const nFloors = towerFloors(level);
-  const maxDecor = TOWER_PARTS * (TOWER_TIERS - 1); // 一层最多 20 步装修
 
   const floors = [];
   let height = 0.5; // 台基
   for (let i = 0; i < nFloors; i++) {
-    const local = w - i * TOWER_STEPS_PER_FLOOR;          // 这一层干完了几步
-    const d = Math.max(0, Math.min(maxDecor, local - 1)); // 扣掉「盖起来」那一步
-    const base = Math.floor(d / TOWER_PARTS);
-    const extra = d % TOWER_PARTS;
-    const tiers = [];
-    for (let p = 0; p < TOWER_PARTS; p++) {
-      tiers.push(Math.min(TOWER_TIERS - 1, base + (p < extra ? 1 : 0)));
-    }
+    const local = w - i * TOWER_STEPS_PER_FLOOR;   // 这一层干完了几步
+    // 扣掉「盖起来」那一步，剩下的就是换了几次料。整层同档，
+    // tiers 仍然保留 4 个元素（建模那边按部位取色），只是四个值一样
+    const tier = Math.max(0, Math.min(TOWER_TIERS - 1, local - 1));
+    const tiers = new Array(TOWER_PARTS).fill(tier);
     const spec = towerSpecOf(i);
     floors.push({ spec, h: TOWER_HEIGHTS[spec], tiers });
     height += TOWER_HEIGHTS[spec];

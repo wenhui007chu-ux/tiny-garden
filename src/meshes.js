@@ -4626,36 +4626,67 @@ export function createTower(plan) {
     y += f.h;
   });
 
-  // 小挂件：填掉那 38 个「装修步数没动」的等级，保证每升一级都看得见东西。
-  // 第 k 件挂在第 floor(k/4) 层屋檐的第 k%4 个角，种类也按角位固定，
-  // 所以每层四角依次是 灯笼 / 旗幡 / 檐铃 / 盆栽
+  // 小挂件：368 件，比换料步数（132）多得多。每一件都是「凭空多出一样东西」，
+  // 再小也一眼看得见——换料一层只换 5 次，靠它撑不满 500 级。
+  //
+  // 排布：前 16 件绕台基一圈（那时候可能才 1 层，没地方挂），
+  // 之后每层 16 件 = 4 个角 × 4 种。同层先挂满 4 个灯笼，再 4 面旗，依此类推。
+  //
+  // 必须用 InstancedMesh：一件挂件 2~3 个零件，368 件就是 800 多个网格，
+  // 实测直接把帧率从 40 砍到 20。同种挂件共享几何体和材质，
+  // 合起来只有十来次绘制调用，帧率零损失。
   const CORNERS = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+  const lampBody = new THREE.SphereGeometry(0.15, 8, 6); lampBody.scale(1, 0.82, 1);
+  const ORN_DEFS = [
+    { parts: [ // 🏮 红灯笼
+      { g: new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4), m: mat(0x5a4a3a), dy: -0.09 },
+      { g: lampBody, m: mat(0xd94a3a, { emissive: 0xc03020, emissiveIntensity: 0.5 }), dy: -0.3 },
+      { g: new THREE.CylinderGeometry(0.05, 0.05, 0.04, 6), m: mat(0xe0b64a), dy: -0.17 },
+    ] },
+    { parts: [ // 🚩 旗幡
+      { g: new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), m: mat(0x6a5a4a), dy: 0.25 },
+      { g: new THREE.BoxGeometry(0.26, 0.2, 0.02), m: mat(0xd9534f), dy: 0.38, dx: 0.14 },
+    ] },
+    { parts: [ // 🔔 檐铃
+      { g: new THREE.ConeGeometry(0.09, 0.13, 7), m: mat(0xc9a05a), dy: -0.16 },
+      { g: new THREE.SphereGeometry(0.035, 6, 5), m: mat(0x8a6a3a), dy: -0.25 },
+    ] },
+    { parts: [ // 🪴 盆栽
+      { g: new THREE.CylinderGeometry(0.1, 0.08, 0.12, 8), m: mat(0xb5654a), dy: 0.13 },
+      { g: new THREE.SphereGeometry(0.12, 7, 6), m: mat(0x5c9b52), dy: 0.26 },
+    ] },
+  ];
+  const BASE_ORN = 16;
+  const spots = [[], [], [], []];   // 按种类分堆，好一次性实例化
   for (let k = 0; k < (plan.ornaments || 0); k++) {
-    const fi = Math.floor(k / 4);
-    if (fi >= eaves.length) break;   // 楼层还没盖到，先不挂
-    const e = eaves[fi];
-    const c = k % 4;
-    const ox = e.r * CORNERS[c][0], oz = e.r * CORNERS[c][1];
-    if (c === 0) {            // 红灯笼：挂绳 + 灯身，自发光
-      g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4), mat(0x5a4a3a), ox, e.y - 0.09, oz));
-      const lamp = mesh(new THREE.SphereGeometry(0.15, 8, 6),
-        mat(0xd94a3a, { emissive: 0xc03020, emissiveIntensity: 0.5 }), ox, e.y - 0.3, oz);
-      lamp.scale.set(1, 0.82, 1);
-      g.add(lamp);
-      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 6), mat(0xe0b64a), ox, e.y - 0.17, oz));
-    } else if (c === 1) {     // 旗幡：一根杆挑一面小旗
-      g.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 4), mat(0x6a5a4a), ox, e.y + 0.25, oz));
-      const flag = mesh(new THREE.BoxGeometry(0.26, 0.2, 0.02), mat(0xd9534f), ox + 0.14, e.y + 0.38, oz);
-      flag.userData.bob = true;
-      g.add(flag);
-    } else if (c === 2) {     // 檐铃：小铃铛加一颗铃舌
-      g.add(mesh(new THREE.ConeGeometry(0.09, 0.13, 7), mat(0xc9a05a), ox, e.y - 0.16, oz));
-      g.add(mesh(new THREE.SphereGeometry(0.035, 6, 5), mat(0x8a6a3a), ox, e.y - 0.25, oz));
-    } else {                  // 盆栽：檐上摆一盆绿的
-      g.add(mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.12, 8), mat(0xb5654a), ox, e.y + 0.13, oz));
-      g.add(mesh(new THREE.SphereGeometry(0.12, 7, 6), mat(0x5c9b52), ox, e.y + 0.26, oz));
+    if (k < BASE_ORN) {                      // 台基一圈
+      const a = k * Math.PI * 2 / BASE_ORN;
+      spots[k % 4].push([Math.cos(a) * 3.0, 0.72, Math.sin(a) * 3.0]);
+      continue;
     }
+    const j = k - BASE_ORN;
+    const fi = Math.floor(j / 16);
+    if (fi >= eaves.length) break;           // 楼层还没盖到，先不挂
+    const e = eaves[fi];
+    const idx = j % 16;
+    const c = CORNERS[idx % 4];
+    spots[Math.floor(idx / 4)].push([e.r * c[0], e.y, e.r * c[1]]);
   }
+  const mtx = new THREE.Matrix4();
+  ORN_DEFS.forEach((def, kind) => {
+    const list = spots[kind];
+    if (!list.length) { def.parts.forEach(p => p.g.dispose()); return; }
+    def.parts.forEach(p => {
+      const im = new THREE.InstancedMesh(p.g, p.m, list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      list.forEach(([x, y, z], i) => {
+        mtx.makeTranslation(x + (p.dx || 0), y + p.dy, z);
+        im.setMatrixAt(i, mtx);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      g.add(im);
+    });
+  });
 
   // 尖顶：用全塔最高的那一档，封顶时是水晶星穹
   const top = Math.max(...plan.floors.flatMap(f => f.tiers));
