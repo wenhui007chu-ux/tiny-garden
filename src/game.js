@@ -416,13 +416,12 @@ export class Game {
     this.addSign(bank, '🏦', 'bank');
     this.addSign(kitchen, '🍳', 'kitchen');
     this.addSign(gourmet, '👨‍🍳', 'gourmet');
-    // 塔的招牌不能按包围盒顶部摆：塔会从 0.5 米长到 27 米，
-    // 招牌既会飘到天上，也不会跟着重建移动，最后直接被塔身吞掉。
-    // 钉死在塔脚旁边，永远看得见
+    // 塔的招牌得跟别的建筑一样浮在头顶。但 addSign() 只在开局按包围盒
+    // 算一次位置，而塔会从 0.5 米长到 27 米——所以位置交给 positionTowerSign()，
+    // 每次重建都重算一遍，牌子才会跟着塔往上走
     if (this.towerGroup) {
-      const ts = this.addSign(this.towerGroup, '🗼', 'tower');
-      ts.position.set(TOWER_POS.x + 4.8, 3.4, TOWER_POS.z + 4.8);
-      ts.userData.signBaseY = 3.4;
+      this.towerSign = this.addSign(this.towerGroup, '🗼', 'tower');
+      this.positionTowerSign();
     }
     this.addSign(lab, '🧬', 'hybridLab');
     this.addSign(petHouse, '🐾', 'petHouse');
@@ -1229,6 +1228,17 @@ export class Game {
     this.towerGroup = g;
     this.towerMeshes = [];
     g.traverse(o => { if (o.isMesh) this.towerMeshes.push(o); });
+    this.positionTowerSign();
+  }
+
+  // 招牌浮在塔顶正上方，跟着塔一起长高。
+  // 建筑本体在 y=-0.51，所以世界高度要把这个偏移算进去，跟 addSign() 的口径一致
+  positionTowerSign() {
+    const s = this.towerSign;
+    if (!s) return;
+    const y = -0.51 + towerPlan(this.towerLevel).height + 0.62;
+    s.position.set(TOWER_POS.x, y, TOWER_POS.z);
+    s.userData.signBaseY = y;
   }
 
   towerNextCost() {
