@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, towerPlan, towerCost } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -68,6 +68,7 @@ export class UI {
     $('#bank-close').addEventListener('click', () => $('#bank').classList.add('hidden'));
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#gourmet-close').addEventListener('click', () => $('#gourmet').classList.add('hidden'));
+    $('#tower-close').addEventListener('click', () => $('#tower').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
@@ -338,7 +339,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1553,6 +1554,87 @@ export class UI {
     });
   }
 
+
+  /* ---------- 繁荣塔 ---------- */
+
+  openTower() {
+    this.closePanels();
+    $('#tower').classList.remove('hidden');
+    this.renderTower();
+  }
+
+  renderTower() {
+    const body = $('#tower-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const lv = g.towerLevel;
+    const plan = towerPlan(lv);
+    const next = g.towerNextCost();
+    const maxed = next === null;
+
+    // 全塔部位的档位跨度：装修是从下往上刷的，所以底层总比顶层好
+    const tiers = plan.floors.flatMap(f => f.tiers);
+    const lo = tiers.length ? Math.min(...tiers) : 0;
+    const hi = tiers.length ? Math.max(...tiers) : 0;
+    const tierTxt = tiers.length
+      ? (lo === hi ? TOWER_FINISHES[lo].name : `${TOWER_FINISHES[lo].name} → ${TOWER_FINISHES[hi].name}`)
+      : '还是个小土堆';
+
+    body.insertAdjacentHTML('beforeend', `
+      <div id="tower-hero">
+        <div class="lv">🗼 ${lv} <s>/ ${TOWER_MAX_LEVEL}</s></div>
+        <div class="bar"><i style="width:${(lv / TOWER_MAX_LEVEL * 100).toFixed(1)}%"></i></div>
+      </div>
+      <div class="tower-stat"><b>楼层</b><span>${plan.floors.length} / ${22} 层</span></div>
+      <div class="tower-stat"><b>高度</b><span>${plan.height.toFixed(2)} 米</span></div>
+      <div class="tower-stat"><b>装修</b><span>${tierTxt}</span></div>
+      <div class="tower-stat"><b>装修进度</b><span>${plan.points} / ${plan.maxPoints}</span></div>
+    `);
+
+    if (maxed) {
+      body.insertAdjacentHTML('beforeend',
+        '<div class="bag-empty">🌌 500 级封顶<br>水晶星穹已经点亮，这座岛没有更高的东西了</div>');
+      return;
+    }
+
+    const afford = g.towerAffordable();
+    body.insertAdjacentHTML('beforeend',
+      `<div class="tower-cost">下一级要 <b>${next.toLocaleString()}</b>💰<br>
+       <small>你现在的钱最多能连升 <b>${afford}</b> 级</small></div>`);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'tower-btns';
+    const mk = (label, n, cls) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (cls) b.className = cls;
+      b.disabled = afford < 1;
+      b.addEventListener('click', () => { g.upgradeTower(n); this.renderTower(); });
+      btnRow.appendChild(b);
+    };
+    mk('升 1 级', 1);
+    mk('升 10 级', 10);
+    mk(`一口气升 ${afford} 级`, afford || 1, 'primary');
+    body.appendChild(btnRow);
+
+    // 下一个外观里程碑：让玩家知道再攒多少能看到新东西
+    const curF = plan.floors.length;
+    let nextMile = null;
+    for (let n = lv + 1; n <= TOWER_MAX_LEVEL && !nextMile; n++) {
+      const p = towerPlan(n);
+      if (p.floors.length > curF) nextMile = { n, txt: `长到第 ${p.floors.length} 层` };
+      else if (Math.min(...p.floors.flatMap(f => f.tiers)) > lo) {
+        nextMile = { n, txt: `全塔升到「${TOWER_FINISHES[Math.min(...p.floors.flatMap(f => f.tiers))].name}」` };
+      }
+    }
+    if (nextMile) {
+      let need = 0;
+      for (let k = lv + 1; k <= nextMile.n; k++) need += towerCost(k);
+      body.insertAdjacentHTML('beforeend',
+        `<div id="tower-mile">下一个看得见的变化：<b>${nextMile.n} 级</b> —— ${nextMile.txt}<br>
+         <small>还要 ${need.toLocaleString()}💰</small></div>`);
+    }
+  }
   /* ---------- 宠物间 ---------- */
 
   openPetRoom() {

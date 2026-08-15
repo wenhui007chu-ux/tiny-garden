@@ -25,6 +25,7 @@ import {
   SHOP_POS, GIFTBOX, giftboxPrice,
   advDishById, advDishPrice, advIngKey,
   ADV_COOK_POS, ADV_COOK_SLOTS, ADV_COOK_TIME, ADV_DISH_MULT,
+  TOWER_POS, TOWER_MAX_LEVEL, towerCost, towerPlan,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -45,7 +46,7 @@ import {
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
-  createGourmetKitchen,
+  createGourmetKitchen, createTower,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -80,6 +81,7 @@ export class Game {
     // 高级料理的大灶：{ id, price, readyAt } 或 null。price 在下锅时就算死，
     // 因为用的酒窖藏多久不一样，出锅后不能再倒推
     this.advCookSlots = Array(ADV_COOK_SLOTS).fill(null);
+    this.towerLevel = 0;    // 繁荣塔等级 0~500，0 级就是个小土堆
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
@@ -192,6 +194,10 @@ export class Game {
     this.group.add(gourmet);
     this.gourmetMeshes = [];
     gourmet.traverse(o => { if (o.isMesh) this.gourmetMeshes.push(o); });
+    // 繁荣塔：500 级的金币无底洞，等级变了就整座重建
+    this.towerMeshes = [];
+    this.rebuildTower();
+
 
     // 杂交室：前方偏左的玻璃穹顶实验室
     const lab = createHybridLab();
@@ -410,6 +416,14 @@ export class Game {
     this.addSign(bank, '🏦', 'bank');
     this.addSign(kitchen, '🍳', 'kitchen');
     this.addSign(gourmet, '👨‍🍳', 'gourmet');
+    // 塔的招牌不能按包围盒顶部摆：塔会从 0.5 米长到 27 米，
+    // 招牌既会飘到天上，也不会跟着重建移动，最后直接被塔身吞掉。
+    // 钉死在塔脚旁边，永远看得见
+    if (this.towerGroup) {
+      const ts = this.addSign(this.towerGroup, '🗼', 'tower');
+      ts.position.set(TOWER_POS.x + 4.8, 3.4, TOWER_POS.z + 4.8);
+      ts.userData.signBaseY = 3.4;
+    }
     this.addSign(lab, '🧬', 'hybridLab');
     this.addSign(petHouse, '🐾', 'petHouse');
     this.addSign(greenhouse, '🌸', 'greenhouse');
@@ -1189,6 +1203,71 @@ export class Game {
     this.save();
   }
 
+
+  /* ---------- 繁荣塔 ---------- */
+
+  // 整座重建。塔的形状是等级的纯函数，与其增量改不如推倒重来——
+  // 但必须手动 dispose 旧的几何体和材质：一座塔上百个网格，
+  // 500 级升下来不释放就是几百次泄漏，显存会一路涨到崩
+  rebuildTower() {
+    if (this.towerGroup) {
+      // 材质在全塔共享（6 档装修只有十几份材质铺在 300 个网格上），
+      // 逐网格 dispose 会把同一份材质重复释放几百次。先去重再释放
+      const geos = new Set(), mats = new Set();
+      this.towerGroup.traverse(o => {
+        if (!o.isMesh) return;
+        if (o.geometry) geos.add(o.geometry);
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m && mats.add(m));
+      });
+      geos.forEach(x => x.dispose());
+      mats.forEach(x => x.dispose());
+      this.group.remove(this.towerGroup);
+    }
+    const g = createTower(towerPlan(this.towerLevel));
+    g.position.set(TOWER_POS.x, -0.51, TOWER_POS.z);
+    this.group.add(g);
+    this.towerGroup = g;
+    this.towerMeshes = [];
+    g.traverse(o => { if (o.isMesh) this.towerMeshes.push(o); });
+  }
+
+  towerNextCost() {
+    return this.towerLevel >= TOWER_MAX_LEVEL ? null : towerCost(this.towerLevel + 1);
+  }
+
+  // 升一级。n>1 时连升，钱不够就升到升不动为止
+  upgradeTower(n = 1) {
+    let done = 0;
+    for (let k = 0; k < n; k++) {
+      const cost = this.towerNextCost();
+      if (cost === null) { if (!done) this.onToast(t('t.towerMax')); break; }
+      if (this.coins < cost) { if (!done) { this.onToast(t('t.towerPoor')); sfx.play('deny'); } break; }
+      this.coins -= cost;
+      this.towerLevel += 1;
+      done++;
+    }
+    if (!done) return 0;
+    this.rebuildTower();
+    const plan = towerPlan(this.towerLevel);
+    this.onToast(tp('t.towerUp', {
+      n: this.towerLevel, f: plan.floors.length, h: plan.height.toFixed(1),
+    }));
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return done;
+  }
+
+  // 现在的钱最多还能连升几级（面板上「一键升到底」用）
+  towerAffordable() {
+    let coins = this.coins, lv = this.towerLevel, n = 0;
+    while (lv < TOWER_MAX_LEVEL) {
+      const c = towerCost(lv + 1);
+      if (coins < c) break;
+      coins -= c; lv++; n++;
+    }
+    return n;
+  }
   /* ---------- 宠物间 ---------- */
 
   buyPet(id) {
@@ -2921,6 +3000,7 @@ export class Game {
       fishNets: this.fishNets.map(n => n ? { remain: Math.max(0, n.readyAt - this.time) } : null),
       cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
       // 高级料理还要存下锅时定死的价钱，不然出锅就不知道值多少了
+      towerLevel: this.towerLevel,
       advCookSlots: this.advCookSlots.map(s => s ? { id: s.id, price: s.price, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
@@ -3164,6 +3244,10 @@ export class Game {
     });
     // 高级料理的大灶：同样离线照炖。老存档没这个字段，?? [] 兜住，
     // 价钱缺失就按现价补一个，免得出锅是 0 元
+    // 繁荣塔：老存档没这个字段，缺省 0 级（小土堆）。
+    // 读完必须重建一次，否则场景里还是初始化时那座 0 级土堆
+    this.towerLevel = Math.max(0, Math.min(TOWER_MAX_LEVEL, Math.floor(data.towerLevel ?? 0)));
+    this.rebuildTower();
     (data.advCookSlots ?? []).forEach((s, k) => {
       if (s && k < this.advCookSlots.length && advDishById(s.id)) {
         this.advCookSlots[k] = {

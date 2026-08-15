@@ -184,18 +184,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #gourmet {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #gourmet, #tower {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #gourmet-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #gourmet-head, #tower-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #gourmet-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #gourmet-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #gourmet-close, #tower-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #gourmet-body, #tower-body { padding: 12px; overflow-y: auto; flex: 1; }
 
 /* 高级料理的配方有 5~6 样原料，一行塞不下，让它自己换行 */
 #gourmet-body .recipe { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -980,3 +980,36 @@ body {
 .ranch-pen i { font-size: 9px; color: #a1834f; font-style: normal; }
 .ranch-pen button { border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
   border-radius: 7px; padding: 1px 6px; cursor: pointer; font-size: 10px; font-weight: 700; }
+
+/* ---------- 繁荣塔 ---------- */
+#tower-hero { text-align: center; padding: 6px 0 12px; }
+#tower-hero .lv { font-size: 34px; font-weight: 800; color: #8a5a2b; line-height: 1.1; }
+#tower-hero .lv s { font-size: 15px; color: #b39a76; text-decoration: none; font-weight: 600; }
+#tower-hero .bar {
+  height: 10px; background: #efe3cd; border-radius: 999px; margin-top: 8px; overflow: hidden;
+}
+#tower-hero .bar i { display: block; height: 100%; background: linear-gradient(90deg, #e0b64a, #8ae0e0); }
+.tower-stat {
+  display: flex; justify-content: space-between; align-items: center;
+  border: 2px solid #eedcba; border-radius: 12px; background: #fff;
+  padding: 8px 12px; margin-bottom: 7px; font-size: 14px;
+}
+.tower-stat b { color: #a1834f; font-weight: 600; }
+.tower-stat span { color: #6b4a24; font-weight: 700; }
+.tower-cost {
+  text-align: center; margin: 12px 0 10px; font-size: 14px; color: #6b4a24; line-height: 1.7;
+}
+.tower-cost b { color: #d9534f; font-size: 17px; font-variant-numeric: tabular-nums; }
+.tower-cost small { color: #a1834f; font-size: 12px; }
+.tower-btns { display: flex; flex-direction: column; gap: 7px; }
+.tower-btns button {
+  border: 2px solid #d9b071; background: #fff8ec; color: #8a5a2b;
+  border-radius: 12px; padding: 10px; cursor: pointer; font-weight: 700; font-size: 14px;
+}
+.tower-btns button.primary { border-color: #6aae5e; background: #dff3d8; color: #3d7a33; }
+.tower-btns button:disabled { border-color: #ccc; background: #eee; color: #aaa; cursor: default; }
+#tower-mile {
+  margin-top: 14px; padding: 10px 12px; border-radius: 12px;
+  background: #f6efe0; font-size: 12px; color: #8a6a44; line-height: 1.7;
+}
+#tower-mile b { color: #6b4a24; }

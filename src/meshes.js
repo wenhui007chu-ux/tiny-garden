@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
-  RANCH_GRID, RANCH_TILE } from './config.js';
+  RANCH_GRID, RANCH_TILE, TOWER_FINISHES } from './config.js';
 
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...opts });
@@ -4553,5 +4553,93 @@ export function createShelfSlot(hasBox, tint = 0xe8b23a) {
     box.userData.giftBox = true;   // main.js 让它轻轻上下浮动
     g.add(box);
   }
+  return g;
+}
+
+/* ================= 繁荣塔 =================
+ * 按 towerPlan() 给的施工图现搭。6 种层高 × 6 档装修，
+ * 每层 4 个部位（主体/窗/栏杆/檐灯）各自独立吃档位。
+ *
+ * 硬规矩：整座塔一盏 PointLight 都不许加。
+ * 岛上 98 盏装饰光源已经能把帧率压到 7 FPS，22 层再塞光源直接玩不了。
+ * 「亮」全部靠 emissive 材质，那是零成本的。
+ */
+export function createTower(plan) {
+  const g = new THREE.Group();
+  // 六档装修每档只做两个材质（主体/描边），全塔复用，避免 110 个网格 = 110 份材质
+  const F = TOWER_FINISHES.map(f => ({
+    body: mat(f.body, f.glow ? { emissive: f.body, emissiveIntensity: f.glow } : {}),
+    trim: mat(f.trim, f.glow ? { emissive: f.trim, emissiveIntensity: f.glow * 0.6 } : {}),
+    glow: f.glow,
+  }));
+  const glass = (tier) => mat(0xffe0a0, {
+    emissive: 0xf0c060, emissiveIntensity: 0.3 + tier * 0.12,
+  });
+
+  // 台基：任何等级都有，塔本身可以是 0 层
+  g.add(mesh(new THREE.CylinderGeometry(2.9, 3.2, 0.5, 12), mat(0x8a8478), 0, 0.25, 0));
+  g.add(mesh(new THREE.CylinderGeometry(3.0, 3.0, 0.08, 12), mat(0xa8a294), 0, 0.52, 0));
+
+  // 0 层 = 一个小土堆，这就是 1 级的样子
+  if (!plan.floors.length) {
+    const mound = mesh(new THREE.SphereGeometry(1.5, 10, 7), mat(0x8a6a4a), 0, 0.5, 0);
+    mound.scale.set(1, 0.45, 1);
+    g.add(mound);
+    [[0.7, 0.5], [-0.6, -0.7], [0.2, -0.9]].forEach(([x, z]) =>
+      g.add(mesh(new THREE.SphereGeometry(0.14, 6, 5), mat(0x6a8a4a), x, 0.82, z)));
+    g.traverse(o => { if (o.isMesh) o.userData.tower = true; });
+    return g;
+  }
+
+  let y = 0.56;
+  plan.floors.forEach((f, i) => {
+    const w = 4.2 - i * 0.115;                 // 越往上越窄，塔身自然收分
+    const [tBody, tWin, tRail, tLamp] = f.tiers;
+
+    // 主体
+    g.add(mesh(new THREE.BoxGeometry(w, f.h, w), F[tBody].body, 0, y + f.h / 2, 0));
+    // 四面窗：层高够才开两排，矮层只开一排
+    const rows = f.h >= 1.3 ? [0.32, 0.68] : [0.5];
+    rows.forEach(fr => {
+      [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(([dx, dz]) => {
+        const win = mesh(new THREE.BoxGeometry(dz ? w * 0.42 : 0.06, f.h * 0.26, dz ? 0.06 : w * 0.42),
+          glass(tWin), dx * (w / 2 + 0.01), y + f.h * fr, dz * (w / 2 + 0.01));
+        g.add(win);
+      });
+    });
+    // 楼板/栏杆：比楼身宽一圈，形成一道道出檐
+    g.add(mesh(new THREE.BoxGeometry(w + 0.42, 0.13, w + 0.42), F[tRail].trim, 0, y + f.h, 0));
+    if (tRail >= 2) { // 3 档以上才长出真正的栏杆立柱
+      const r = (w + 0.36) / 2;
+      [[r, r], [-r, r], [r, -r], [-r, -r]].forEach(([x, z]) =>
+        g.add(mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), F[tRail].trim, x, y + f.h + 0.21, z)));
+    }
+    // 檐灯：挂在楼板四角，纯 emissive，不是光源
+    if (tLamp >= 1) {
+      const r = (w + 0.3) / 2;
+      const bulb = mat(0xffd98a, { emissive: 0xf0b840, emissiveIntensity: 0.4 + tLamp * 0.16 });
+      [[r, r], [-r, -r]].forEach(([x, z]) =>
+        g.add(mesh(new THREE.SphereGeometry(0.1 + tLamp * 0.012, 6, 5), bulb, x, y + f.h - 0.18, z)));
+    }
+    y += f.h;
+  });
+
+  // 尖顶：用全塔最高的那一档，封顶时是水晶星穹
+  const top = Math.max(...plan.floors.flatMap(f => f.tiers));
+  const topW = 4.2 - (plan.floors.length - 1) * 0.115;
+  const spire = mesh(new THREE.ConeGeometry(topW * 0.72, 1.4, 8), F[top].body, 0, y + 0.7, 0);
+  g.add(spire);
+  g.add(mesh(new THREE.SphereGeometry(0.2, 8, 6),
+    mat(0xffe9a8, { emissive: 0xf0c860, emissiveIntensity: 0.4 + top * 0.14 }), 0, y + 1.5, 0));
+  // 满档才有的星穹光环，跟着 spin 转
+  if (top >= TOWER_FINISHES.length - 1) {
+    const halo = mesh(new THREE.TorusGeometry(1.1, 0.06, 6, 20),
+      mat(0x8ae0e0, { emissive: 0x6ac8e0, emissiveIntensity: 0.7 }), 0, y + 1.5, 0);
+    halo.rotation.x = Math.PI / 2;
+    halo.userData.spin = true;
+    g.add(halo);
+  }
+
+  g.traverse(o => { if (o.isMesh) o.userData.tower = true; });
   return g;
 }

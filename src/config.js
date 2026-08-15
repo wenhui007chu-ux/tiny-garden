@@ -1169,3 +1169,93 @@ export function keyInfo(key) {
     icon: `${stunted ? '🥀' : ''}${sprayed ? '🧪' : ''}${q ? q.emoji : ''}${processed ? '🥫' : ''}${seed.emoji}`,
   };
 }
+
+/* ===================== 繁荣塔：500 级的金币无底洞 =====================
+ * 从 1 级一个小土堆，到 500 级的水晶星穹高楼。
+ *
+ * 为什么塔不能一直长高：太阳光源在 y=30、阴影相机范围 ±34、雾从 120 米起、
+ * 相机最远 150。超过 28 米就会出现「塔顶没影子 / 拉远看全塔时整个岛进雾里」。
+ * 所以塔身封顶 22 层 ≈ 27 米，500 级的后半程全部花在装修上。
+ *
+ * 为什么不写 500 套外观：只写 6 种层高 + 6 档装修。
+ *   · 六种层高（底层最厚、越往上越薄）→ 塔的轮廓自然收分，不是一根方柱子
+ *   · 每层 4 个部位（主体/窗/栏杆/檐灯）各自独立升档
+ *   22 层 × 4 部位 × 5 次升档 = 440 步装修，摊到 500 级 = 每级 0.88 步，
+ *   算下来 500 级里有 445 级能看到肉眼变化（89%），L500 正好 440/440 满档。
+ *
+ * 这是纯粹的钱坑：升级只长外观，不给任何数值加成。
+ * 给了加成它就会自己把自己赚回来，也就不叫无底洞了。
+ */
+export const TOWER_POS = { x: -15, z: -14 }; // 岛西南空地：避开仓库(x≥-10.1)和图鉴大楼(z≥-7.6)
+export const TOWER_MAX_LEVEL = 500;
+export const TOWER_FLOORS_MAX = 22;
+export const TOWER_PARTS = 4;   // 每层可升的部位数：主体 / 窗 / 栏杆 / 檐灯
+export const TOWER_TIERS = 6;   // 装修档数
+
+// 造价：1250 起，每级 +4.5%。500 级总价约 100 万亿，只占 JS 安全整数上限的 1.1%，
+// 精度绝对够（超过 9e15 金币加减会开始丢零头，存档就会出现「买了不扣钱」）
+export const TOWER_BASE_COST = 1250;
+export const TOWER_COST_RATE = 1.045;
+// 从 lv-1 级升到 lv 级要多少钱（lv 从 1 起）
+export const towerCost = (lv) =>
+  Math.floor(TOWER_BASE_COST * Math.pow(TOWER_COST_RATE, Math.max(0, lv - 1)));
+
+// 六种层高。底层用最厚的，越往上越薄，塔身自然收分
+export const TOWER_HEIGHTS = [0.62, 0.80, 0.98, 1.18, 1.42, 1.72];
+// 第 i 层（0 = 最底层）用哪一种层高
+export const towerSpecOf = (i) =>
+  Math.max(0, Math.min(5, 5 - Math.floor(i * 6 / TOWER_FLOORS_MAX)));
+
+// 六档装修：颜色 + 是否自发光。名字用于面板上显示当前档位
+export const TOWER_FINISHES = [
+  { name: '夯土', body: 0x9a7a5a, trim: 0x7a5c42, glow: 0 },
+  { name: '木构', body: 0xb98a5a, trim: 0x8a5f38, glow: 0 },
+  { name: '青石', body: 0x8a95a0, trim: 0x646f7a, glow: 0 },
+  { name: '砖砌', body: 0xb5654a, trim: 0x8a4230, glow: 0 },
+  { name: '鎏金', body: 0xe0b64a, trim: 0xc4923a, glow: 0.18 },
+  { name: '星穹', body: 0x8ae0e0, trim: 0x5aa8d8, glow: 0.55 },
+];
+
+// 到 n 级时塔有几层：前期猛长，到 300 级封顶 22 层
+export const towerFloors = (lv) =>
+  Math.round(TOWER_FLOORS_MAX * (1 - Math.exp(-lv / 60)));
+
+// 到 n 级时一共攒了多少「装修步数」，L500 正好 440 步满档
+const TOWER_FINISH_STEPS = TOWER_FLOORS_MAX * TOWER_PARTS * (TOWER_TIERS - 1);
+export const towerFinishPoints = (lv) =>
+  Math.floor(Math.max(0, lv) * TOWER_FINISH_STEPS / TOWER_MAX_LEVEL);
+
+/* 把等级摊成一张施工图：哪几层、每层多高、每个部位装修到第几档。
+ *
+ * 装修顺序是「从下往上、一层一部位」地扫：先把全塔每个部位刷到 1 档，
+ * 再从头刷 2 档……扫 5 遍就满了。所以玩家看到的是塔从下往上一点点变好看，
+ * 而不是某一级突然整体换皮。
+ *
+ * 注意扫描基数用固定的 22 层而不是「当前层数」：
+ * 用当前层数的话，每加一层分母就变大，已经刷好的档位会被算回低档，
+ * 玩家花了钱塔反而变丑——花钱变丑是绝对不能出的 bug。
+ */
+export function towerPlan(lv) {
+  const level = Math.max(0, Math.min(TOWER_MAX_LEVEL, Math.floor(lv || 0)));
+  const nFloors = towerFloors(level);
+  const pts = towerFinishPoints(level);
+  const unit = TOWER_FLOORS_MAX * TOWER_PARTS; // 刷满一遍要 88 步
+  const baseTier = Math.floor(pts / unit);
+  const rem = pts % unit;
+
+  const floors = [];
+  let height = 0.5; // 台基
+  for (let i = 0; i < nFloors; i++) {
+    const spec = towerSpecOf(i);
+    const tiers = [];
+    for (let p = 0; p < TOWER_PARTS; p++) {
+      // 这一遍扫到 rem 步；序号在 rem 之前的部位已经吃到下一档了
+      const idx = i * TOWER_PARTS + p;
+      tiers.push(Math.min(TOWER_TIERS - 1, baseTier + (idx < rem ? 1 : 0)));
+    }
+    floors.push({ spec, h: TOWER_HEIGHTS[spec], tiers });
+    height += TOWER_HEIGHTS[spec];
+  }
+  if (nFloors > 0) height += 1.4; // 尖顶
+  return { level, floors, height, points: pts, maxPoints: TOWER_FINISH_STEPS };
+}
