@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -69,6 +69,7 @@ export class UI {
     $('#kitchen-close').addEventListener('click', () => $('#kitchen').classList.add('hidden'));
     $('#gourmet-close').addEventListener('click', () => $('#gourmet').classList.add('hidden'));
     $('#tower-close').addEventListener('click', () => $('#tower').classList.add('hidden'));
+    $('#harbor-close').addEventListener('click', () => $('#harbor').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
@@ -339,7 +340,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1636,6 +1637,85 @@ export class UI {
          <small>还要 ${need.toLocaleString()}💰</small></div>`);
     }
   }
+
+  /* ---------- 港湾商船 ---------- */
+
+  openHarbor() {
+    this.closePanels();
+    document.getElementById('harbor').classList.remove('hidden');
+    this.renderHarbor();
+  }
+
+  renderHarbor() {
+    const body = document.getElementById('harbor-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const docked = g.shipDocked();
+
+    if (!docked) {
+      const d = g.daysToShip();
+      body.insertAdjacentHTML('beforeend',
+        `<div id="harbor-wait">⛵<br><b>今天没有船</b>
+         <p>还有 <b>${d}</b> 天靠港<br>（每 ${HARBOR.period} 天来一艘，只停一天）</p>
+         <small>船开出的价从三折到三倍不等，趁没船先备好货</small></div>`);
+      return;
+    }
+
+    const list = g.harborManifestToday();
+    const canSell = list.filter((it, i) => !g.harborSold[i] && g.harborHave(it.src, it.id).n > 0).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="harbor-head-note">⛵ 商船今天靠港，收 ${list.length} 样货<br>
+       <small>你手上有 <b>${canSell}</b> 样能出。船天亮就走，卖了不能反悔</small></div>`);
+
+    // 150 行铺开谁也翻不动，默认只显示能出的那些（跟料理工坊「只看现在能做的」一个规矩）
+    const filterBtn = document.createElement('button');
+    filterBtn.id = 'kitchen-filter';
+    filterBtn.className = this.harborAll ? '' : 'on';
+    filterBtn.textContent = this.harborAll
+      ? `📋 正在看全部 ${list.length} 样 — 点这里只看我能出的`
+      : `✓ 只看我能出的（${canSell}）— 点这里看全部 ${list.length} 样`;
+    filterBtn.addEventListener('click', () => { this.harborAll = !this.harborAll; this.renderHarbor(); });
+    body.appendChild(filterBtn);
+
+    const shown = list.map((it, i) => [it, i]).filter(([it, i]) =>
+      this.harborAll || g.harborSold[i] || g.harborHave(it.src, it.id).n > 0);
+    if (!shown.length) {
+      body.insertAdjacentHTML('beforeend',
+        `<div class="bag-empty">这船要的 ${list.length} 样，你手上一样都没有<br>点上面那行可以看看它都收些什么 ⛵</div>`);
+      return;
+    }
+    shown.forEach(([it, i]) => {
+      const have = g.harborHave(it.src, it.id);
+      const sold = !!g.harborSold[i];
+      // 酒和高级料理按前缀匹配，没货时拿不到实例，用一个占位 key 取名字
+      let info;
+      try {
+        info = keyInfo(have.keys[0] ?? (harborIsPrefix(it.src)
+          ? harborKey(it.src, it.id) + (it.src === 'wine' ? '0' : '1')
+          : harborKey(it.src, it.id)));
+      } catch { info = { icon: '❓', label: it.id, price: 0 }; }
+
+      const pct = Math.round((it.mult - 1) * 100);
+      const tone = it.mult >= 2 ? 'hot' : it.mult >= 1.2 ? 'good' : it.mult >= 0.9 ? 'flat' : 'bad';
+      const el = document.createElement('div');
+      el.className = 'harbor-row ' + tone + (sold ? ' sold' : have.n > 0 ? ' ready' : '');
+      const total = Math.floor(have.value * it.mult);
+      el.innerHTML = `<div class="icon">${info.icon}</div>
+        <div class="info"><b>${info.label}</b>
+          <span class="mult">${pct >= 0 ? '+' : ''}${pct}%</span>
+          <p>${sold ? '已成交' : have.n > 0
+            ? `手上 ${have.n} 件 → 可得 <b>${total.toLocaleString()}</b>💰`
+            : '手上没有'}</p></div>`;
+      if (!sold && have.n > 0) {
+        const btn = document.createElement('button');
+        btn.textContent = '卖';
+        btn.addEventListener('click', () => { g.sellToShip(i); this.renderHarbor(); });
+        el.appendChild(btn);
+      }
+      body.appendChild(el);
+    });
+  }
+
   /* ---------- 宠物间 ---------- */
 
   openPetRoom() {

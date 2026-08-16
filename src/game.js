@@ -26,6 +26,7 @@ import {
   advDishById, advDishPrice, advIngKey,
   ADV_COOK_POS, ADV_COOK_SLOTS, ADV_COOK_TIME, ADV_DISH_MULT,
   TOWER_POS, TOWER_MAX_LEVEL, towerCost, towerPlan,
+  HARBOR, HARBOR_POS, harborManifest, harborKey, harborIsPrefix,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -46,7 +47,7 @@ import {
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
-  createGourmetKitchen, createTower,
+  createGourmetKitchen, createTower, createHarbor, createMerchantShip,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -82,6 +83,8 @@ export class Game {
     // 因为用的酒窖藏多久不一样，出锅后不能再倒推
     this.advCookSlots = Array(ADV_COOK_SLOTS).fill(null);
     this.towerLevel = 0;    // 繁荣塔等级 0~500，0 级就是个小土堆
+    this.harborSold = {};   // 本次靠港已经卖掉的槽位 { 槽位序号: true }
+    this.harborDock = -1;   // 已记录的靠港批次，换船时清空 harborSold
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
@@ -197,6 +200,21 @@ export class Game {
     // 繁荣塔：500 级的金币无底洞，等级变了就整座重建
     this.towerMeshes = [];
     this.rebuildTower();
+
+    // 港湾：岛最南端的大水域 + 一艘只在靠港日出现的商船
+    const harbor = createHarbor();
+    harbor.position.set(HARBOR_POS.x, -0.5, HARBOR_POS.z);
+    this.group.add(harbor);
+    this.harborMeshes = [];
+    harbor.traverse(o => { if (o.isMesh) this.harborMeshes.push(o); });
+    // 船单独一组：靠港日才显示。不要每次建了拆——
+    // 增删网格会触发着色器重编译，那是实打实的掉帧
+    this.shipGroup = createMerchantShip();
+    this.shipGroup.position.set(HARBOR_POS.x - 3.4, -0.15, HARBOR_POS.z + 6.2);
+    this.shipGroup.rotation.y = 0.12;
+    this.group.add(this.shipGroup);
+    this.shipGroup.traverse(o => { if (o.isMesh) this.harborMeshes.push(o); });
+    this.refreshShip();
 
 
     // 杂交室：前方偏左的玻璃穹顶实验室
@@ -416,6 +434,7 @@ export class Game {
     this.addSign(bank, '🏦', 'bank');
     this.addSign(kitchen, '🍳', 'kitchen');
     this.addSign(gourmet, '👨‍🍳', 'gourmet');
+    this.addSign(harbor, '⛵', 'harbor');
     // 塔的招牌得跟别的建筑一样浮在头顶。但 addSign() 只在开局按包围盒
     // 算一次位置，而塔会从 0.5 米长到 27 米——所以位置交给 positionTowerSign()，
     // 每次重建都重算一遍，牌子才会跟着塔往上走
@@ -1278,6 +1297,85 @@ export class Game {
     }
     return n;
   }
+  /* ---------- 港湾商船 ---------- */
+
+  // 第几艘船。dayCount 每过 HARBOR.period 天换一艘
+  harborDockIndex() { return Math.floor(this.dayCount / HARBOR.period); }
+
+  // 今天船在不在。只停靠港那一天，第二天就走
+  shipDocked() { return this.dayCount % HARBOR.period === 0; }
+
+  // 还有几天来下一艘（船在港时返回 0）
+  daysToShip() {
+    const r = this.dayCount % HARBOR.period;
+    return r === 0 ? 0 : HARBOR.period - r;
+  }
+
+  // 今天这张货单。同一艘船怎么读档都是同一张——倍率是按批次号算出来的，不是掷骰子
+  harborManifestToday() { return harborManifest(this.harborDockIndex()); }
+
+  // 换船了就把「已卖」记录清空，并同步船的可见性。
+  // 每天推进时和读档后都要调一次
+  refreshShip() {
+    const dock = this.harborDockIndex();
+    if (this.harborDock !== dock) {
+      this.harborDock = dock;
+      this.harborSold = {};
+    }
+    if (this.shipGroup) this.shipGroup.visible = this.shipDocked();
+  }
+
+  // 货单某一项，背包里有几件、总共值多少钱。
+  // 酒和高级料理的 key 尾巴上挂着窖藏天数 / 成交价，只能按前缀扫
+  harborHave(src, id) {
+    const key = harborKey(src, id);
+    if (!harborIsPrefix(src)) {
+      const n = this.inventory[key] ?? 0;
+      return { n, keys: n > 0 ? [key] : [], value: n > 0 ? keyInfo(key).price * n : 0 };
+    }
+    // 前缀匹配不能直接 startsWith：酒的 key 是 w:<原果>:<天数>，
+    // 黄金葡萄酒是 w:grape:gold:9，跟普通葡萄酒 w:grape: 前缀一模一样，
+    // 直接扫会把贵的那瓶一起算进来。得剥掉尾巴那一段再整体比对
+    const pre = src === 'wine' ? 'w:' : 'g:';
+    let n = 0, value = 0;
+    const keys = [];
+    for (const k of Object.keys(this.inventory)) {
+      if (!k.startsWith(pre) || this.inventory[k] <= 0) continue;
+      const parts = k.slice(2).split(':');
+      parts.pop();                        // 酒的窖藏天数 / 高级料理的成交价
+      if (parts.join(':') !== id) continue;  // 主体必须完全一致
+      keys.push(k);
+      n += this.inventory[k];
+      value += keyInfo(k).price * this.inventory[k];
+    }
+    return { n, keys, value };
+  }
+
+  // 卖给商船：一次清掉一个槽位，船开走前不能反悔
+  sellToShip(slot) {
+    if (!this.shipDocked()) { this.onToast(t('t.shipGone')); sfx.play('deny'); return false; }
+    if (this.harborSold[slot]) { this.onToast(t('t.shipSoldAlready')); sfx.play('deny'); return false; }
+    const item = this.harborManifestToday()[slot];
+    if (!item) return false;
+    const have = this.harborHave(item.src, item.id);
+    if (have.n <= 0) { this.onToast(t('t.shipNoStock')); sfx.play('deny'); return false; }
+
+    const total = Math.max(0, Math.floor(have.value * item.mult));
+    have.keys.forEach(k => { delete this.inventory[k]; });
+    this.harborSold[slot] = true;
+    this.gain(total);
+    const info = keyInfo(harborIsPrefix(item.src) ? have.keys[0] : harborKey(item.src, item.id));
+    const pct = Math.round((item.mult - 1) * 100);
+    this.onToast(tp('t.shipDeal', {
+      name: `${info.icon}${info.label}`, n: have.n,
+      p: (pct >= 0 ? '+' : '') + pct, g: total.toLocaleString(),
+    }));
+    sfx.play(item.mult >= 1 ? 'coin' : 'deny');
+    this.onState();
+    this.save();
+    return true;
+  }
+
   /* ---------- 宠物间 ---------- */
 
   buyPet(id) {
@@ -2887,6 +2985,13 @@ export class Game {
       this.dayCount += 1; // 黑市行情靠它翻牌（配合 isNight 就是半天一换）
       this.rollWeather(); // 每天早上 6 点掷天气骰子
       this.settleBank();  // 银行日结
+      // 港湾：靠港日船出现、货单换新；第二天船开走
+      const wasDocked = this.shipGroup?.visible;
+      this.refreshShip();
+      if (!wasDocked && this.shipDocked()) {
+        this.onToast(tp('t.shipArrive', { n: HARBOR.slots }));
+        sfx.play('done');
+      }
     }
 
     // 昼夜切换提示
@@ -3011,6 +3116,8 @@ export class Game {
       cookSlots: this.cookSlots.map(s => s ? { id: s.id, remain: Math.max(0, s.readyAt - this.time) } : null),
       // 高级料理还要存下锅时定死的价钱，不然出锅就不知道值多少了
       towerLevel: this.towerLevel,
+      harborSold: this.harborSold,
+      harborDock: this.harborDock,
       advCookSlots: this.advCookSlots.map(s => s ? { id: s.id, price: s.price, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
       pondPlaced: this.pondPlaced,
@@ -3258,6 +3365,10 @@ export class Game {
     // 读完必须重建一次，否则场景里还是初始化时那座 0 级土堆
     this.towerLevel = Math.max(0, Math.min(TOWER_MAX_LEVEL, Math.floor(data.towerLevel ?? 0)));
     this.rebuildTower();
+    // 港湾：老存档没这两个字段，缺省空
+    this.harborSold = data.harborSold ?? {};
+    this.harborDock = data.harborDock ?? -1;
+    this.refreshShip();
     (data.advCookSlots ?? []).forEach((s, k) => {
       if (s && k < this.advCookSlots.length && advDishById(s.id)) {
         this.advCookSlots[k] = {

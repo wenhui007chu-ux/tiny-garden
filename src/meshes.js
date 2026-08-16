@@ -4707,3 +4707,79 @@ export function createTower(plan) {
   g.traverse(o => { if (o.isMesh) o.userData.tower = true; });
   return g;
 }
+
+/* ================= 港湾与商船 =================
+ * 岛最南端的大水域。水面半径 14——抓鱼水潭才 4.3，这个是它三倍多。
+ * 商船单独一个组，靠港日才显示，平时整组 visible=false，
+ * 不用反复建了拆（拆建会触发着色器重编译，那是帧率杀手）。
+ */
+export function createHarbor() {
+  const g = new THREE.Group();
+  const R = 14, SR = 15.6;
+  // 沙岸 + 水面
+  g.add(mesh(new THREE.CylinderGeometry(SR, SR + 0.6, 0.26, 28), mat(0xd9c9a8), 0, 0.05, 0));
+  const water = mesh(new THREE.CylinderGeometry(R, R, 0.2, 28),
+    mat(0x35719e, { roughness: 0.2, emissive: 0x123a5c, emissiveIntensity: 0.18 }), 0, 0.17, 0);
+  water.userData.pondWater = true;   // 沿用水面的波动动画
+  g.add(water);
+  // 深水区：中间再压一层更深的蓝，大水面才不至于像块蓝板子
+  g.add(mesh(new THREE.CylinderGeometry(R * 0.62, R * 0.62, 0.03, 24),
+    mat(0x255a86, { roughness: 0.2, emissive: 0x0d2c48, emissiveIntensity: 0.2 }), 0, 0.28, 0));
+
+  // 木栈桥：从岛这一侧（+z）伸进水里
+  const plank = mat(0x9a6a42);
+  for (let i = 0; i < 9; i++) {
+    g.add(mesh(new THREE.BoxGeometry(2.6, 0.16, 1.05), plank, 0, 0.42, R - 0.4 - i * 1.15));
+  }
+  [-1.1, 1.1].forEach(x => {
+    for (let i = 0; i < 5; i++) {
+      g.add(mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), mat(0x7a5232), x, 0.1, R - 0.7 - i * 2.2));
+    }
+  });
+  // 桥头两根系缆桩
+  [-1.5, 1.5].forEach(x => {
+    g.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.85, 8), mat(0x6a4a2e), x, 0.75, R - 4.9));
+    g.add(mesh(new THREE.SphereGeometry(0.19, 8, 6), mat(0x8a6540), x, 1.2, R - 4.9));
+  });
+  // 岸边几块礁石
+  [[10.5, -7.5, 0.8], [-11.2, -4.6, 0.65], [-7.8, 9.4, 0.55], [8.2, 8.8, 0.7]].forEach(([x, z, r]) => {
+    const rock = mesh(new THREE.DodecahedronGeometry(r), mat(0x8f8880), x, 0.24, z);
+    rock.scale.y = 0.6;
+    g.add(rock);
+  });
+  g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
+  return g;
+}
+
+// 商船：靠在栈桥尽头。整艘船是一个组，靠港日才 visible
+export function createMerchantShip() {
+  const g = new THREE.Group();
+  const hull = mat(0x7a4a2e), deck = mat(0xb98a5a), trim = mat(0xe0b64a);
+  // 船身：下宽上窄的梯形块 + 尖船头
+  g.add(mesh(new THREE.BoxGeometry(3.1, 1.25, 8.4), hull, 0, 0.72, 0));
+  g.add(mesh(new THREE.BoxGeometry(3.4, 0.22, 8.6), trim, 0, 1.34, 0));
+  const bow = mesh(new THREE.ConeGeometry(1.55, 2.6, 4), hull, 0, 0.72, 5.2);
+  bow.rotation.set(-Math.PI / 2, 0, Math.PI / 4);
+  g.add(bow);
+  // 甲板与船楼
+  g.add(mesh(new THREE.BoxGeometry(2.9, 0.14, 8.2), deck, 0, 1.42, 0));
+  g.add(mesh(new THREE.BoxGeometry(2.2, 1.15, 2.4), mat(0xc9a06a), 0, 2.05, -2.5));
+  g.add(mesh(new THREE.BoxGeometry(2.45, 0.16, 2.65), mat(0x8a3a4a), 0, 2.68, -2.5));
+  [-0.6, 0.6].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.42, 0.42, 0.06),
+    mat(0xffe0a0, { emissive: 0xf0c060, emissiveIntensity: 0.45 }), x, 2.15, -1.28)));
+  // 主桅与帆
+  g.add(mesh(new THREE.CylinderGeometry(0.13, 0.15, 6.2, 8), mat(0x8a6540), 0, 4.5, 1.2));
+  const sail = mesh(new THREE.BoxGeometry(0.1, 3.4, 4.2), mat(0xf2ece0), 0.06, 4.9, 1.2);
+  sail.userData.bob = true;
+  g.add(sail);
+  g.add(mesh(new THREE.BoxGeometry(0.08, 0.9, 1.1), mat(0xd9534f), 0.1, 7.2, 1.2)); // 旗
+  // 甲板货箱：一眼看出是来做买卖的
+  [[-0.85, 3.1, 0xa87048], [0.85, 3.1, 0x8a6540], [-0.85, 1.4, 0x9a7a4a], [0.9, -0.4, 0xa87048]]
+    .forEach(([x, z, c]) => {
+      g.add(mesh(new THREE.BoxGeometry(0.85, 0.7, 0.85), mat(c), x, 1.84, z));
+      g.add(mesh(new THREE.BoxGeometry(0.9, 0.08, 0.9), trim, x, 2.2, z));
+    });
+  g.userData.bob = true;   // 整艘船跟着水面轻轻起伏
+  g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
+  return g;
+}

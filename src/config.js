@@ -1284,3 +1284,90 @@ export function towerPlan(lv) {
     ornaments: orn, ornamentMax: TOWER_ORNAMENT_TOTAL,
   };
 }
+
+/* ===================== 港湾商船 =====================
+ * 岛的大后方一片大水域，每 5 天靠一艘商船，只停那一天。
+ * 船上开出 150 样想收的货，每样各自一个倍率：最高 ×3，最低 ×0.3。
+ *
+ * 和黑市是亲戚，但脾气反过来：
+ *   黑市——价格藏着、赌一把、随时能去；
+ *   商船——价格明着标、你自己算划不划算，但 5 天才来一次，过期不候。
+ * 所以黑市考的是胆量，商船考的是备货。
+ */
+export const HARBOR_POS = { x: 0, z: -34 };  // 岛最南端的空地，越过黑市和观测台
+export const HARBOR = {
+  period: 5,     // 每 5 天来一艘
+  // 一次开 150 样货单。池子一共 335 种，抽 150 种必然大面积覆盖玩家手上的东西。
+  // 不能靠「让船更常要玩家有的」来提命中——那等于船在迎合你，
+  // ×3 到 ×0.3 的波动就没意义了。命中该来自「船要得多」，不是「船挑你有的」
+  slots: 150,
+  min: 0.3,      // 最惨砍到三折
+  max: 3.0,      // 最好翻三倍
+  waterR: 14,    // 水面半径（抓鱼水潭才 4.3，这个是它的三倍多）
+  sandR: 15.6,
+};
+
+// 稳定伪随机：同一个种子永远给同一个数。
+// 用它而不是 Math.random()，是为了「同一艘船怎么读档都是同一张货单」——
+// 否则玩家一刷新就能重摇价格，这单就没意义了
+function harborRand(seed) {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// 全部可能被收购的货，扁平成一张表。src 决定去背包哪个前缀底下找：
+//   crop 裸 key ｜ sea s: ｜ dish k: ｜ adv g:(任意价) ｜ hyb h: ｜ flower f:
+//   cut c: ｜ wine w:(任意年份) ｜ metal m:
+let _harborPool = null;
+export function harborPool() {
+  if (_harborPool) return _harborPool;
+  const p = [];
+  SEEDS.forEach(s => {
+    p.push({ src: 'crop', id: s.id });
+    p.push({ src: 'crop', id: `${s.id}:silver` });
+    p.push({ src: 'crop', id: `${s.id}:gold` });
+    p.push({ src: 'wine', id: s.id });
+    p.push({ src: 'metal', id: `${s.id}:silver` });
+    p.push({ src: 'metal', id: `${s.id}:gold` });
+  });
+  SEAFOOD.forEach(s => p.push({ src: 'sea', id: s.id }));
+  DISHES.forEach(d => p.push({ src: 'dish', id: d.id }));
+  ADV_DISHES.forEach(d => p.push({ src: 'adv', id: d.id }));
+  HYBRIDS.forEach(h => p.push({ src: 'hyb', id: h.id }));
+  FLOWERS.forEach(f => p.push({ src: 'flower', id: f.id }));
+  ANIMALS.forEach(a => CUTS.forEach(c => p.push({ src: 'cut', id: `${a.id}:${c.id}` })));
+  _harborPool = p;
+  return p;
+}
+
+// 货单某一项对应的背包 key。酒和高级料理返回的是「前缀」，
+// 因为它们真正的 key 尾巴上还挂着窖藏天数 / 成交价，得去背包里搜
+export const harborKey = (src, id) => {
+  if (src === 'sea') return `s:${id}`;
+  if (src === 'dish') return `k:${id}`;
+  if (src === 'adv') return `g:${id}:`;     // 前缀
+  if (src === 'hyb') return `h:${id}`;
+  if (src === 'flower') return `f:${id}`;
+  if (src === 'cut') return `c:${id}`;
+  if (src === 'wine') return `w:${id}:`;    // 前缀
+  if (src === 'metal') return `m:${id}`;
+  return id;                                // crop：裸 key
+};
+export const harborIsPrefix = (src) => src === 'adv' || src === 'wine';
+
+// 第 dock 艘船的货单：150 样货 + 各自倍率。
+// 全部由 dock 和槽位序号算出来，同一艘船永远是同一张单
+export function harborManifest(dock) {
+  const pool = harborPool();
+  const list = [];
+  const used = new Set();
+  for (let i = 0; i < HARBOR.slots; i++) {
+    // 撞了就往后顺延，保证 150 样不重样
+    let idx = Math.floor(harborRand(dock * 977 + i * 31) * pool.length);
+    for (let g = 0; g < pool.length && used.has(idx); g++) idx = (idx + 1) % pool.length;
+    used.add(idx);
+    const mult = HARBOR.min + harborRand(dock * 613 + i * 97 + 7) * (HARBOR.max - HARBOR.min);
+    list.push({ ...pool[idx], mult: Math.round(mult * 100) / 100 });
+  }
+  return list;
+}
