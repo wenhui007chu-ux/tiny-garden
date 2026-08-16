@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
       "port": 5173
+    },
+    {
+      "name": "russia-conquest",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "D:/JerryAIProjects/RussiaConquest", "--port", "5199", "--strictPort"],
+      "port": 5199
     }
   ]
 }
