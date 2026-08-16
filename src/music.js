@@ -36,6 +36,9 @@ const TRACKS = [
 
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
+// 背景音乐总音量。silence()/unsilence() 要拿它来回切，所以提成常量
+const MASTER_GAIN = 0.14;
+
 class MusicBox {
   constructor() {
     this.ctx = null;
@@ -56,7 +59,7 @@ class MusicBox {
     if (this.ctx) return;
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.14;
+    this.master.gain.value = MASTER_GAIN;
     this.master.connect(this.ctx.destination);
   }
 
@@ -189,6 +192,7 @@ class MusicBox {
     if (!this.enabled || this.playing) return;
     this.ensureCtx();
     if (this.ctx.state === 'suspended') this.ctx.resume();
+    this.unsilence();   // 上次可能是被 stop() 拉到 0 的，先恢复音量
     this.playing = true;
     this.startTrack();
     this.timer = setInterval(() => this.schedule(), 120);
@@ -197,6 +201,24 @@ class MusicBox {
   stop() {
     this.playing = false;
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    this.silence();
+  }
+
+  // 光清定时器不够：schedule() 每轮会把音符排到 0.5 秒之后，
+  // 清定时器只是不再往后排，已经排进去的照样响完。
+  // 把总线拉到 0 才是立刻哑掉
+  silence() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(0, t);
+  }
+
+  unsilence() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(MASTER_GAIN, t);
   }
 
   toggle() {
@@ -323,3 +345,38 @@ class SfxBox {
 }
 
 export const sfx = new SfxBox(music);
+
+/* ================= 静音守卫 =================
+ * 用户把软件/标签页关掉时，页面未必真的卸载——嵌在 App 里的 webview
+ * 常常只是被隐藏，JS 和 AudioContext 照跑，于是音乐在后台一直响。
+ * 这里做两件事：
+ *   · 页面一隐藏就 suspend() 整个 AudioContext（音乐和音效一起冻住，
+ *     比逐个停音源干净，而且已排程的音符也一并冻住）
+ *   · pagehide 时直接 close()，彻底放掉音频设备
+ * 重新可见时只在「本来就在放」的情况下才恢复，不会自己响起来。
+ */
+function installAudioGuards() {
+  if (typeof document === 'undefined') return;
+  let wasPlaying = false;
+
+  const hush = () => {
+    wasPlaying = music.playing;
+    music.silence();
+    try { music.ctx?.suspend?.(); } catch { /* 已经关了就算了 */ }
+  };
+  const wake = () => {
+    if (!music.ctx || music.ctx.state === 'closed') return;
+    // 只恢复「隐藏前确实在放」的，否则一切回前台就自己唱起来很吓人
+    if (!wasPlaying || !music.enabled) return;
+    music.ctx.resume?.().then(() => music.unsilence()).catch(() => {});
+  };
+
+  document.addEventListener('visibilitychange', () => (document.hidden ? hush() : wake()));
+  window.addEventListener('pagehide', () => {
+    hush();
+    try { music.ctx?.close?.(); } catch { /* 忽略 */ }
+  });
+  // Safari/部分 webview 不发 pagehide，用 beforeunload 兜一道
+  window.addEventListener('beforeunload', hush);
+}
+installAudioGuards();

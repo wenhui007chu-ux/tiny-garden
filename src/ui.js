@@ -3300,9 +3300,12 @@ export class UI {
     if (on) {
       this.closePanels();
       sfx.play('pause');
+      // 挂机 = 整个世界暂停，音乐没道理还在放
+      music.stop();
     } else {
       this.toast('☀️ 解冻！世界继续转动');
       sfx.play('resume');
+      if (music.enabled) music.start();
       this.refresh();
     }
   }
