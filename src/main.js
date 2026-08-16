@@ -383,7 +383,7 @@ suns.visible = false;
 scene.add(suns);
 
 // 这些 userData 标记意味着「这个对象每帧要动」，其余的一律不用管
-const ANIM_KEYS = ['bob', 'spin', 'windmill', 'gear', 'sorterDrum', 'signBaseY',
+const ANIM_KEYS = ['harborAnim', 'bob', 'spin', 'windmill', 'gear', 'sorterDrum', 'signBaseY',
   'sorterLamp', 'lampLight', 'houseWindow', 'giftBox', 'brewBubble', 'pondAnim',
   'petIdle', 'pestBug', 'flame', 'lampBulb', 'aquaFish', 'ranchAnimal'];
 let animList = [];
@@ -489,6 +489,23 @@ function animate() {
         obj.position.y = a.y + Math.sin(t * a.speed + a.phase) * 0.05;
         obj.rotation.z = Math.sin(t * a.speed * 0.7 + a.phase) * 0.06;
         obj.rotation.y = Math.sin(t * 0.3 + a.phase) * 0.3;
+      }
+    }
+    // 港湾装饰。phase 按槽位错开，同一种摆好几件才不会像复制粘贴一样同步动
+    const ha = obj.userData.harborAnim;
+    if (ha) {
+      const p = t * (ha.speed ?? 0.5) + (ha.phase ?? 0);
+      if (ha.type === 'swim') {
+        obj.position.x = Math.cos(p) * (ha.radius ?? 4);
+        obj.position.z = Math.sin(p) * (ha.radius ?? 4);
+        obj.position.y = (ha.air ?? 0.2) + Math.sin(p * 2) * 0.12;
+        obj.rotation.y = -p + Math.PI / 2;   // 头朝着走的方向
+      } else if (ha.type === 'drift') {
+        obj.position.y = 0.5 + Math.sin(p) * 0.35;
+        obj.rotation.y = p * 0.4;
+      } else if (ha.type === 'bob') {
+        obj.position.y = 0.2 + Math.sin(p) * 0.16;
+        obj.rotation.z = Math.sin(p * 0.7) * 0.06;
       }
     }
     if (obj.userData.flame) {                                                // 炉火/烛火摇曳

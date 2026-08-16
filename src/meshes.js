@@ -4783,3 +4783,253 @@ export function createMerchantShip() {
   g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
   return g;
 }
+
+
+/* ================= 港湾装饰 =================
+ * 23 种模型，全程序化。海里的东西跟小水塘不是一套：
+ * 这边是礁石、巨藻、鲸鱼、沉船、锚，不是荷花青蛙锦鲤。
+ */
+const harborKinds = {
+  rock: (c) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.DodecahedronGeometry(0.62), mat(c), 0, 0.1, 0));
+    const a = mesh(new THREE.DodecahedronGeometry(0.34), mat(c), 0.55, -0.05, 0.3);
+    a.scale.y = 0.7; g.add(a);
+    g.add(mesh(new THREE.DodecahedronGeometry(0.22), mat(c), -0.5, -0.1, -0.35));
+    return g;
+  },
+  kelp: (c) => {
+    const g = new THREE.Group();
+    [[0, 0, 1.9], [0.32, 0.2, 1.5], [-0.28, -0.22, 1.6], [0.15, -0.35, 1.2]].forEach(([x, z, h], i) => {
+      const blade = mesh(new THREE.BoxGeometry(0.16, h, 0.05), mat(c), x, h / 2 - 0.1, z);
+      blade.rotation.z = (i % 2 ? 1 : -1) * 0.14;
+      g.add(blade);
+    });
+    return g;
+  },
+  shells: (c) => {
+    const g = new THREE.Group();
+    [[0, 0, 0.26], [0.3, 0.22, 0.2], [-0.26, 0.18, 0.17], [0.1, -0.3, 0.15]].forEach(([x, z, r]) => {
+      const sh = mesh(new THREE.SphereGeometry(r, 7, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(c), x, 0, z);
+      sh.rotation.x = 0.3; g.add(sh);
+    });
+    return g;
+  },
+  star: (c) => {
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const arm = mesh(new THREE.BoxGeometry(0.16, 0.09, 0.52), mat(c), 0, 0, 0);
+      arm.rotation.y = i * Math.PI * 2 / 5;
+      arm.position.set(Math.sin(i * Math.PI * 2 / 5) * 0.24, 0, Math.cos(i * Math.PI * 2 / 5) * 0.24);
+      g.add(arm);
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.19, 7, 5), mat(c), 0, 0.02, 0));
+    return g;
+  },
+  buoy: (c, d) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.ConeGeometry(0.34, 0.5, 8), mat(c), 0, -0.1, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.5, 8), mat(c), 0, 0.3, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 6), mat(0x8a8a92), 0, 0.8, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.15, 8, 6),
+      mat(0xffe0a0, d.glow ? { emissive: 0xf0c060, emissiveIntensity: 0.8 } : {}), 0, 1.12, 0));
+    return g;
+  },
+  piling: (c) => {
+    const g = new THREE.Group();
+    [[0, 0, 1.5], [0.42, 0.3, 1.15], [-0.38, 0.25, 1.3]].forEach(([x, z, h]) => {
+      g.add(mesh(new THREE.CylinderGeometry(0.15, 0.17, h, 7), mat(c), x, h / 2 - 0.3, z));
+      g.add(mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.1, 7), mat(0x5a3a22), x, h - 0.32, z));
+    });
+    return g;
+  },
+  float: (c) => {
+    const g = new THREE.Group();
+    [[0, 0, 0.3], [0.42, 0.26, 0.24], [-0.36, 0.3, 0.2]].forEach(([x, z, r]) =>
+      g.add(mesh(new THREE.SphereGeometry(r, 8, 6), mat(c), x, 0, z)));
+    return g;
+  },
+  sandbar: (c) => {
+    const g = new THREE.Group();
+    const s = mesh(new THREE.SphereGeometry(1.7, 12, 7), mat(c), 0, -0.2, 0);
+    s.scale.set(1, 0.22, 0.72); g.add(s);
+    g.add(mesh(new THREE.DodecahedronGeometry(0.2), mat(0x9a9288), 0.9, 0.05, 0.25));
+    return g;
+  },
+  coral: (c) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.14, 0.22, 0.6, 6), mat(c), 0, 0.1, 0));
+    [[0.32, 0.5, 0.7], [-0.3, 0.55, -0.55], [0.05, 0.75, 0.35]].forEach(([x, y, rz]) => {
+      const br = mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.62, 6), mat(c), x, y, 0);
+      br.rotation.z = rz; g.add(br);
+    });
+    g.add(mesh(new THREE.SphereGeometry(0.13, 7, 5), mat(c), 0.5, 0.82, 0));
+    return g;
+  },
+  turtle: (c) => {
+    const g = new THREE.Group();
+    const sh = mesh(new THREE.SphereGeometry(0.55, 10, 7), mat(c), 0, 0, 0);
+    sh.scale.set(1, 0.42, 1.25); g.add(sh);
+    g.add(mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x7aa870), 0, 0.02, 0.72));
+    [[0.48, 0.4], [-0.48, 0.4], [0.44, -0.42], [-0.44, -0.42]].forEach(([x, z]) => {
+      const f = mesh(new THREE.BoxGeometry(0.34, 0.07, 0.2), mat(0x7aa870), x, -0.05, z);
+      f.rotation.y = x > 0 ? -0.4 : 0.4; g.add(f);
+    });
+    return g;
+  },
+  anchor: (c) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.5, 6), mat(c), 0, 0.25, 0));
+    g.add(mesh(new THREE.TorusGeometry(0.18, 0.05, 5, 10), mat(c), 0, 1.05, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.9, 0.08, 0.08), mat(c), 0, 0.62, 0));
+    const arc = mesh(new THREE.TorusGeometry(0.5, 0.08, 5, 12, Math.PI), mat(c), 0, -0.45, 0);
+    arc.rotation.z = Math.PI; g.add(arc);
+    return g;
+  },
+  raft: (c) => {
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++) g.add(mesh(new THREE.BoxGeometry(0.24, 0.13, 1.6), mat(c), -0.5 + i * 0.26, 0, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.5, 0.07, 0.12), mat(0x6a4a2e), 0, 0.09, 0.5));
+    g.add(mesh(new THREE.BoxGeometry(1.5, 0.07, 0.12), mat(0x6a4a2e), 0, 0.09, -0.5));
+    return g;
+  },
+  gull: (c) => {
+    const g = new THREE.Group();
+    const b = mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(c), 0, 0, 0);
+    b.scale.set(1, 0.8, 1.5); g.add(b);
+    [-1, 1].forEach(s => {
+      const w = mesh(new THREE.BoxGeometry(0.62, 0.05, 0.22), mat(c), s * 0.38, 0.06, 0);
+      w.rotation.z = s * 0.28; g.add(w);
+    });
+    g.add(mesh(new THREE.ConeGeometry(0.06, 0.18, 5), mat(0xe0a020), 0, 0, 0.34));
+    return g;
+  },
+  mast: (c) => {
+    const g = new THREE.Group();
+    const m = mesh(new THREE.CylinderGeometry(0.12, 0.17, 2.6, 7), mat(c), 0, 0.6, 0);
+    m.rotation.z = 0.22; g.add(m);
+    const y = mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 6), mat(c), -0.2, 1.3, 0);
+    y.rotation.set(0, 0, Math.PI / 2 + 0.2); g.add(y);
+    g.add(mesh(new THREE.BoxGeometry(0.05, 0.7, 0.55), mat(0xbdb2a0, { transparent: true, opacity: 0.7 }), -0.35, 0.9, 0));
+    return g;
+  },
+  jelly: (c, d) => {
+    const g = new THREE.Group();
+    const opt = d.glow ? { emissive: c, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 }
+      : { transparent: true, opacity: 0.7 };
+    const bell = mesh(new THREE.SphereGeometry(0.42, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), mat(c, opt), 0, 0.2, 0);
+    bell.scale.y = 1.15; g.add(bell);
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI * 2 / 6;
+      g.add(mesh(new THREE.CylinderGeometry(0.03, 0.015, 0.7, 4), mat(c, opt),
+        Math.cos(a) * 0.26, -0.18, Math.sin(a) * 0.26));
+    }
+    return g;
+  },
+  dolphin: (c) => {
+    const g = new THREE.Group();
+    const b = mesh(new THREE.SphereGeometry(0.6, 10, 7), mat(c), 0, 0, 0);
+    b.scale.set(1, 0.85, 2.1); g.add(b);
+    g.add(mesh(new THREE.ConeGeometry(0.22, 0.7, 7), mat(c), 0, 0, 1.5));
+    const fin = mesh(new THREE.ConeGeometry(0.2, 0.5, 4), mat(c), 0, 0.55, -0.1);
+    fin.rotation.x = -0.3; g.add(fin);
+    const tail = mesh(new THREE.BoxGeometry(0.9, 0.07, 0.35), mat(c), 0, 0, -1.5);
+    tail.rotation.z = 0.15; g.add(tail);
+    g.add(mesh(new THREE.SphereGeometry(0.55, 8, 6), mat(0xd8e4ee), 0, -0.16, 0.2));
+    return g;
+  },
+  whale: (c) => {
+    const g = new THREE.Group();
+    const b = mesh(new THREE.SphereGeometry(1.15, 12, 8), mat(c), 0, 0, 0);
+    b.scale.set(1, 0.82, 2.4); g.add(b);
+    const belly = mesh(new THREE.SphereGeometry(1.0, 10, 7), mat(0xe4ecf2), 0, -0.42, 0.15);
+    belly.scale.set(0.9, 0.42, 2.1); g.add(belly);
+    const tail = mesh(new THREE.BoxGeometry(2.1, 0.13, 0.7), mat(c), 0, 0.1, -2.75);
+    tail.rotation.z = 0.12; g.add(tail);
+    [-1, 1].forEach(s => {
+      const f = mesh(new THREE.BoxGeometry(0.9, 0.1, 0.4), mat(c), s * 1.0, -0.2, 0.6);
+      f.rotation.z = s * 0.35; g.add(f);
+    });
+    g.add(mesh(new THREE.ConeGeometry(0.28, 0.6, 5), mat(c), 0, 0.85, -0.6));
+    return g;
+  },
+  wreck: (c) => {
+    const g = new THREE.Group();
+    const hull = mesh(new THREE.BoxGeometry(1.5, 0.85, 4.2), mat(c), 0, 0, 0);
+    hull.rotation.set(0.18, 0, 0.3); g.add(hull);
+    g.add(mesh(new THREE.BoxGeometry(1.7, 0.1, 4.3), mat(0x7a5a42), 0, 0.42, 0));
+    const m = mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.2, 6), mat(0x6a4a2e), 0.2, 1.1, 0.5);
+    m.rotation.z = 0.45; g.add(m);
+    g.add(mesh(new THREE.BoxGeometry(0.5, 0.45, 0.5), mat(0x8a6540), -0.3, 0.6, -1.5));
+    return g;
+  },
+  arch: (c) => {
+    const g = new THREE.Group();
+    const arc = mesh(new THREE.TorusGeometry(1.15, 0.24, 7, 14, Math.PI), mat(c), 0, 0, 0);
+    g.add(arc);
+    [-1, 1].forEach(s => g.add(mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.5, 7), mat(c), s * 1.15, -0.25, 0)));
+    [[0.55, 0.95], [-0.6, 0.9]].forEach(([x, y]) =>
+      g.add(mesh(new THREE.SphereGeometry(0.17, 7, 5), mat(0xf0a8b8), x, y, 0)));
+    return g;
+  },
+  islet: (c) => {
+    const g = new THREE.Group();
+    const base = mesh(new THREE.CylinderGeometry(1.5, 1.85, 0.55, 10), mat(c), 0, 0.1, 0);
+    g.add(base);
+    g.add(mesh(new THREE.CylinderGeometry(1.35, 1.5, 0.14, 10), mat(0x6aae5e), 0, 0.42, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.42, 1.9, 8), mat(0xf2ece0), 0, 1.4, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.3, 8),
+      mat(0xffe0a0, { emissive: 0xf0c060, emissiveIntensity: 0.9 }), 0, 2.5, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.42, 0.4, 8), mat(0xd9534f), 0, 2.85, 0));
+    return g;
+  },
+  kraken: (c) => {
+    const g = new THREE.Group();
+    [[0, 0, 2.4, 0.3], [1.1, 0.6, 1.9, -0.4], [-0.9, -0.7, 2.1, 0.5]].forEach(([x, z, h, tilt]) => {
+      const seg = 4;
+      for (let i = 0; i < seg; i++) {
+        const r = 0.3 - i * 0.06;
+        const t = mesh(new THREE.CylinderGeometry(r, r + 0.05, h / seg, 7),
+          mat(c), x + Math.sin(i * 0.9) * 0.22 * (tilt > 0 ? 1 : -1), i * (h / seg) - 0.3, z);
+        t.rotation.z = tilt * (i / seg);
+        g.add(t);
+      }
+      g.add(mesh(new THREE.SphereGeometry(0.16, 7, 5), mat(0xe0a0c0), x + 0.3, h - 0.3, z));
+    });
+    return g;
+  },
+  ruins: (c) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(2.6, 0.24, 2.6), mat(c), 0, -0.2, 0));
+    [[-0.95, -0.95, 1.5], [0.95, -0.95, 1.1], [-0.95, 0.95, 1.3], [0.95, 0.95, 0.7]].forEach(([x, z, h]) => {
+      g.add(mesh(new THREE.CylinderGeometry(0.19, 0.22, h, 8), mat(c), x, h / 2 - 0.1, z));
+      g.add(mesh(new THREE.BoxGeometry(0.5, 0.12, 0.5), mat(c), x, h - 0.05, z));
+    });
+    g.add(mesh(new THREE.BoxGeometry(2.4, 0.16, 0.5), mat(c), 0, 1.5, -0.95));
+    g.add(mesh(new THREE.OctahedronGeometry(0.4),
+      mat(0x6ae0d0, { emissive: 0x4ac0b0, emissiveIntensity: 0.9 }), 0, 0.75, 0));
+    return g;
+  },
+  statue: (c) => {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.3, 0.35, 1.3), mat(c), 0, -0.1, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.42, 0.55, 1.7, 8), mat(c), 0, 0.9, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.34, 9, 7), mat(c), 0, 1.95, 0));
+    const tri = mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.1, 5), mat(0xc9a05a), 0.62, 1.5, 0);
+    tri.rotation.z = -0.16; g.add(tri);
+    [-0.18, 0, 0.18].forEach(dx =>
+      g.add(mesh(new THREE.ConeGeometry(0.07, 0.3, 5), mat(0xc9a05a), 0.72 + dx * 0.1, 2.6, dx)));
+    return g;
+  },
+};
+
+export function createHarborDecor(def, slot) {
+  const g = harborKinds[def.kind](def.color, def);
+  if (def.scale) g.scale.setScalar(def.scale);
+  const a = def.anim ?? { type: 'none' };
+  // 动画参数塞进 userData，交给 main.js 每帧驱动。
+  // phase 用槽位号错开，同种装饰摆好几件才不会像复制粘贴一样同步动
+  g.userData.harborAnim = { ...a, phase: slot * 0.7, baseY: a.air ?? 0 };
+  g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
+  return g;
+}

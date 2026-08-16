@@ -1371,3 +1371,68 @@ export function harborManifest(dock) {
   }
   return list;
 }
+
+/* ===================== 港湾装饰 =====================
+ * 30 样，全是大海才有的东西——礁石、海草、鲸鱼、沉船、锚。
+ * 水潭那套（荷花、青蛙、锦鲤、睡莲）是小水塘的景，放海里不对。
+ *
+ * 和水潭装饰的两点不同：
+ *   · 水潭是买断制（pondOwned[id] = true），港湾可以重复买（harborOwned[id] = 件数）
+ *   · 水潭最多摆 3 件，港湾水面大得多，摆 15 件
+ * 所以港湾这边存的是「库存件数」和「摆放列表」，同一样可以摆好几件。
+ *
+ * kind 决定模型，anim 决定动法：swim 绕着游 / bob 随浪浮沉 / drift 缓慢漂移 / none 不动
+ */
+export const HARBOR_MAX_PLACED = 15;
+export const HARBOR_DECORS = [
+  // —— 普通：海边随处可见的 ——
+  { id: 'reef',      name: '礁石',     rarity: 'common', cost: 200,   kind: 'rock',    color: 0x8a8880, anim: { type: 'none' } },
+  { id: 'reef_big',  name: '大礁岩',   rarity: 'common', cost: 320,   kind: 'rock',    color: 0x76736c, scale: 1.7, anim: { type: 'none' } },
+  { id: 'kelp',      name: '海草丛',   rarity: 'common', cost: 240,   kind: 'kelp',    color: 0x3f7c52, anim: { type: 'bob', speed: 0.6 } },
+  { id: 'kelp_brown',name: '褐藻',     rarity: 'common', cost: 260,   kind: 'kelp',    color: 0x7a6a38, anim: { type: 'bob', speed: 0.5 } },
+  { id: 'shells',    name: '贝壳堆',   rarity: 'common', cost: 180,   kind: 'shells',  color: 0xe0d4bc, anim: { type: 'none' } },
+  { id: 'starfish',  name: '海星',     rarity: 'common', cost: 220,   kind: 'star',    color: 0xe08050, anim: { type: 'bob', speed: 0.4 } },
+  { id: 'buoy_sea',  name: '航标浮筒', rarity: 'common', cost: 300,   kind: 'buoy',    color: 0xd9534f, anim: { type: 'bob', speed: 1.1 } },
+  { id: 'piling',    name: '木桩',     rarity: 'common', cost: 260,   kind: 'piling',  color: 0x7a5232, anim: { type: 'none' } },
+  { id: 'netfloat',  name: '渔网浮球', rarity: 'common', cost: 210,   kind: 'float',   color: 0xf2c94c, anim: { type: 'bob', speed: 1.3 } },
+  { id: 'sandbar',   name: '沙洲',     rarity: 'common', cost: 350,   kind: 'sandbar', color: 0xd9c9a8, anim: { type: 'none' } },
+  // —— 稀有：得出海才见得着 ——
+  { id: 'coral_r',   name: '红珊瑚',   rarity: 'rare',   cost: 700,   kind: 'coral',   color: 0xd9534f, anim: { type: 'none' } },
+  { id: 'coral_p',   name: '紫珊瑚',   rarity: 'rare',   cost: 760,   kind: 'coral',   color: 0x9a5ac2, anim: { type: 'none' } },
+  { id: 'turtle_sea',name: '海龟',     rarity: 'rare',   cost: 900,   kind: 'turtle',  color: 0x5c8a52, anim: { type: 'swim', radius: 4.5, speed: 0.18 } },
+  { id: 'anchor',    name: '铁锚',     rarity: 'rare',   cost: 820,   kind: 'anchor',  color: 0x6a6a72, anim: { type: 'none' } },
+  { id: 'raft',      name: '木筏',     rarity: 'rare',   cost: 880,   kind: 'raft',    color: 0x9a6a42, anim: { type: 'bob', speed: 0.5 } },
+  { id: 'kelpforest',name: '巨藻林',   rarity: 'rare',   cost: 1100,  kind: 'kelp',    color: 0x2f6a44, scale: 2.2, anim: { type: 'bob', speed: 0.35 } },
+  { id: 'gull',      name: '海鸥',     rarity: 'rare',   cost: 950,   kind: 'gull',    color: 0xf2ece0, anim: { type: 'swim', radius: 6, speed: 0.5, air: 2.6 } },
+  { id: 'lightbuoy', name: '灯浮标',   rarity: 'rare',   cost: 1200,  kind: 'buoy',    color: 0x4a90c2, glow: true, anim: { type: 'bob', speed: 0.9 } },
+  { id: 'mast',      name: '沉船桅杆', rarity: 'rare',   cost: 1300,  kind: 'mast',    color: 0x6a4a2e, anim: { type: 'none' } },
+  { id: 'jelly_sm',  name: '水母群',   rarity: 'rare',   cost: 1050,  kind: 'jelly',   color: 0xc0a8e0, anim: { type: 'drift', radius: 3, speed: 0.3 } },
+  // —— 史诗：大家伙 ——
+  { id: 'dolphin',   name: '海豚',     rarity: 'epic',   cost: 2600,  kind: 'dolphin', color: 0x8fa8c0, anim: { type: 'swim', radius: 7, speed: 0.55 } },
+  { id: 'shipwreck', name: '沉船',     rarity: 'epic',   cost: 3200,  kind: 'wreck',   color: 0x5a4030, anim: { type: 'none' } },
+  { id: 'coral_arch',name: '珊瑚拱门', rarity: 'epic',   cost: 3000,  kind: 'arch',    color: 0xe08098, anim: { type: 'none' } },
+  { id: 'orca',      name: '虎鲸',     rarity: 'epic',   cost: 3800,  kind: 'whale',   color: 0x2a2a30, scale: 0.85, anim: { type: 'swim', radius: 8, speed: 0.35 } },
+  { id: 'islet',     name: '灯塔小岛', rarity: 'epic',   cost: 4200,  kind: 'islet',   color: 0x8a8880, anim: { type: 'none' } },
+  // —— 传说：一片海就这么一个 ——
+  { id: 'bluewhale', name: '蓝鲸',     rarity: 'legend', cost: 9000,  kind: 'whale',   color: 0x3a6a9a, scale: 1.5, anim: { type: 'swim', radius: 9.5, speed: 0.22 } },
+  { id: 'kraken',    name: '海怪触手', rarity: 'legend', cost: 11000, kind: 'kraken',  color: 0x7a3a6a, anim: { type: 'bob', speed: 0.25 } },
+  { id: 'jelly_king',name: '发光水母王', rarity: 'legend', cost: 12000, kind: 'jelly', color: 0x6ae0d0, scale: 2.1, glow: true, anim: { type: 'drift', radius: 4, speed: 0.2 } },
+  { id: 'ruins',     name: '龙宫遗迹', rarity: 'legend', cost: 14000, kind: 'ruins',   color: 0x4a8a9a, glow: true, anim: { type: 'none' } },
+  { id: 'statue',    name: '海神石像', rarity: 'legend', cost: 16000, kind: 'statue',  color: 0xa8b0a8, anim: { type: 'none' } },
+];
+export const harborDecorById = (id) => HARBOR_DECORS.find(d => d.id === id);
+export const harborDecorName = (d) => (d ? tf(`hdecor.${d.id}`, d.name) : '');
+
+// 15 个摆放点：绕着水面铺开，越靠外圈的越远。
+// 港湾水面半径 14，留出栈桥（+z 方向）和岸边，所以点位集中在中段和两侧
+export const HARBOR_SPOTS = (() => {
+  const out = [];
+  const rings = [[5.5, 5, 0.4], [9, 6, 0.9], [12, 4, 1.5]]; // [半径, 个数, 起始角]
+  rings.forEach(([r, n, a0]) => {
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * Math.PI * 2 / n;
+      out.push({ x: Math.cos(a) * r, z: Math.sin(a) * r });
+    }
+  });
+  return out;
+})();

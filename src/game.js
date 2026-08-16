@@ -27,6 +27,7 @@ import {
   ADV_COOK_POS, ADV_COOK_SLOTS, ADV_COOK_TIME, ADV_DISH_MULT,
   TOWER_POS, TOWER_MAX_LEVEL, towerCost, towerPlan,
   HARBOR, HARBOR_POS, harborManifest, harborKey, harborIsPrefix,
+  HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, HARBOR_SPOTS,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -47,7 +48,7 @@ import {
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
-  createGourmetKitchen, createTower, createHarbor, createMerchantShip,
+  createGourmetKitchen, createTower, createHarbor, createMerchantShip, createHarborDecor,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -84,6 +85,9 @@ export class Game {
     this.advCookSlots = Array(ADV_COOK_SLOTS).fill(null);
     this.towerLevel = 0;    // 繁荣塔等级 0~500，0 级就是个小土堆
     this.harborSold = {};   // 本次靠港已经卖掉的槽位 { 槽位序号: true }
+    // 港湾装饰。和水潭装饰的关键区别：这边可以重复买，所以存的是件数而不是 true
+    this.harborOwned = {};  // { 装饰id: 拥有件数 }
+    this.harborPlaced = []; // 摆出来的，最多 HARBOR_MAX_PLACED 件，同一种可以出现多次
     this.harborDock = -1;   // 已记录的靠港批次，换船时清空 harborSold
     this.windTimer = 0;     // 风车发电计时器
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
@@ -205,6 +209,7 @@ export class Game {
     const harbor = createHarbor();
     harbor.position.set(HARBOR_POS.x, -0.5, HARBOR_POS.z);
     this.group.add(harbor);
+    this.harborGroup = harbor;   // 装饰挂在这个组下面，跟着港湾一起定位
     this.harborMeshes = [];
     harbor.traverse(o => { if (o.isMesh) this.harborMeshes.push(o); });
     // 船单独一组：靠港日才显示。不要每次建了拆——
@@ -214,7 +219,9 @@ export class Game {
     this.shipGroup.rotation.y = 0.12;
     this.group.add(this.shipGroup);
     this.shipGroup.traverse(o => { if (o.isMesh) this.harborMeshes.push(o); });
+    this.harborDecorMeshes = {};   // 槽位 -> 模型
     this.refreshShip();
+    this.refreshHarborDecors();
 
 
     // 杂交室：前方偏左的玻璃穹顶实验室
@@ -1371,6 +1378,81 @@ export class Game {
       p: (pct >= 0 ? '+' : '') + pct, g: total.toLocaleString(),
     }));
     sfx.play(item.mult >= 1 ? 'coin' : 'deny');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  /* ---------- 港湾装饰 ---------- */
+
+  // 按 harborPlaced 重建水面上的装饰。整体重建而不是增量改——
+  // 一共才 15 件、80 来个网格，重建比维护差异简单得多，也不容易出错
+  refreshHarborDecors() {
+    if (!this.harborGroup) return;
+    Object.values(this.harborDecorMeshes ?? {}).forEach(m => {
+      m.traverse(o => {
+        if (!o.isMesh) return;
+        o.geometry?.dispose();
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(x => x?.dispose());
+      });
+      this.harborGroup.remove(m);
+    });
+    this.harborDecorMeshes = {};
+    this.harborPlaced.forEach((id, slot) => {
+      const d = harborDecorById(id);
+      const spot = HARBOR_SPOTS[slot];
+      if (!d || !spot) return;
+      const m = createHarborDecor(d, slot);
+      m.position.set(spot.x, 0.2, spot.z);
+      this.harborGroup.add(m);
+      this.harborDecorMeshes[slot] = m;
+    });
+  }
+
+  // 手上还有几件没摆出去
+  harborSpare(id) {
+    const owned = this.harborOwned[id] ?? 0;
+    const used = this.harborPlaced.filter(x => x === id).length;
+    return owned - used;
+  }
+
+  // 买。可以重复买，买几件就攒几件
+  buyHarborDecor(id) {
+    const d = harborDecorById(id);
+    if (!d) return false;
+    if (!this.spend(d.cost)) return false;
+    this.harborOwned[id] = (this.harborOwned[id] ?? 0) + 1;
+    this.onToast(tp('t.hdecorBuy', { name: harborDecorName(d), n: this.harborOwned[id] }));
+    sfx.play('coin');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 摆一件出去
+  placeHarborDecor(id) {
+    const d = harborDecorById(id);
+    if (!d) return false;
+    if (this.harborPlaced.length >= HARBOR_MAX_PLACED) {
+      this.onToast(tp('t.hdecorFull', { n: HARBOR_MAX_PLACED })); sfx.play('deny'); return false;
+    }
+    if (this.harborSpare(id) <= 0) { this.onToast(t('t.hdecorNoSpare')); sfx.play('deny'); return false; }
+    this.harborPlaced.push(id);
+    this.refreshHarborDecors();
+    this.onToast(tp('t.hdecorPlace', { name: harborDecorName(d), n: this.harborPlaced.length, m: HARBOR_MAX_PLACED }));
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 收回某个槽位的装饰，东西回到手上（不退钱）
+  removeHarborDecor(slot) {
+    const id = this.harborPlaced[slot];
+    if (id === undefined) return false;
+    this.harborPlaced.splice(slot, 1);
+    this.refreshHarborDecors();
+    this.onToast(tp('t.hdecorRemove', { name: harborDecorName(harborDecorById(id)) }));
     this.onState();
     this.save();
     return true;
@@ -3117,6 +3199,8 @@ export class Game {
       // 高级料理还要存下锅时定死的价钱，不然出锅就不知道值多少了
       towerLevel: this.towerLevel,
       harborSold: this.harborSold,
+      harborOwned: this.harborOwned,
+      harborPlaced: this.harborPlaced,
       harborDock: this.harborDock,
       advCookSlots: this.advCookSlots.map(s => s ? { id: s.id, price: s.price, remain: Math.max(0, s.readyAt - this.time) } : null),
       pondOwned: this.pondOwned,
@@ -3367,6 +3451,9 @@ export class Game {
     this.rebuildTower();
     // 港湾：老存档没这两个字段，缺省空
     this.harborSold = data.harborSold ?? {};
+    this.harborOwned = data.harborOwned ?? {};
+    this.harborPlaced = (data.harborPlaced ?? []).filter(id => harborDecorById(id)).slice(0, HARBOR_MAX_PLACED);
+    this.refreshHarborDecors();
     this.harborDock = data.harborDock ?? -1;
     this.refreshShip();
     (data.advCookSlots ?? []).forEach((s, k) => {

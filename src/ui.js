@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -1658,6 +1658,7 @@ export class UI {
         `<div id="harbor-wait">⛵<br><b>今天没有船</b>
          <p>还有 <b>${d}</b> 天靠港<br>（每 ${HARBOR.period} 天来一艘，只停一天）</p>
          <small>船开出的价从三折到三倍不等，趁没船先备好货</small></div>`);
+      this.renderHarborDecorBar(body);
       return;
     }
 
@@ -1684,6 +1685,7 @@ export class UI {
         `<div class="bag-empty">这船要的 ${list.length} 样，你手上一样都没有<br>点上面那行可以看看它都收些什么 ⛵</div>`);
       return;
     }
+    this.renderHarborDecorBar(body);
     shown.forEach(([it, i]) => {
       const have = g.harborHave(it.src, it.id);
       const sold = !!g.harborSold[i];
@@ -1714,6 +1716,51 @@ export class UI {
       }
       body.appendChild(el);
     });
+  }
+
+  // 港湾装饰的摆放区。手上有存货就列出来，点一下摆到水面上；
+  // 已摆的可以点「收」拿回来（不退钱，跟家具一个规矩）
+  renderHarborDecorBar(body) {
+    const g = this.game;
+    const spare = HARBOR_DECORS.filter(d => g.harborSpare(d.id) > 0);
+    const placed = g.harborPlaced;
+    const wrap = document.createElement('div');
+    wrap.id = 'hdecor-bar';
+    wrap.innerHTML = `<b>🌊 港湾装饰 ${placed.length} / ${HARBOR_MAX_PLACED}</b>`;
+
+    if (placed.length) {
+      const row = document.createElement('div');
+      row.className = 'hdecor-chips';
+      placed.forEach((id, slot) => {
+        const d = harborDecorById(id);
+        const chip = document.createElement('button');
+        chip.className = 'hdecor-chip placed';
+        chip.innerHTML = `${harborDecorName(d)}<i>✕</i>`;
+        chip.title = '点一下收回来';
+        chip.addEventListener('click', () => { g.removeHarborDecor(slot); this.renderHarbor(); });
+        row.appendChild(chip);
+      });
+      wrap.appendChild(row);
+    }
+
+    if (spare.length) {
+      const row = document.createElement('div');
+      row.className = 'hdecor-chips';
+      spare.forEach(d => {
+        const chip = document.createElement('button');
+        chip.className = 'hdecor-chip';
+        chip.innerHTML = `${harborDecorName(d)}<i>×${g.harborSpare(d.id)}</i>`;
+        chip.title = '点一下摆到水面上';
+        chip.disabled = placed.length >= HARBOR_MAX_PLACED;
+        chip.addEventListener('click', () => { g.placeHarborDecor(d.id); this.renderHarbor(); });
+        row.appendChild(chip);
+      });
+      wrap.appendChild(row);
+    } else if (!placed.length) {
+      wrap.insertAdjacentHTML('beforeend',
+        '<small>还没有装饰。去商场大楼「港湾」页买，同一样可以买好几件。</small>');
+    }
+    body.appendChild(wrap);
   }
 
   /* ---------- 宠物间 ---------- */
@@ -2756,7 +2803,7 @@ export class UI {
     // 页签栏：原商店的全部分类都搬进商场大楼
     const tabsBar = $('#mall-tabs');
     tabsBar.innerHTML = '';
-    ['items', 'seeds', 'soil', 'water', 'decor', 'interior', 'pond']
+    ['items', 'seeds', 'soil', 'water', 'decor', 'interior', 'pond', 'harbor']
       .forEach((id) => {
         const tab = document.createElement('button');
         tab.className = 'shop-tab' + (this.mallTab === id ? ' active' : '');
@@ -2870,6 +2917,22 @@ export class UI {
         item(d.emoji, tf(`decor.${d.id}`, d.name), `${d.cost}💰`,
           t('mall.place'), () => { this.setTool('decor', { decorId: d.id }); $('#mall').classList.add('hidden'); });
       });
+    }
+
+    if (this.mallTab === 'harbor') {
+      body.insertAdjacentHTML('beforeend',
+        `<p class="shop-note">🌊 港湾装饰，全是大海里的东西。<br>
+         港湾水面大，最多能摆 <b>${HARBOR_MAX_PLACED}</b> 件，<b>同一样可以买好几件重复摆</b>。<br>
+         买完去港湾面板底下摆放。</p>`);
+      HARBOR_DECORS.forEach(d => {
+        const owned = g.harborOwned[d.id] ?? 0;
+        const r = POND_RARITY[d.rarity];
+        item(d.emoji ?? '🌊',
+          `<span style="color:${r.color}">[${r.name}]</span> ${harborDecorName(d)}` + (owned ? ` ×${owned}` : ''),
+          `${d.cost}💰` + (owned ? `　已有 ${owned} 件（还能再买）` : ''),
+          '买一件', () => { g.buyHarborDecor(d.id); this.renderMall(); });
+      });
+      return;
     }
 
     if (this.mallTab === 'pond') {
