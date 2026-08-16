@@ -184,18 +184,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #gourmet, #tower, #harbor {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #gourmet, #tower, #harbor, #review {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #gourmet-head, #tower-head, #harbor-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #gourmet-head, #tower-head, #harbor-head, #review-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #gourmet-close, #tower-close, #harbor-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #gourmet-body, #tower-body, #harbor-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #gourmet-close, #tower-close, #harbor-close, #review-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #gourmet-body, #tower-body, #harbor-body, #review-body { padding: 12px; overflow-y: auto; flex: 1; }
 
 /* 高级料理的配方有 5~6 样原料，一行塞不下，让它自己换行 */
 #gourmet-body .recipe { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -1061,3 +1061,28 @@ body {
 .hdecor-chip.placed { border-color: #6aae5e; background: #eef8ea; color: #3d7a33; }
 .hdecor-chip.placed i { color: #d9534f; font-weight: 800; }
 .hdecor-chip:disabled { border-color: #ccc; background: #f0f0f0; color: #aaa; cursor: default; }
+
+
+/* ---------- 发展评估 ---------- */
+#review-overall { text-align: center; padding: 8px 0 16px; }
+#review-overall .g { font-size: 56px; font-weight: 900; line-height: 1; }
+#review-overall .w { font-size: 15px; font-weight: 700; margin-top: 4px; }
+#review-overall .s { font-size: 12px; color: #a1834f; margin-top: 3px; }
+.rv-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 2px solid #eedcba; border-radius: 12px; background: #fff;
+  padding: 7px 11px; margin-bottom: 6px;
+}
+.rv-row .ic { font-size: 20px; width: 26px; text-align: center; }
+.rv-row .nm { flex: 1; color: #6b4a24; font-size: 14px; font-weight: 700; }
+.rv-row .bar { width: 82px; height: 7px; background: #efe3cd; border-radius: 999px; overflow: hidden; }
+.rv-row .bar i { display: block; height: 100%; }
+.rv-row .gr { font-size: 21px; font-weight: 900; width: 26px; text-align: center; }
+.rv-tip {
+  border-radius: 12px; padding: 11px 13px; margin-top: 10px;
+  font-size: 13px; line-height: 1.85;
+}
+.rv-tip b { display: block; font-size: 12px; margin-bottom: 4px; opacity: 0.85; }
+.rv-tip.good { background: #eef8ea; color: #35652c; border-left: 5px solid #6aae5e; }
+.rv-tip.gap  { background: #fdf0ee; color: #8a3f39; border-left: 5px solid #d9534f; }
+#review-note { font-size: 11px; color: #a1834f; text-align: center; margin-top: 12px; line-height: 1.7; }

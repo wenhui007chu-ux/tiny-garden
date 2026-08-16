@@ -28,6 +28,7 @@ import {
   TOWER_POS, TOWER_MAX_LEVEL, towerCost, towerPlan,
   HARBOR, HARBOR_POS, harborManifest, harborKey, harborIsPrefix,
   HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, HARBOR_SPOTS,
+  REVIEW_DIMS, REVIEW_TIPS, gradeOf,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -1456,6 +1457,90 @@ export class Game {
     this.onState();
     this.save();
     return true;
+  }
+
+  /* ---------- 发展评估 ---------- */
+
+  // 十个维度各打 0~100 分。一律「离这个维度的天花板有多远」，
+  // 不跟别的存档比——单机游戏没有别人可比，只跟自己的上限比。
+  // 每个维度都由几项加权而成，免得单一数字一大就满分
+  reviewScores() {
+    const pct = (a, b) => (b > 0 ? Math.min(1, a / b) : 0);
+    // 对数刻度：金币这种能到几千万的量，线性算的话前期永远是 0 分
+    const log = (v, cap) => (v <= 0 ? 0 : Math.min(1, Math.log10(v + 1) / Math.log10(cap + 1)));
+    const mix = (...parts) => Math.round(parts.reduce((a, [v, w]) => a + v * w, 0)
+      / parts.reduce((a, [, w]) => a + w, 0) * 100);
+
+    const tiles = this.tiles ?? [];
+    const openTiles = tiles.filter(t => !t.locked).length;
+    const planted = tiles.filter(t => t.plant).length;
+    const soilLv = tiles.length ? tiles.reduce((a, t) => a + (t.soil ?? 0), 0) / tiles.length : 0;
+
+    const pens = this.ranchPens ?? [];
+    const filled = pens.filter(Boolean).length;
+    // 动物档次：栏里动物在 ANIMALS 表中的位置，越靠后越高级
+    const tierSum = pens.reduce((a, p) => {
+      const i = p ? ANIMALS.findIndex(x => x.id === p.id) : -1;
+      return a + (i >= 0 ? (i + 1) / ANIMALS.length : 0);
+    }, 0);
+
+    const inv = Object.keys(this.inventory ?? {});
+    const has = (pre) => inv.filter(k => k.startsWith(pre) && this.inventory[k] > 0).length;
+
+    const furnLv = Object.values(this.furniture ?? {}).reduce((a, v) => a + v, 0);
+    const furnMax = FURNITURE.length * FURNITURE_MAX_LEVEL;
+
+    return {
+      wealth: mix([log(this.coins + (this.bank ?? 0), 5e7), 3], [log(this.bank ?? 0, 1e6), 1]),
+      farm: mix([pct(openTiles, tiles.length), 3], [pct(planted, Math.max(1, openTiles)), 2],
+        [pct(soilLv, SOILS.length - 1), 2], [pct(this.waterLevel, WATER_LEVELS.length - 1), 1],
+        [pct(this.unlockedSeeds?.length ?? 0, SEEDS.length), 2]),
+      ranch: mix([pct(filled, pens.length), 3], [pct(tierSum, pens.length), 3],
+        [(this.butcher ?? []).some(Boolean) ? 1 : 0, 1]),
+      craft: mix([pct((this.workshop ?? []).filter(Boolean).length, WORKSHOP.slots), 2],
+        [pct((this.sorter ?? []).filter(Boolean).length, SORTER_SLOTS), 2],
+        [pct((this.brewery ?? []).filter(Boolean).length + (this.cellar ?? []).filter(Boolean).length,
+          BREW.slots + BREW.cellarSlots), 2],
+        [pct(has('p:') + has('m:') + has('w:'), 12), 2]),
+      cook: mix([pct((this.cookSlots ?? []).filter(Boolean).length, COOK_SLOTS), 2],
+        [pct((this.advCookSlots ?? []).filter(Boolean).length, ADV_COOK_SLOTS), 2],
+        [pct(has('k:'), 10), 2], [pct(has('g:'), 5), 3]),
+      collect: mix([pct(Object.keys(this.codex ?? {}).length, 42), 3],
+        [pct((this.aquarium ?? []).filter(Boolean).length, AQUARIUM_SLOTS), 2],
+        [pct((this.displaySlots ?? []).filter(x => x.item).length, DISPLAY_SLOTS), 2],
+        [pct(Object.keys(this.petsOwned ?? {}).length, PETS.length), 1],
+        [pct(has('h:'), 8), 2]),
+      achieve: mix([pct(Object.keys(this.achievements ?? {}).length, ACHIEVEMENTS.length), 1]),
+      home: mix([pct(furnLv, furnMax), 3],
+        [pct(Object.keys(this.petDecorsOwned ?? {}).length, PET_DECORS.length), 1],
+        [pct(this.warehouseLevel ?? 1, WAREHOUSE.maxLevel), 2],
+        [this.petShown ? 1 : 0, 1]),
+      tower: mix([pct(this.towerLevel ?? 0, TOWER_MAX_LEVEL), 1]),
+      harbor: mix([pct((this.harborPlaced ?? []).length, HARBOR_MAX_PLACED), 3],
+        [pct(Object.keys(this.harborOwned ?? {}).length, 10), 2],
+        [pct(Object.keys(this.harborSold ?? {}).length, 10), 2]),
+    };
+  }
+
+  // 完整评估报告：各维度评级 + 两条建议（一条夸最强的，一条戳最弱的）
+  reviewReport() {
+    const scores = this.reviewScores();
+    const rows = REVIEW_DIMS.map(d => ({ ...d, score: scores[d.key], grade: gradeOf(scores[d.key]) }));
+    const sorted = [...rows].sort((a, b) => b.score - a.score);
+    const best = sorted[0], worst = sorted[sorted.length - 1];
+
+    // 建议按天数选，同一天进来看到的是同一条，不会点一次换一条
+    const pick = (dim, type) => {
+      const pool = REVIEW_TIPS.filter(t => t.dim === dim && t.type === type);
+      return pool.length ? pool[this.dayCount % pool.length].text : '';
+    };
+    const overall = Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length);
+    return {
+      rows, overall, overallGrade: gradeOf(overall),
+      best, worst,
+      goodTip: pick(best.key, 'good'),
+      gapTip: pick(worst.key, 'gap'),
+    };
   }
 
   /* ---------- 宠物间 ---------- */

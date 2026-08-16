@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -70,6 +70,7 @@ export class UI {
     $('#gourmet-close').addEventListener('click', () => $('#gourmet').classList.add('hidden'));
     $('#tower-close').addEventListener('click', () => $('#tower').classList.add('hidden'));
     $('#harbor-close').addEventListener('click', () => $('#harbor').classList.add('hidden'));
+    $('#review-close').addEventListener('click', () => $('#review').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
@@ -340,7 +341,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1763,6 +1764,43 @@ export class UI {
     body.appendChild(wrap);
   }
 
+  /* ---------- 发展评估 ---------- */
+
+  openReview() {
+    this.closePanels();
+    $('#review').classList.remove('hidden');
+    this.renderReview();
+  }
+
+  renderReview() {
+    const body = $('#review-body');
+    const r = this.game.reviewReport();
+    body.innerHTML = '';
+
+    body.insertAdjacentHTML('beforeend', `
+      <div id="review-overall">
+        <div class="g" style="color:${r.overallGrade.color}">${r.overallGrade.g}</div>
+        <div class="w" style="color:${r.overallGrade.color}">${r.overallGrade.word}</div>
+        <div class="s">综合 ${r.overall} 分 · 第 ${this.game.dayCount} 天</div>
+      </div>`);
+
+    r.rows.forEach(row => {
+      body.insertAdjacentHTML('beforeend', `
+        <div class="rv-row">
+          <div class="ic">${row.icon}</div>
+          <div class="nm">${row.name}</div>
+          <div class="bar"><i style="width:${row.score}%;background:${row.grade.color}"></i></div>
+          <div class="gr" style="color:${row.grade.color}">${row.grade.g}</div>
+        </div>`);
+    });
+
+    body.insertAdjacentHTML('beforeend', `
+      <div class="rv-tip good"><b>👍 你的强项：${r.best.icon} ${r.best.name}（${r.best.grade.g}）</b>${r.goodTip}</div>
+      <div class="rv-tip gap"><b>👀 最该补的：${r.worst.icon} ${r.worst.name}（${r.worst.grade.g}）</b>${r.gapTip}</div>
+      <div id="review-note">评级只跟这个维度的上限比，不跟别人比。<br>
+      建议共 ${REVIEW_TIPS.length} 条，按你当天的强弱项各挑一条，隔天会换。</div>`);
+  }
+
   /* ---------- 宠物间 ---------- */
 
   openPetRoom() {
@@ -3148,6 +3186,10 @@ export class UI {
       });
       addBtn('💰 一键售卖 <small>跳到背包勾选，不想卖的点掉再确认 · 快捷键 S</small>', () => {
         this.openSellMode();
+        menu.classList.add('hidden');
+      });
+      addBtn('📊 评估发展 <small>十项评级 + 两条针对你的建议</small>', () => {
+        this.openReview();
         menu.classList.add('hidden');
       });
       addBtn('🌱 一键播种 <small>从保存过的布局中选一个 · 快捷键 R</small>', () => {

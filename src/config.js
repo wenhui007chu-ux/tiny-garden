@@ -1436,3 +1436,151 @@ export const HARBOR_SPOTS = (() => {
   });
   return out;
 })();
+
+/* ===================== 发展评估 =====================
+ * 十个维度各打一个 0~100 分，换算成 S/A/B/C/D/E。
+ * 再从 100 条建议里挑两条：一条夸最强的维度，一条戳最弱的维度。
+ *
+ * 分数一律「越接近这个维度的天花板越高」，不跟别的存档比——
+ * 这是单机游戏，没有别人可比，只跟自己的上限比。
+ */
+export const REVIEW_GRADES = [
+  { at: 90, g: 'S', color: '#e0a020', word: '登峰造极' },
+  { at: 76, g: 'A', color: '#8a4ac2', word: '相当可观' },
+  { at: 60, g: 'B', color: '#4a90c2', word: '稳步上升' },
+  { at: 40, g: 'C', color: '#5c9b52', word: '刚有起色' },
+  { at: 20, g: 'D', color: '#c98a4a', word: '才起了个头' },
+  { at: 0,  g: 'E', color: '#8a8a95', word: '基本没动' },
+];
+export const gradeOf = (score) => REVIEW_GRADES.find(x => score >= x.at) ?? REVIEW_GRADES[REVIEW_GRADES.length - 1];
+
+// 十个维度。icon/name 给面板显示，key 用来对上建议表
+export const REVIEW_DIMS = [
+  { key: 'wealth',  icon: '💰', name: '财富' },
+  { key: 'farm',    icon: '🌱', name: '农田' },
+  { key: 'ranch',   icon: '🐄', name: '牧场' },
+  { key: 'craft',   icon: '🏭', name: '加工' },
+  { key: 'cook',    icon: '👨‍🍳', name: '料理' },
+  { key: 'collect', icon: '📖', name: '收藏' },
+  { key: 'achieve', icon: '🏅', name: '成就' },
+  { key: 'home',    icon: '🏠', name: '家园' },
+  { key: 'tower',   icon: '🗼', name: '繁荣塔' },
+  { key: 'harbor',  icon: '⛵', name: '港湾' },
+];
+
+/* 100 条建议：10 个维度 × （5 条夸 + 5 条戳）。
+ * good = 这个维度是你的强项时说的；gap = 这个维度垫底时说的。
+ * 全部写成「具体能做的一件事」，不说「继续加油」这种废话。
+ */
+export const REVIEW_TIPS = [
+  // 💰 财富
+  { dim: 'wealth', type: 'good', text: '钱够了就别囤着——繁荣塔是唯一吃得下无限金币的地方，一口气升到升不动为止。' },
+  { dim: 'wealth', type: 'good', text: '手头宽裕就把牧场 36 栏全填成高档动物，挂机收益是按本金算的，本金越大越滚得快。' },
+  { dim: 'wealth', type: 'good', text: '有闲钱可以在商船来之前囤货：×3 的倍率碰上大批存货才是真的赚。' },
+  { dim: 'wealth', type: 'good', text: '钱多了记得把银行存满，日结利息是白拿的，放背包里一分不生。' },
+  { dim: 'wealth', type: 'good', text: '身家到这个程度，杀虫剂修复剂这类小道具直接买一沓，别再省着用了。' },
+  { dim: 'wealth', type: 'gap',  text: '钱紧就先种红薯——成本 0，稳赚不赔，铺满一层比种贵作物亏本强。' },
+  { dim: 'wealth', type: 'gap',  text: '缺钱先去银行存一笔，85% 概率赚、15% 概率亏，长期是正收益。' },
+  { dim: 'wealth', type: 'gap',  text: '别把作物直接卖了——进工坊做成罐头翻三倍，多等 20 秒的事。' },
+  { dim: 'wealth', type: 'gap'  , text: '黑市卖价能到 ×1.5，急用钱时比商场划算，就是得赌一把。' },
+  { dim: 'wealth', type: 'gap',  text: '收成先别急着出手，等商船靠港看看有没有 ×2 以上的价，一次顶好几天。' },
+  // 🌱 农田
+  { dim: 'farm', type: 'good', text: '地都开满了就该升土——黑金土速度 ×1.8、产量 ×2，比多开一块地划算得多。' },
+  { dim: 'farm', type: 'good', text: '农田这么强，配个自动灌溉吧，省下的浇水时间够你跑三趟牧场。' },
+  { dim: 'farm', type: 'good', text: '田里满了就该考虑打药：卖价 +10，15% 概率报废，便宜作物随便赌。' },
+  { dim: 'farm', type: 'good', text: '保存几套布局，换季或者清空以后一键播种，比一格一格点快十倍。' },
+  { dim: 'farm', type: 'good', text: '产量上来了就多种特殊种子——月光果星云果卖价高，正好摊薄你的土地成本。' },
+  { dim: 'farm', type: 'gap',  text: '空着的地就是空着的钱。先把便宜地块解锁了，红薯白菜铺满也比荒着强。' },
+  { dim: 'farm', type: 'gap',  text: '土壤还是普通土的话，先升肥沃土——50💰 换 1.4 倍速度，一天就回本。' },
+  { dim: 'farm', type: 'gap',  text: '水源等级低会拖慢一切。洒水器 150💰，一次浇 3×3，比手动快得多。' },
+  { dim: 'farm', type: 'gap',  text: '别只种一两样。解锁新作物是永久的，越早解锁越早开始摊成本。' },
+  { dim: 'farm', type: 'gap',  text: '第二层农田也别忘了——爬梯子上去，那 36 格跟一层一样能种。' },
+  // 🐄 牧场
+  { dim: 'ranch', type: 'good', text: '牧场满员了就往上换档：奶牛马鹿的挂机收益是小鸡的几千倍，栏位就那么多。' },
+  { dim: 'ranch', type: 'good', text: '成年动物别急着卖，先送屠宰场拆成四个部位——分开卖多五成。' },
+  { dim: 'ranch', type: 'good', text: '牧场这么强，屠宰出来的肉正好喂高级料理工坊，那边一道菜要五路进货。' },
+  { dim: 'ranch', type: 'good', text: '挂机收益是按栏里的成年动物算的，卖之前想清楚：卖一次的钱 vs 一直下蛋。' },
+  { dim: 'ranch', type: 'good', text: '有余力就把独角兽凑满——单栏 830💰/秒，是全岛效率最高的一格。' },
+  { dim: 'ranch', type: 'gap',  text: '牧场空着太可惜。小鸡才 500💰，五分钟长成卖 1200，比种地稳。' },
+  { dim: 'ranch', type: 'gap',  text: '牧场是挂机收益的主力，栏位填得越满，你不在的时候赚得越多。' },
+  { dim: 'ranch', type: 'gap',  text: '动物长成了记得收——留在栏里会一直产钱，但栏位也一直占着。' },
+  { dim: 'ranch', type: 'gap',  text: '还没开屠宰场的话，整只卖是亏的：拆成肉/排骨/皮毛/骨，总价多五成。' },
+  { dim: 'ranch', type: 'gap',  text: '别一直停在小鸡兔子。每往上一档，收益翻两倍多，成本只翻两倍四。' },
+  // 🏭 加工
+  { dim: 'craft', type: 'good', text: '工坊转得不错，可以试试分拣台——白银黄金作物能分出金属条，又是一条线。' },
+  { dim: 'craft', type: 'good', text: '加工链跑顺了就上酒庄：果子酿成酒基础价翻倍，窖藏每天再 +10。' },
+  { dim: 'craft', type: 'good', text: '罐头别急着卖，攒着等商船——加工品也在收购单里，×3 的时候一次出干净。' },
+  { dim: 'craft', type: 'good', text: '三个工坊位别空着，离线也照常加工，睡一觉起来就是三批货。' },
+  { dim: 'craft', type: 'good', text: '产能够了就往食品店挂礼盒：四样作物装一盒，卖价 ×1.8，挂上就不用管。' },
+  { dim: 'craft', type: 'gap',  text: '作物直接卖太亏了。工坊两个原料换一个罐头，卖价是原料总和的三倍。' },
+  { dim: 'craft', type: 'gap',  text: '工坊位空着就是白等。反正离线也在跑，出门前记得塞满。' },
+  { dim: 'craft', type: 'gap',  text: '酒庄还没用起来吧？果子酿酒翻倍，而且窖藏越久越值钱，是纯赚的时间。' },
+  { dim: 'craft', type: 'gap',  text: '分拣台能把带品质的作物变成金属条，比直接卖高不少，别浪费白银黄金。' },
+  { dim: 'craft', type: 'gap',  text: '加工是这游戏最稳的增值方式——不赌不等运气，投进去就是三倍。' },
+  // 👨‍🍳 料理
+  { dim: 'cook', type: 'good', text: '料理做得不错，该上高级料理工坊了——一道菜要屠宰、水产、料理、杂交、作物五路凑齐。' },
+  { dim: 'cook', type: 'good', text: '高级料理的价在下锅那刻定死，用陈年酒做出来更值钱，别拿新酒凑数。' },
+  { dim: 'cook', type: 'good', text: '25 道高级料理正好对上 25 种杂交果，一道一种不重样，可以照着这条线刷。' },
+  { dim: 'cook', type: 'good', text: '两口大灶别空着，一道菜炖 15 分钟，离线照炖。' },
+  { dim: 'cook', type: 'good', text: '料理是把杂交果变现的最好出口——直接卖杂交果，不如做成菜再卖。' },
+  { dim: 'cook', type: 'gap',  text: '料理工坊闲着呢。凑齐配方就能下锅，卖价是原料总和的三倍。' },
+  { dim: 'cook', type: 'gap',  text: '先从一档家常菜做起：三个红薯就能烤，几乎零成本。' },
+  { dim: 'cook', type: 'gap',  text: '带品质的作物做菜更值钱——白银黄金别急着卖，留几个下锅。' },
+  { dim: 'cook', type: 'gap',  text: '三个灶位同时开火有成就可拿，凑齐原料一次点三道。' },
+  { dim: 'cook', type: 'gap',  text: '做菜是消耗过剩作物最划算的方式，背包塞满了就该开火了。' },
+  // 📖 收藏
+  { dim: 'collect', type: 'good', text: '收藏这么齐，去个人展台摆几样最得意的——杂交果、金条、陈年酒都能上台。' },
+  { dim: 'collect', type: 'good', text: '图鉴满了就该转战水族馆，15 格水产是另一套收集线。' },
+  { dim: 'collect', type: 'good', text: '特殊种子的收获物进不了 42 格图鉴，但能摆个人展台，别浪费。' },
+  { dim: 'collect', type: 'good', text: '杂交果 25 种都配出来了吗？每种正好对应一道高级料理。' },
+  { dim: 'collect', type: 'good', text: '收藏齐了就去港湾摆装饰——30 样海洋主题，同一样还能买好几件。' },
+  { dim: 'collect', type: 'gap',  text: '图鉴大楼还空着不少。收获时留一个品相好的送进去，收录是永久的。' },
+  { dim: 'collect', type: 'gap',  text: '白银黄金作物别全卖了，图鉴要的是 14 种作物 × 3 个品质共 42 格。' },
+  { dim: 'collect', type: 'gap',  text: '杂交室试过没有？两种作物配一次，出来的是商店买不到的稀世品。' },
+  { dim: 'collect', type: 'gap',  text: '钓上来的鱼别全卖，水族馆养着能看，还有成就。' },
+  { dim: 'collect', type: 'gap',  text: '收藏不产钱，但成就大多挂在收藏上——顺手的事，别落下。' },
+  // 🏅 成就
+  { dim: 'achieve', type: 'good', text: '成就快满了，去成就殿堂转一圈——每个奖杯都是实打实的模型。' },
+  { dim: 'achieve', type: 'good', text: '「园艺大师」要求除它自己外全部达成，看看还差哪几个。' },
+  { dim: 'achieve', type: 'good', text: '成就全满之后游戏就没有终点了，这时候繁荣塔和港湾正好接上。' },
+  { dim: 'achieve', type: 'good', text: '成就这么全，说明每个系统你都碰过了——现在可以挑一条深挖了。' },
+  { dim: 'achieve', type: 'good', text: '瞬时成就（同时开三个灶、一层种满）可以专门凑一次，拿完就散。' },
+  { dim: 'achieve', type: 'gap',  text: '成就殿堂进去看看，很多成就是「顺手就达成」的，只是你没注意。' },
+  { dim: 'achieve', type: 'gap',  text: '解锁类成就最好拿：多解锁几种作物、多开几块地，进度只增不减。' },
+  { dim: 'achieve', type: 'gap',  text: '有些成就要「同时」满足，比如三个灶位一起开火，得专门凑一下。' },
+  { dim: 'achieve', type: 'gap',  text: '成就是这游戏唯一的目标清单，卡住的时候翻一翻，就知道该干嘛了。' },
+  { dim: 'achieve', type: 'gap',  text: '别只盯着赚钱，成就里有不少是「做过一次就行」的，很快能补上一批。' },
+  // 🏠 家园
+  { dim: 'home', type: 'good', text: '家里装得不错，试试换外观——墙顶门窗七个部位各五种样式，随便混搭。' },
+  { dim: 'home', type: 'good', text: '家具都能升到 5 级，升级会换模型，不只是数值。' },
+  { dim: 'home', type: 'good', text: '布置模式下家具可以拖着摆，不用按预设位置来。' },
+  { dim: 'home', type: 'good', text: '宠物间也别落下，装饰同样能升 3 级，还能换风格。' },
+  { dim: 'home', type: 'good', text: '仓库升满了？10 级能装 550 件，囤货等商船就靠它。' },
+  { dim: 'home', type: 'gap',  text: '屋里还很空。家具在商场「内饰」页买，每件都能升到 5 级。' },
+  { dim: 'home', type: 'gap',  text: '仓库等级低会限制囤货。升一级 100💰，多装 50 件，很便宜。' },
+  { dim: 'home', type: 'gap',  text: '宠物间可以养一只展示——20 种宠物，传说级有龙有凤。' },
+  { dim: 'home', type: 'gap',  text: '房子外观能换：墙、顶、门、窗四个部位，走过路过都看得见。' },
+  { dim: 'home', type: 'gap',  text: '家园这块不产钱，但它是你每天看得最多的地方，值得花点。' },
+  // 🗼 繁荣塔
+  { dim: 'tower', type: 'good', text: '塔盖得不错。500 级总共要 100 万亿，现在这点只是开头。' },
+  { dim: 'tower', type: 'good', text: '每层要盖起来 + 换五次料才轮到下一层，慢慢看它一层层变豪华。' },
+  { dim: 'tower', type: 'good', text: '塔是纯钱坑，不给任何数值加成——但它是唯一永远吃得下钱的地方。' },
+  { dim: 'tower', type: 'good', text: '面板上有「下一个看得见的变化」，照着那个数字攒就行。' },
+  { dim: 'tower', type: 'good', text: '塔上还能挂 368 件小挂件：灯笼、旗幡、檐铃、盆栽，一级一件。' },
+  { dim: 'tower', type: 'gap',  text: '繁荣塔还是个小土堆。1 级才 1250💰，先立起第一层看看。' },
+  { dim: 'tower', type: 'gap',  text: '钱没处花就去盖塔——它是全岛唯一没有上限的支出。' },
+  { dim: 'tower', type: 'gap',  text: '塔的前 20 级很便宜，一口气能看完夯土到星穹的全部六档用料。' },
+  { dim: 'tower', type: 'gap',  text: '面板上有「一口气升 N 级」，按你现在的钱能升到哪一级它直接算好。' },
+  { dim: 'tower', type: 'gap',  text: '塔长到 22 层就封顶了，但装修和挂件还能一直加到 500 级。' },
+  // ⛵ 港湾
+  { dim: 'harbor', type: 'good', text: '港湾用得不错。商船每 5 天来一次，趁没船的日子把货备足。' },
+  { dim: 'harbor', type: 'good', text: '收购单上的倍率是明着标的，×2 以上的那几样值得专门去凑。' },
+  { dim: 'harbor', type: 'good', text: '港湾水面能摆 15 件装饰，同一样还能买好几件重复摆。' },
+  { dim: 'harbor', type: 'good', text: '船只停靠港那一天，天亮就走——看到好价别犹豫。' },
+  { dim: 'harbor', type: 'good', text: '传说级装饰有蓝鲸、海怪触手、龙宫遗迹，摆出来整片海都不一样。' },
+  { dim: 'harbor', type: 'gap',  text: '商船每 5 天来一次，收 150 样货，倍率最高 ×3——比黑市猛得多。' },
+  { dim: 'harbor', type: 'gap',  text: '东西别一收到就卖。留着等商船，碰上 ×2 以上就是白赚一倍。' },
+  { dim: 'harbor', type: 'gap',  text: '港湾水面还是空的，商场「港湾」页有 30 样海洋装饰。' },
+  { dim: 'harbor', type: 'gap',  text: '船开出的价从三折到三倍，看清楚再卖——三折那些留着走商场更划算。' },
+  { dim: 'harbor', type: 'gap',  text: '仓库囤货 + 商船高价，这套组合是目前最赚的玩法，别只盯着日常收成。' },
+];
