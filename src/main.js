@@ -9,7 +9,7 @@ import { startWatchdog } from './watchdog.js';
 import { perf } from './perf.js';
 
 // 点到任何一栋建筑都先来一声「开门」，省得在每个分支里各写一遍
-const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen', 'gourmet', 'tower', 'harbor',
+const BUILDING_KEYS = ['workshop', 'mall', 'house', 'pond', 'bank', 'kitchen', 'gourmet', 'tower', 'harbor', 'trainer',
   'hybridLab', 'petHouse', 'greenhouse', 'achievement', 'codex', 'sorter', 'aquarium', 'blackMarket', 'observatory', 'warehouse', 'brewery', 'foodshop', 'ranch', 'butcher'];
 
 // 浏览器要求用户先互动才能出声：第一次点击/按键时启动音乐
@@ -72,7 +72,7 @@ function pickTile(e) {
     [...game.tileMeshes(), ...game.slotMeshes(), ...game.workshopMeshes,
      ...game.mallMeshes, ...game.houseMeshes,
      ...game.pondMeshes, ...game.bankMeshes, ...game.codexMeshes,
-     ...game.kitchenMeshes, ...game.gourmetMeshes, ...game.towerMeshes, ...game.harborMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
+     ...game.kitchenMeshes, ...game.gourmetMeshes, ...game.towerMeshes, ...game.harborMeshes, ...game.trainerMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
      ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.foodShopMeshes, ...game.ranchMeshes, ...game.butcherMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
@@ -191,6 +191,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     return;
   }
 
+
+  // 工人培养大楼：点击打开培养面板
+  if (hit.userData.trainer) {
+    ui.openTrainer();
+    return;
+  }
 
   // 港湾：点击查看商船货单
   if (hit.userData.harbor) {

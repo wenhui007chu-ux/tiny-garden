@@ -5033,3 +5033,54 @@ export function createHarborDecor(def, slot) {
   g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
   return g;
 }
+
+
+/* ================= 工人培养大楼 =================
+ * 一栋方正的教学楼：灰蓝石基、三层窗、屋顶一个安全帽招牌。
+ * 门口立五根小柱子，对应它管的五条生产线。
+ */
+export function createTrainer() {
+  const g = new THREE.Group();
+  const wall = mat(0xc9cdd4), band = mat(0x8f98a6), roof = mat(0x4a5566);
+
+  g.add(mesh(new THREE.BoxGeometry(4.6, 0.3, 3.4), mat(0x9aa0a8), 0, 0.15, 0)); // 台基
+  g.add(mesh(new THREE.BoxGeometry(4.2, 3.2, 3.0), wall, 0, 1.9, 0));           // 主楼
+  // 三条楼层腰线，一眼看出是三层
+  [1.1, 2.1, 3.1].forEach(y => g.add(mesh(new THREE.BoxGeometry(4.35, 0.12, 3.15), band, 0, y, 0)));
+  // 平顶 + 女儿墙
+  g.add(mesh(new THREE.BoxGeometry(4.5, 0.22, 3.3), roof, 0, 3.6, 0));
+  [[0, 1.6], [0, -1.6]].forEach(([x, z]) =>
+    g.add(mesh(new THREE.BoxGeometry(4.5, 0.28, 0.14), roof, x, 3.85, z)));
+
+  // 每层四扇窗，透暖光
+  [1.55, 2.55].forEach(y => {
+    [-1.3, -0.44, 0.44, 1.3].forEach(x => {
+      g.add(mesh(new THREE.BoxGeometry(0.55, 0.62, 0.07),
+        mat(0xf0c878, { emissive: 0xc08830, emissiveIntensity: 0.32 }), x, y, 1.54));
+    });
+  });
+  // 大门
+  g.add(mesh(new THREE.BoxGeometry(1.0, 1.35, 0.1), mat(0x5a4636), 0, 0.98, 1.55));
+  g.add(mesh(new THREE.BoxGeometry(1.35, 0.14, 0.5), roof, 0, 1.75, 1.72)); // 门檐
+
+  // 门前五根小柱子 = 它管的五条线
+  for (let i = 0; i < 5; i++) {
+    const x = -1.6 + i * 0.8;
+    g.add(mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.85, 7), band, x, 0.58, 2.15));
+    g.add(mesh(new THREE.SphereGeometry(0.13, 7, 5), mat(0xe0b64a), x, 1.08, 2.15));
+  }
+
+  // 屋顶招牌：会转的安全帽
+  const sign = new THREE.Group();
+  const dome = mesh(new THREE.SphereGeometry(0.42, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    mat(0xf0b820), 0, 0, 0);
+  sign.add(dome);
+  sign.add(mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.07, 14), mat(0xe0a418), 0, 0.02, 0));
+  sign.add(mesh(new THREE.BoxGeometry(0.1, 0.34, 0.1), mat(0xe0a418), 0, 0.3, 0));
+  sign.position.set(0, 4.3, 0);
+  sign.userData.spin = true;
+  g.add(sign);
+
+  g.traverse(o => { if (o.isMesh) o.userData.trainer = true; });
+  return g;
+}

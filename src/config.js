@@ -1584,3 +1584,47 @@ export const REVIEW_TIPS = [
   { dim: 'harbor', type: 'gap',  text: '船开出的价从三折到三倍，看清楚再卖——三折那些留着走商场更划算。' },
   { dim: 'harbor', type: 'gap',  text: '仓库囤货 + 商船高价，这套组合是目前最赚的玩法，别只盯着日常收成。' },
 ];
+
+/* ===================== 工人培养大楼 =====================
+ * 五条生产线的每一个工位都单独升级，互不相干。一共 16 个工位 × 100 级。
+ * 每级：这条线的加工时间 -N 秒（N 见下表），出货时每件多给 2💰。
+ *
+ * 每级减多少秒是按各线自己的基础耗时定的，不是一刀切——
+ * 一刀切 3 秒的话，工坊（120 秒）升到 40 级耗时就归零了，
+ * 而高级料理（900 秒）升满也才少三分之一。
+ * 现在这组数字满级后各线都还剩 17%~44%，一条都不会变成负数。
+ */
+export const TRAINER_POS = { x: 13, z: 20 };  // 岛北，料理工坊和宠物间外侧的空地
+export const TRAINER = {
+  maxLevel: 100,
+  cost: 500,        // 每级固定 500💰（16 工位 × 100 级 = 全部满级 80 万）
+  pricePerLevel: 2, // 每级出货时每件多给 2💰
+  minRatio: 0.1,    // 兜底下限：耗时最少保留基础的 10%。
+                    // 下面这组数字本来就触不到，但万一以后有人调 per 就靠它兜住
+};
+
+// 归它管的五条线。per = 每升一级少几秒，按各线基础耗时的量级定
+export const TRAINER_LINES = [
+  { key: 'workshop', icon: '🏭',  name: '工坊',         slots: WORKSHOP.slots,  base: WORKSHOP.time,                     per: 1 },
+  { key: 'butcher',  icon: '🔪',  name: '屠宰场',       slots: BUTCHER.slots,   base: BUTCHER.killTime + BUTCHER.cutTime, per: 1.5 },
+  { key: 'cook',     icon: '🍳',  name: '料理工坊',     slots: COOK_SLOTS,      base: COOK_TIME,                         per: 2 },
+  { key: 'hybrid',   icon: '🧬',  name: '杂交室',       slots: HYBRID_SLOTS,    base: HYBRID_TIME,                       per: 4 },
+  { key: 'adv',      icon: '👨‍🍳', name: '高级料理工坊', slots: ADV_COOK_SLOTS,  base: ADV_COOK_TIME,                     per: 6 },
+];
+export const trainerLineBy = (key) => TRAINER_LINES.find(l => l.key === key);
+export const TRAINER_TOTAL_SLOTS = TRAINER_LINES.reduce((a, l) => a + l.slots, 0);
+
+// 某条线升到 lv 级后，加工时间还剩基础的百分之几。
+// 返回比例而不是秒数，是因为屠宰场分「宰杀 + 细分」两段，
+// 拿比例去乘两段各自的时间，两段一起变快，不用分开算
+export function trainerRatio(lineKey, lv) {
+  const L = trainerLineBy(lineKey);
+  if (!L) return 1;
+  const left = Math.max(L.base * TRAINER.minRatio, L.base - Math.max(0, lv) * L.per);
+  return left / L.base;
+}
+// 某条线升到 lv 级后的实际耗时（秒），面板上显示用
+export const trainerTimeAt = (lineKey, lv) => {
+  const L = trainerLineBy(lineKey);
+  return L ? Math.round(L.base * trainerRatio(lineKey, lv)) : 0;
+};

@@ -29,6 +29,7 @@ import {
   HARBOR, HARBOR_POS, harborManifest, harborKey, harborIsPrefix,
   HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, HARBOR_SPOTS,
   REVIEW_DIMS, REVIEW_TIPS, gradeOf,
+  TRAINER, TRAINER_POS, TRAINER_LINES, trainerLineBy, trainerRatio, trainerTimeAt,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -49,7 +50,7 @@ import {
   createBlackMarket, createObservatory, createWarehouse,
   createBrewery, createBreweryInterior, createBrewVat, createCellarRack, createWineBottle,
   createFoodShop, createFoodShopInterior, createShelfSlot, SHELF_SPOTS,
-  createGourmetKitchen, createTower, createHarbor, createMerchantShip, createHarborDecor,
+  createGourmetKitchen, createTower, createHarbor, createMerchantShip, createHarborDecor, createTrainer,
   BREW_SPOTS, CELLAR_SPOTS,
 } from './meshes.js';
 import { sfx } from './music.js';
@@ -87,6 +88,8 @@ export class Game {
     this.towerLevel = 0;    // 繁荣塔等级 0~500，0 级就是个小土堆
     this.harborSold = {};   // 本次靠港已经卖掉的槽位 { 槽位序号: true }
     // 港湾装饰。和水潭装饰的关键区别：这边可以重复买，所以存的是件数而不是 true
+    // 工人培养：{ '线路key:工位号': 等级 }，每个工位单独升
+    this.trainer = {};
     this.harborOwned = {};  // { 装饰id: 拥有件数 }
     this.harborPlaced = []; // 摆出来的，最多 HARBOR_MAX_PLACED 件，同一种可以出现多次
     this.harborDock = -1;   // 已记录的靠港批次，换船时清空 harborSold
@@ -220,6 +223,15 @@ export class Game {
     this.shipGroup.rotation.y = 0.12;
     this.group.add(this.shipGroup);
     this.shipGroup.traverse(o => { if (o.isMesh) this.harborMeshes.push(o); });
+    // 工人培养大楼：岛北空地
+    const trainer = createTrainer();
+    trainer.position.set(TRAINER_POS.x, -0.51, TRAINER_POS.z);
+    trainer.rotation.y = 0.35;
+    this.group.add(trainer);
+    this.trainerMeshes = [];
+    trainer.traverse(o => { if (o.isMesh) this.trainerMeshes.push(o); });
+    this.trainerBuilding = trainer;
+
     this.harborDecorMeshes = {};   // 槽位 -> 模型
     this.refreshShip();
     this.refreshHarborDecors();
@@ -443,6 +455,7 @@ export class Game {
     this.addSign(kitchen, '🍳', 'kitchen');
     this.addSign(gourmet, '👨‍🍳', 'gourmet');
     this.addSign(harbor, '⛵', 'harbor');
+    this.addSign(trainer, '👷', 'trainer');
     // 塔的招牌得跟别的建筑一样浮在头顶。但 addSign() 只在开局按包围盒
     // 算一次位置，而塔会从 0.5 米长到 27 米——所以位置交给 positionTowerSign()，
     // 每次重建都重算一遍，牌子才会跟着塔往上走
@@ -1131,7 +1144,7 @@ export class Game {
       this.inventory[key] -= n;
       if (this.inventory[key] <= 0) delete this.inventory[key];
     });
-    this.cookSlots[slot] = { id: dishId, readyAt: this.time + COOK_TIME };
+    this.cookSlots[slot] = { id: dishId, readyAt: this.time + COOK_TIME * this.trainerRatio('cook', slot) };
     this.onToast(`🍳 ${dish.emoji}${dish.name}下锅了，${COOK_TIME / 60} 分钟后出锅`);
     this.onState();
     this.save();
@@ -1145,7 +1158,8 @@ export class Game {
     const dkey = 'k:' + s.id;
     this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
     this.cookSlots[slot] = null;
-    this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包`);
+    const cb = this.payTrainerBonus('cook', slot);
+    this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包` + (cb ? ` （熟练工 +${cb}💰）` : ''));
     sfx.play('done');
     this.onState();
     this.save();
@@ -1208,7 +1222,7 @@ export class Game {
     });
 
     const price = Math.max(1, Math.floor(sum * ADV_DISH_MULT));
-    this.advCookSlots[slot] = { id: dishId, price, readyAt: this.time + ADV_COOK_TIME };
+    this.advCookSlots[slot] = { id: dishId, price, readyAt: this.time + ADV_COOK_TIME * this.trainerRatio('adv', slot) };
     this.onToast(tp('t.advCooking', { name: `${dish.emoji}${dish.name}`, n: Math.round(ADV_COOK_TIME / 60) }));
     sfx.play('done');
     this.onState();
@@ -1223,6 +1237,8 @@ export class Game {
     const key = `g:${s.id}:${s.price}`;
     this.inventory[key] = (this.inventory[key] ?? 0) + 1;
     this.advCookSlots[slot] = null;
+    const ab = this.payTrainerBonus('adv', slot);
+    if (ab) this.onToast(tp('t.trainerBonus', { n: ab }));
     this.onToast(tp('t.advDone', { name: `${dish.emoji}${dish.name}`, n: s.price.toLocaleString() }));
     sfx.play('done');
     this.onState();
@@ -1459,6 +1475,63 @@ export class Game {
     return true;
   }
 
+  /* ---------- 工人培养大楼 ---------- */
+
+  trainerKey(line, slot) { return line + ':' + slot; }
+  trainerLevel(line, slot) { return this.trainer?.[this.trainerKey(line, slot)] ?? 0; }
+
+  // 这个工位现在的加工时间是基础的百分之几
+  trainerRatio(line, slot) { return trainerRatio(line, this.trainerLevel(line, slot)); }
+
+  // 出货奖金：每级每件 +2💰。做成「出货时直接发钱」而不是改物品售价，
+  // 是因为罐头/料理的背包 key 里没地方存这个加成，改 key 格式会动到老存档
+  trainerBonus(line, slot, count = 1) {
+    return this.trainerLevel(line, slot) * TRAINER.pricePerLevel * count;
+  }
+
+  // 出货时结算奖金并提示。没升过级就什么都不做
+  payTrainerBonus(line, slot, count = 1) {
+    const bonus = this.trainerBonus(line, slot, count);
+    if (bonus <= 0) return 0;
+    this.gain(bonus);
+    return bonus;
+  }
+
+  trainerNextCost(line, slot) {
+    return this.trainerLevel(line, slot) >= TRAINER.maxLevel ? null : TRAINER.cost;
+  }
+
+  // 升级。n > 1 时连升，钱不够或到顶就停
+  upgradeTrainer(line, slot, n = 1) {
+    const L = trainerLineBy(line);
+    if (!L || slot < 0 || slot >= L.slots) return 0;
+    const key = this.trainerKey(line, slot);
+    let done = 0;
+    for (let k = 0; k < n; k++) {
+      const cost = this.trainerNextCost(line, slot);
+      if (cost === null) { if (!done) this.onToast(tp('t.trainerMax', { n: TRAINER.maxLevel })); break; }
+      if (this.coins < cost) { if (!done) { this.onToast(t('t.trainerPoor')); sfx.play('deny'); } break; }
+      this.coins -= cost;
+      this.trainer[key] = (this.trainer[key] ?? 0) + 1;
+      done++;
+    }
+    if (!done) return 0;
+    const lv = this.trainer[key];
+    this.onToast(tp('t.trainerUp', {
+      name: L.name, s: slot + 1, n: lv, t: trainerTimeAt(line, lv),
+    }));
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return done;
+  }
+
+  // 现在的钱最多还能给这个工位升几级
+  trainerAffordable(line, slot) {
+    const left = TRAINER.maxLevel - this.trainerLevel(line, slot);
+    return Math.max(0, Math.min(left, Math.floor(this.coins / TRAINER.cost)));
+  }
+
   /* ---------- 发展评估 ---------- */
 
   // 十个维度各打 0~100 分。一律「离这个维度的天花板有多远」，
@@ -1654,7 +1727,7 @@ export class Game {
       this.inventory[key] -= 1;
       if (this.inventory[key] <= 0) delete this.inventory[key];
     });
-    this.hybridSlots[slot] = { id, readyAt: this.time + HYBRID_TIME };
+    this.hybridSlots[slot] = { id, readyAt: this.time + HYBRID_TIME * this.trainerRatio('hybrid', slot) };
     this.refreshHybridStations();
     this.onToast(`🧬 ${h.emoji}${h.name}进入 ${slot + 1} 号培养罩，${HYBRID_TIME / 60} 分钟后来取`);
     this.onState();
@@ -1665,6 +1738,8 @@ export class Game {
   collectHybrid(slot) {
     const s = this.hybridSlots[slot];
     if (!s || this.time < s.readyAt) return;
+    const hb = this.payTrainerBonus('hybrid', slot);
+    if (hb) this.onToast(tp('t.trainerBonus', { n: hb }));
     const h = hybridById(s.id);
     const hkey = 'h:' + s.id;
     this.inventory[hkey] = (this.inventory[hkey] ?? 0) + 1;
@@ -2527,7 +2602,8 @@ export class Game {
     if (!b) return null;
     const remain = b.readyAt - this.time;
     if (remain <= 0) return 'done';
-    return remain > BUTCHER.cutTime ? 'kill' : 'cut';
+    // 两段都按同一个比例缩，否则升级后阶段分界会错位
+    return remain > BUTCHER.cutTime * this.trainerRatio('butcher', slot) ? 'kill' : 'cut';
   }
 
   startButcher(slot, key) {
@@ -2536,7 +2612,7 @@ export class Game {
     if (!key.startsWith('a:') || (this.inventory[key] ?? 0) <= 0) { this.onToast(t('t.butcherOnlyAnimals')); return false; }
     this.inventory[key] -= 1;
     if (this.inventory[key] <= 0) delete this.inventory[key];
-    this.butcher[slot] = { key, readyAt: this.time + BUTCHER.killTime + BUTCHER.cutTime };
+    this.butcher[slot] = { key, readyAt: this.time + (BUTCHER.killTime + BUTCHER.cutTime) * this.trainerRatio('butcher', slot) };
     const info = keyInfo(key);
     this.onToast(tp('t.butcherStart', { name: `${info.icon}${info.label}`,
       t: `${(BUTCHER.killTime + BUTCHER.cutTime) / 60} ${t('unit.min')}` }));
@@ -2551,6 +2627,9 @@ export class Game {
     const b = this.butcher[slot];
     if (!b) return;
     if (this.time < b.readyAt) { this.onToast(t('t.butcherWorking')); return; }
+    // 屠宰一次出 CUTS.length 个部位，奖金按件数算
+    const bb = this.payTrainerBonus('butcher', slot, CUTS.length);
+    if (bb) this.onToast(tp('t.trainerBonus', { n: bb }));
     const animalId = b.key.slice(2);
     let total = 0;
     CUTS.forEach(c => {
@@ -2965,7 +3044,7 @@ export class Game {
     }
     this.inventory[key] -= need;
     if (this.inventory[key] <= 0) delete this.inventory[key];
-    this.workshop[slot] = { key, readyAt: this.time + WORKSHOP.time };
+    this.workshop[slot] = { key, readyAt: this.time + WORKSHOP.time * this.trainerRatio('workshop', slot) };
     const info = keyInfo(key);
     this.onToast(`${info.icon}${info.label} ×${need} 开始加工 ⏳${WORKSHOP.time / 60}分钟`);
     this.onState();
@@ -2978,8 +3057,9 @@ export class Game {
     const pkey = 'p:' + s.key;
     this.inventory[pkey] = (this.inventory[pkey] ?? 0) + 1;
     this.workshop[slot] = null;
+    const wb = this.payTrainerBonus('workshop', slot);
     const info = keyInfo(pkey);
-    this.onToast(`${info.icon} ${info.label}完成！放入背包`);
+    this.onToast(`${info.icon} ${info.label}完成！放入背包` + (wb ? ` （熟练工 +${wb}💰）` : ''));
     sfx.play('done');
     this.onState();
     this.save();
@@ -3284,6 +3364,7 @@ export class Game {
       // 高级料理还要存下锅时定死的价钱，不然出锅就不知道值多少了
       towerLevel: this.towerLevel,
       harborSold: this.harborSold,
+      trainer: this.trainer,
       harborOwned: this.harborOwned,
       harborPlaced: this.harborPlaced,
       harborDock: this.harborDock,
@@ -3536,6 +3617,7 @@ export class Game {
     this.rebuildTower();
     // 港湾：老存档没这两个字段，缺省空
     this.harborSold = data.harborSold ?? {};
+    this.trainer = data.trainer ?? {};   // 老存档没这字段，全 0 级
     this.harborOwned = data.harborOwned ?? {};
     this.harborPlaced = (data.harborPlaced ?? []).filter(id => harborDecorById(id)).slice(0, HARBOR_MAX_PLACED);
     this.refreshHarborDecors();

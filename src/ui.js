@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -71,6 +71,7 @@ export class UI {
     $('#tower-close').addEventListener('click', () => $('#tower').classList.add('hidden'));
     $('#harbor-close').addEventListener('click', () => $('#harbor').classList.add('hidden'));
     $('#review-close').addEventListener('click', () => $('#review').classList.add('hidden'));
+    $('#trainer-close').addEventListener('click', () => $('#trainer').classList.add('hidden'));
     $('#wiki-close').addEventListener('click', () => $('#wiki').classList.add('hidden'));
     $('#hybrid-close').addEventListener('click', () => this.exitHybridLab());
     $('#pet-close').addEventListener('click', () => this.exitPetRoom());
@@ -98,6 +99,7 @@ export class UI {
       if (!$('#ws').classList.contains('hidden')) this.renderWorkshop();
       if (!$('#kitchen').classList.contains('hidden')) this.renderKitchen();
       if (!$('#gourmet').classList.contains('hidden')) this.renderGourmet();
+      if (!$('#trainer').classList.contains('hidden')) this.renderTrainer();
       if (!$('#hybrid').classList.contains('hidden')) {
         this.renderHybrid();
         this.game.updateHybridVisuals(); // 培养罩里的作物随进度长大
@@ -341,7 +343,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1762,6 +1764,60 @@ export class UI {
         '<small>还没有装饰。去商场大楼「港湾」页买，同一样可以买好几件。</small>');
     }
     body.appendChild(wrap);
+  }
+
+  /* ---------- 工人培养大楼 ---------- */
+
+  openTrainer() {
+    this.closePanels();
+    $('#trainer').classList.remove('hidden');
+    this.renderTrainer();
+  }
+
+  renderTrainer() {
+    const body = $('#trainer-body');
+    const g = this.game;
+    body.innerHTML = '';
+    const total = TRAINER_LINES.reduce((a, l) => a + l.slots, 0);
+    const done = TRAINER_LINES.reduce((a, l) => a
+      + Array.from({ length: l.slots }, (_, i) => g.trainerLevel(l.key, i)).reduce((x, y) => x + y, 0), 0);
+    body.insertAdjacentHTML('beforeend',
+      `<div id="trainer-note">👷 ${total} 个工位各自单独培养，每级 ${TRAINER.cost}💰，最高 ${TRAINER.maxLevel} 级。<br>
+       每升一级：这条线加工更快，出货时每件多给 ${TRAINER.pricePerLevel}💰。<br>
+       总进度 <b>${done} / ${total * TRAINER.maxLevel}</b> 级</div>`);
+
+    TRAINER_LINES.forEach(line => {
+      const wrap = document.createElement('div');
+      wrap.className = 'tr-line';
+      wrap.innerHTML = `<b>${line.icon} ${line.name}<small>基础 ${line.base}秒 · 每级 -${line.per}秒</small></b>`;
+      for (let i = 0; i < line.slots; i++) {
+        const lv = g.trainerLevel(line.key, i);
+        const maxed = lv >= TRAINER.maxLevel;
+        const el = document.createElement('div');
+        el.className = 'tr-slot' + (maxed ? ' maxed' : '');
+        el.innerHTML = `<div class="no">${i + 1}号</div>
+          <div class="lv">${lv}</div>
+          <div class="bar"><i style="width:${lv / TRAINER.maxLevel * 100}%"></i></div>
+          <div class="st">${trainerTimeAt(line.key, lv)}秒<br>出货 +${lv * TRAINER.pricePerLevel}💰</div>`;
+        if (!maxed) {
+          const n = g.trainerAffordable(line.key, i);
+          const b1 = document.createElement('button');
+          b1.textContent = `+1`;
+          b1.disabled = g.coins < TRAINER.cost;
+          b1.addEventListener('click', () => { g.upgradeTrainer(line.key, i, 1); this.renderTrainer(); });
+          el.appendChild(b1);
+          const b10 = document.createElement('button');
+          b10.textContent = n >= 10 ? '+10' : `+${n || 1}`;
+          b10.disabled = n < 1;
+          b10.addEventListener('click', () => { g.upgradeTrainer(line.key, i, n >= 10 ? 10 : n); this.renderTrainer(); });
+          el.appendChild(b10);
+        } else {
+          el.insertAdjacentHTML('beforeend', '<div class="no">满级</div>');
+        }
+        wrap.appendChild(el);
+      }
+      body.appendChild(wrap);
+    });
   }
 
   /* ---------- 发展评估 ---------- */
