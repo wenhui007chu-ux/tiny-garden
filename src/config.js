@@ -61,41 +61,37 @@ export const WET_DURATION = 45; // 浇一次水保持湿润的秒数
 export const START_COINS = 20;
 
 // 慢动作田园：生长时间统一放慢 5 倍，削一削经济
-// special: true 的是「特殊种子」，在商场种子页单独成一区。规则：
-//   · 照常种、卖、出稀有品质
-//   · 前 6 种（青椒~樱桃）价值都卡在彩虹果之下，插在原有梯度的空档里
-//   · 最后两种（月光果/星云果）是唯一越过彩虹果的档位，专门给后期玩家花钱
-//   · 收获物只能摆到「个人展台」，不能收录进 42 格基础图鉴
-//   · 与「种子收藏家 / 图鉴大成」两条成就完全无关，不会打扰已有的收集进度
+// 早先这里有个 special 标记，把 8 种作物划成「特殊种子」单独成区，
+// 且不许进 42 格图鉴、不参与收集成就。典藏馆上线后这个区分没有意义了——
+// 所有作物一律平等，全部可收录，所以标记连同 SPECIAL_SEEDS 一起删掉。
 export const SEEDS = [
   { id: 'sweetpot',   name: '红薯',   emoji: '🍠', cost: 0,   sell: 1,    growTime: 50,   unlock: 0 },
   { id: 'radish',     name: '萝卜',   emoji: '🥕', cost: 5,   sell: 12,   growTime: 100,  unlock: 0 },
   { id: 'potato',     name: '土豆',   emoji: '🥔', cost: 8,   sell: 22,   growTime: 140,  unlock: 30 },
   { id: 'cabbage',    name: '白菜',   emoji: '🥬', cost: 15,  sell: 40,   growTime: 200,  unlock: 60 },
   { id: 'tomato',     name: '番茄',   emoji: '🍅', cost: 20,  sell: 55,   growTime: 225,  unlock: 100 },
-  { id: 'pepper',     name: '青椒',   emoji: '🫑', cost: 26,  sell: 75,   growTime: 260,  unlock: 150,  special: true },
+  { id: 'pepper',     name: '青椒',   emoji: '🫑', cost: 26,  sell: 75,   growTime: 260,  unlock: 150 },
   { id: 'corn',       name: '玉米',   emoji: '🌽', cost: 35,  sell: 105,  growTime: 300,  unlock: 200 },
   { id: 'strawberry', name: '草莓',   emoji: '🍓', cost: 55,  sell: 170,  growTime: 375,  unlock: 320 },
-  { id: 'broccoli',   name: '西兰花', emoji: '🥦', cost: 66,  sell: 200,  growTime: 410,  unlock: 360,  special: true },
+  { id: 'broccoli',   name: '西兰花', emoji: '🥦', cost: 66,  sell: 200,  growTime: 410,  unlock: 360 },
   { id: 'pumpkin',    name: '南瓜',   emoji: '🎃', cost: 80,  sell: 240,  growTime: 450,  unlock: 400 },
   { id: 'eggplant',   name: '茄子',   emoji: '🍆', cost: 120, sell: 380,  growTime: 550,  unlock: 650 },
-  { id: 'grape',      name: '葡萄',   emoji: '🍇', cost: 145, sell: 460,  growTime: 600,  unlock: 770,  special: true },
+  { id: 'grape',      name: '葡萄',   emoji: '🍇', cost: 145, sell: 460,  growTime: 600,  unlock: 770 },
   { id: 'watermelon', name: '西瓜',   emoji: '🍉', cost: 170, sell: 560,  growTime: 650,  unlock: 900 },
   { id: 'pineapple',  name: '菠萝',   emoji: '🍍', cost: 230, sell: 780,  growTime: 750,  unlock: 1200 },
-  { id: 'avocado',    name: '牛油果', emoji: '🥑', cost: 265, sell: 880,  growTime: 820,  unlock: 1340, special: true },
+  { id: 'avocado',    name: '牛油果', emoji: '🥑', cost: 265, sell: 880,  growTime: 820,  unlock: 1340 },
   { id: 'crystal',    name: '水晶果', emoji: '🔮', cost: 300, sell: 1000, growTime: 900,  unlock: 1500 },
-  { id: 'peach',      name: '水蜜桃', emoji: '🍑', cost: 370, sell: 1250, growTime: 1050, unlock: 1820, special: true },
+  { id: 'peach',      name: '水蜜桃', emoji: '🍑', cost: 370, sell: 1250, growTime: 1050, unlock: 1820 },
   { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 1200, unlock: 2200 },
-  { id: 'cherry',     name: '樱桃',   emoji: '🍒', cost: 550, sell: 2000, growTime: 1350, unlock: 2580, special: true },
+  { id: 'cherry',     name: '樱桃',   emoji: '🍒', cost: 550, sell: 2000, growTime: 1350, unlock: 2580 },
   { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 1500, unlock: 3000 },
-  // —— 两种「天价」特殊种子：唯一越过彩虹果的档位，给后期玩家花钱的地方 ——
-  { id: 'moonfruit',  name: '月光果', emoji: '🌙', cost: 1500, sell: 6000,  growTime: 2200, unlock: 8000,  special: true },
-  { id: 'nebula',     name: '星云果', emoji: '🌌', cost: 4200, sell: 16000, growTime: 3400, unlock: 25000, special: true },
+  // —— 两种「天价」作物：唯一越过彩虹果的档位，给后期玩家花钱的地方 ——
+  { id: 'moonfruit',  name: '月光果', emoji: '🌙', cost: 1500, sell: 6000,  growTime: 2200, unlock: 8000 },
+  { id: 'nebula',     name: '星云果', emoji: '🌌', cost: 4200, sell: 16000, growTime: 3400, unlock: 25000 },
 ];
 
-// 图鉴与作物收集类成就只认这 14 种基础作物，特殊种子不参与，保证老进度不被打扰
-export const CODEX_SEEDS = SEEDS.filter(s => !s.special);
-export const SPECIAL_SEEDS = SEEDS.filter(s => s.special);
+// 收集类成就一律认全部 22 种作物。原先只认 14 种「基础」作物、
+// 另外 8 种特殊种子被排除在外；典藏馆上线后不再区分。
 
 export const SOILS = [
   { name: '普通土', speed: 1,    yield: 1, cost: 0,   color: 0x9a7355 },
@@ -118,12 +114,19 @@ export const DECORS = [
 ];
 
 // 稀有品质：种下时暗中决定，收获入背包单独计
+// 变异是第四档，也是唯一「只能碰上、造不出来」的档位：
+// 升变道具只到黄金（ITEMS 里 pick 只有 silver/gold），分拣台也没有变异条
+// （METAL 无 mutant 项，sortableKey 会自己挡掉）——留给它一份不可复制的稀有感
 export const QUALITIES = {
   silver: { name: '白银', emoji: '🥈', mult: 2 },
   gold:   { name: '黄金', emoji: '🥇', mult: 3 },
+  mutant: { name: '变异', emoji: '🧬', mult: 8 },
 };
 export const GOLD_CHANCE = 0.05;
 export const SILVER_CHANCE = 0.15;
+// 0.3%：72 块地一轮期望 0.2 个，一个游戏日撞上一两个，
+// 稀有到值得停下来看一眼，又不会几天都摸不到
+export const MUTANT_CHANCE = 0.003;
 
 // 工坊：作物加工成罐头，卖价 ×3
 // 工坊：2 个同种作物加工成 1 个罐头，罐头卖价 = 2 个原料总价 × 1.5（向下取整）
@@ -534,9 +537,10 @@ export const FISHING = { slots: 5, time: 1200, rewardMin: 50, rewardMax: 150 };
 // 黑房子银行：每天结束结算存款，85% 赚 1~3，15% 亏 1~3
 export const BANK = { gainChance: 0.85, magMin: 1, magMax: 3 };
 
-// 图鉴大楼：14 作物 × 3 品质 = 42 个说明台，同作物同品质只能收录一次
-export const CODEX_POS = { x: 60, y: -60, z: 0 };
-export const CODEX_QUALITIES = [undefined, 'silver', 'gold'];
+// 典藏大楼（原图鉴大楼原址）：3D 展厅藏在岛下，进馆时镜头切过去
+// 分类与展位数在文件末尾的 TREASURY 段定义——那里要用到料理/大菜/杂交/花的表
+export const TREASURY_POS = { x: 60, y: -60, z: 0 };
+export const TREASURY_QUALITIES = [undefined, 'silver', 'gold', 'mutant'];
 export const itemById = (id) => ITEMS.find(i => i.id === id);
 
 // 料理工坊：凑齐指定品质的作物就能做，卖价是原料单卖的 3 倍（d51 起是特殊种子专属）
@@ -727,6 +731,97 @@ export function advDishPrice(dish) {
   const sum = dish.recipe.reduce((s, [src, id, n]) => s + advIngPrice(src, id) * n, 0);
   return Math.max(1, Math.floor(sum * ADV_DISH_MULT));
 }
+
+/* ================= 典藏大楼 =================
+ * 原来的图鉴大楼只收 14 作物 × 3 品质 = 42 格，另外 185 条内容
+ * （60 料理 / 25 大菜 / 25 杂交 / 38 海产 / 15 花 / 22 果酒）做出来就卖掉，
+ * 存档里一个字都不记——玩家自己都不知道做过几种。典藏馆把它们全收进来。
+ *
+ * 收录规则沿用图鉴：交一件进去，永久留档，同一格只收一次。
+ * 果酒按「原果」归档（真 key 尾巴挂着窖藏天数，同一种果不同年份算同一格）。
+ */
+export const TREASURY_CATS = [
+  { id: 'crop',   name: '农作物', emoji: '🌾',
+    // 22 作物 × 4 品质（含变异）。按作物分组，一座台子摆四个品质位
+    keys: () => SEEDS.flatMap(s => TREASURY_QUALITIES.map(q => (q ? `${s.id}:${q}` : s.id))) },
+  { id: 'dish',   name: '料理',   emoji: '🍲', keys: () => DISHES.map(d => `k:${d.id}`) },
+  { id: 'adv',    name: '大菜',   emoji: '🍽️', keys: () => ADV_DISHES.map(d => `g:${d.id}`) },
+  { id: 'hybrid', name: '杂交',   emoji: '🧬', keys: () => HYBRIDS.map(h => `h:${h.id}`) },
+  { id: 'sea',    name: '海产',   emoji: '🐟', keys: () => SEAFOOD.map(s => `s:${s.id}`) },
+  { id: 'flower', name: '花',     emoji: '🌸', keys: () => FLOWERS.map(f => `f:${f.id}`) },
+  { id: 'wine',   name: '果酒',   emoji: '🍷', keys: () => SEEDS.map(s => `w:${s.id}`) },
+];
+
+export const treasuryCatById = (id) => TREASURY_CATS.find(c => c.id === id);
+
+// 全部展位（缓存：七个 keys() 每次全跑一遍不便宜，而面板每 500ms 会重绘）
+let _treasuryKeys = null;
+export const treasuryKeys = () => (_treasuryKeys ??= TREASURY_CATS.flatMap(c => c.keys()));
+export const TREASURY_TOTAL = treasuryKeys().length;
+
+// 背包里的一件东西对应哪个展位；不能收录的返回 null。
+// 两个坑：酒的 key 尾巴上挂着窖藏天数（w:<原果>:<天数>），
+// 大菜的 key 尾巴上挂着成交价（g:<菜id>:<价格>）——都得先切掉才认得出展位
+export function treasurySlotOf(key) {
+  if (typeof key !== 'string' || !key) return null;
+  if (key.startsWith('w:')) {
+    // w:<原果key>:<天数> → w:<原果id>，品质和年份都不分格
+    const parts = key.slice(2).split(':');
+    parts.pop();                       // 去掉天数
+    const id = parts[0];               // 原果 id（可能还带品质，取第一段）
+    return seedById(id) ? `w:${id}` : null;
+  }
+  if (key.startsWith('g:')) {
+    // g:<菜id>:<成交价> → g:<菜id>。同一道菜用陈年酒做的更贵，但算同一格
+    const parts = key.slice(2).split(':');
+    if (parts.length > 1) parts.pop();  // 去掉价格（没带价格的裸 key 也认）
+    const id = parts.join(':');
+    return advDishById(id) ? `g:${id}` : null;
+  }
+  if (key.startsWith('k:') || key.startsWith('h:')
+    || key.startsWith('s:') || key.startsWith('f:')) {
+    return treasuryKeys().includes(key) ? key : null;
+  }
+  // 罐头/生长不良/打过药/金属条/动物部位/蛋 一律不收：典藏收的是「本体」
+  if (/^(p|x|y|m|c|a):/.test(key)) return null;
+  if (key === EGG.key) return null;
+  const [id, q] = key.split(':');
+  if (!seedById(id)) return null;
+  if (q && !QUALITIES[q]) return null;
+  return key;
+}
+
+// 展位的名字/图标/身价。不能直接对展位调 keyInfo——
+// 酒和大菜的展位是「切掉尾巴」的短 key，keyInfo 拿它会解析失败（大菜会直接抛）
+export function treasurySlotInfo(slot) {
+  try {
+    if (slot.startsWith('w:')) return keyInfo(`${slot}:0`);           // 补一个窖藏 0 天
+    if (slot.startsWith('g:')) {
+      const d = advDishById(slot.slice(2));
+      return { icon: d.emoji, label: d.name, price: advDishPrice(d), quality: undefined };
+    }
+    return keyInfo(slot);
+  } catch {
+    return { icon: '❔', label: slot, price: 1, quality: undefined };
+  }
+}
+
+// 繁荣度按「收了多少格」算，不按藏品身价加权。
+// 试过按售价加权，废了：价格从红薯 1💰 到独角兽神宴 776 万💰 跨了七个数量级，
+// 大菜那 25 格直接吃掉分母的 90%，繁荣度实质上变成「做没做那道神宴」，
+// 另外 248 格摆不摆都看不出变化。按格数算则每一格都同等值得追，
+// 面板上「75/273 · 27%」也是一眼能懂的数。
+
+// 繁荣度带来的参观客加成。
+// 刻意做成「在现有珍稀度之上另加一层」而不是掺进珍稀度的分母里：
+// 掺进分母的话，典藏馆刚开张空着，玩家现有的门票和人流会当场缩水——
+// 那是凭空砍收入。这里空馆时加成为 0，只会往上加，不会往下拿。
+export const TREASURY = {
+  ticketBoost: 1.0,  // 满馆门票 ×2
+  rateBoost: 0.6,    // 满馆人流 ×1.6
+};
+export const treasuryRatio = (collected = {}) =>
+  Math.min(1, Math.max(0, Object.keys(collected).length / TREASURY_TOTAL));
 
 // 房子内饰：床是白送的，其余去商场「内饰」页买，每件最多升到 3 级
 // cost = 购入价（1级），up[n] = 升到 n+1 级的花费；pos = 房间内摆放位置
@@ -948,20 +1043,23 @@ export const ACHIEVEMENTS = [
   { id: 'a05', name: '育苗开始',   emoji: '🌾', tier: 'bronze', group: '作物',
     desc: '解锁 5 种作物', hint: '商场「种子」页解锁新品种',
     cur: (g) => g.unlockedSeeds.length, max: 5 },
-  // 只认 14 种基础作物（特殊种子不算），后续再加作物也不会把这条已达成的成就顶回未完成
+  // 原先只认 14 种「基础」作物（特殊种子不算）；特殊种子概念删掉后改认全部 22 种。
+  // 目标从 14 涨到 22，但老玩家早已解锁 22 种，revokeUnearned 不会误收（cur 够得着）
   { id: 'a06', name: '种子收藏家', emoji: '🌈', tier: 'gold', group: '作物',
-    desc: `解锁全部 ${CODEX_SEEDS.length} 种基础作物`, hint: '彩虹果是最后一种，3000💰',
-    cur: (g) => g.unlockedSeeds.filter(id => CODEX_SEEDS.some(s => s.id === id)).length,
-    max: CODEX_SEEDS.length },
-  { id: 'a07', name: '图鉴入门', emoji: '📖', tier: 'bronze', group: '作物',
-    desc: '图鉴收录 10 项', hint: '进图鉴大楼，把背包里的作物捐出去',
-    cur: (g) => g.codexCount(), max: 10 },
-  { id: 'a08', name: '图鉴过半', emoji: '📗', tier: 'silver', group: '作物',
-    desc: '图鉴收录 21 项', hint: '同一作物的普通/白银/黄金各算一项',
-    cur: (g) => g.codexCount(), max: 21 },
-  { id: 'a09', name: '图鉴大成', emoji: '📚', tier: 'legend', group: '作物',
-    desc: '图鉴 42 项全部收录', hint: '14 种作物 × 3 种品质，一个都不能少',
-    cur: (g) => g.codexCount(), max: CODEX_SEEDS.length * CODEX_QUALITIES.length },
+    desc: `解锁全部 ${SEEDS.length} 种作物`, hint: '星云果是最后一种，25000💰',
+    cur: (g) => g.unlockedSeeds.length, max: SEEDS.length },
+  // 图鉴大楼改成典藏大楼，收录范围从 42 格扩到 TREASURY_TOTAL 格。
+  // 条件本身变了（不只是数字变大），所以三条都标 rev: 2 ——
+  // 读档时会连同「图鉴大成」一起收回，按新规则重挣
+  { id: 'a07', name: '典藏入门', emoji: '📖', tier: 'bronze', group: '作物',
+    desc: '典藏收录 20 项', hint: '进典藏大楼，把背包里的东西交上去',
+    cur: (g) => g.treasuryCount(), max: 20, rev: 2 },
+  { id: 'a08', name: '典藏渐丰', emoji: '📗', tier: 'silver', group: '作物',
+    desc: '典藏收录 100 项', hint: '作物、料理、大菜、杂交、海产、花、果酒都算',
+    cur: (g) => g.treasuryCount(), max: 100, rev: 2 },
+  { id: 'a09', name: '典藏大成', emoji: '📚', tier: 'legend', group: '作物',
+    desc: `典藏 ${TREASURY_TOTAL} 格全部收录`, hint: '七个展厅一格都不留空，这是最长的一条路',
+    cur: (g) => g.treasuryCount(), max: TREASURY_TOTAL, rev: 2 },
 
   // —— 财富 ——
   { id: 'a10', name: '万元户',   emoji: '💰', tier: 'bronze', group: '财富',
@@ -1034,11 +1132,14 @@ export const ACHIEVEMENTS = [
     cur: (g) => Object.keys(g.pondOwned).length, max: 10 },
 
   // —— 终极 ——
-  // —— 特殊种子（单独站在成就殿堂金星正下方的荣誉位）——
-  { id: 'a31', name: '特殊种子收藏家', emoji: '✨', tier: 'legend', group: '特殊',
-    desc: `集齐全部 ${SPECIAL_SEEDS.length} 种特殊种子`,
-    hint: '商场种子页的「✨ 特殊种子」区，樱桃 2580💰 是最后一种',
-    cur: (g) => g.unlockedSeeds.filter(id => seedById(id)?.special).length, max: SPECIAL_SEEDS.length,
+  // —— 变异猎人（单独站在成就殿堂金星正下方的荣誉位）——
+  // 这个位子原来是「特殊种子收藏家」。特殊种子概念随典藏馆一起删了，
+  // 荣誉位留给新的终极追逐：变异只能靠 0.3% 撞上，造不出来，是全场最难的一条。
+  // rev: 2 → 老的「集齐 8 种特殊种子」记录读档时收回
+  { id: 'a31', name: '变异猎人', emoji: '🧬', tier: 'legend', group: '特殊',
+    desc: `典藏馆集齐全部 ${SEEDS.length} 种变异作物`,
+    hint: `每次收获 ${(MUTANT_CHANCE * 100).toFixed(1)}% 撞上变异，撞到就交进典藏馆`,
+    cur: (g) => SEEDS.filter(s => g.treasury?.[`${s.id}:mutant`]).length, max: SEEDS.length, rev: 2,
     // 不占 6×5 的方阵，单独摆在展厅金星浮雕正下方的金毯上
     spot: { x: 0, z: -8.6 } },
 
@@ -1057,11 +1158,11 @@ export const ACHIEVEMENTS = [
 // 那属于正常波动，玩家当时确实做到过，绝不能因此把成就撤掉。
 const MONOTONIC_ACHIEVEMENTS = new Set([
   'a01', 'a03', 'a04',               // 土地解锁 / 黑土升级（a02 改成同时种满，收了就掉，是瞬时的）
-  'a05', 'a06', 'a07', 'a08', 'a09', // 作物解锁 / 图鉴收录
+  'a05', 'a06', 'a07', 'a08', 'a09', // 作物解锁 / 典藏收录（只增不减：交进去就不退）
   'a19',                             // 水利等级
   'a23', 'a24', 'a25',               // 家具持有 / 满级数
   'a26', 'a27', 'a29',               // 宠物 / 水塘装饰（买断制）
-  'a30', 'a31',                      // 园艺大师 / 特殊种子集齐
+  'a30', 'a31',                      // 园艺大师 / 变异集齐（变异也是收录数，只增不减）
 ]);
 ACHIEVEMENTS.forEach(a => { a.monotonic = MONOTONIC_ACHIEVEMENTS.has(a.id); });
 

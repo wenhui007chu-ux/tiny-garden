@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import {
   GRID, LEVELS, WET_DURATION, START_COINS,
   SEEDS, SOILS, WATER_LEVELS, seedById, seedName, decorById,
-  QUALITIES, GOLD_CHANCE, SILVER_CHANCE, WORKSHOP, keyInfo,
+  QUALITIES, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, WORKSHOP, keyInfo,
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
-  CODEX_POS, CODEX_QUALITIES, PEST, POISON,
+  TREASURY_POS, PEST, POISON,
+  TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
   DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
   pondDecorById, pondName, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
@@ -13,7 +14,7 @@ import {
   FURNITURE_MAX_LEVEL,
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, flowerName, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
-  ACHIEVEMENTS, ACHIEVEMENT_POS, CODEX_SEEDS,
+  ACHIEVEMENTS, ACHIEVEMENT_POS,
   SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
   SEAFOOD, seafoodById, seafoodName, rollSeafood,
   ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS, RANCH_IDLE_TICK,
@@ -39,7 +40,8 @@ import {
   createUpperDeck, createLadder, createHouse, createLockEdge,
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
-  createCodexBuilding, createCodexInterior, createPedestalBase, createPlaque,
+  createTreasuryBuilding, createTreasuryInterior, createTreasuryCase, createProsperityPillar,
+  createPedestalBase, createPlaque,
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
@@ -193,18 +195,18 @@ export class Game {
     this.interiorFurniture = {};
 
     // 图鉴大楼：左侧空地 + 藏在岛下的展馆
-    this.codex = {}; // 已收录：'tomato:gold' -> true
-    const codexBuilding = createCodexBuilding();
-    codexBuilding.position.set(-20, -0.51, -5);
-    codexBuilding.rotation.y = 0.7;
-    this.group.add(codexBuilding);
-    this.codexMeshes = [];
-    codexBuilding.traverse(o => { if (o.isMesh) this.codexMeshes.push(o); });
+    this.treasury = {}; // 已收录：'tomato:gold' -> true
+    const treasuryBuilding = createTreasuryBuilding();
+    treasuryBuilding.position.set(-20, -0.51, -5);
+    treasuryBuilding.rotation.y = 0.7;
+    this.group.add(treasuryBuilding);
+    this.treasuryMeshes = [];
+    treasuryBuilding.traverse(o => { if (o.isMesh) this.treasuryMeshes.push(o); });
 
-    this.codexHall = createCodexInterior();
-    this.codexHall.position.set(CODEX_POS.x, CODEX_POS.y, CODEX_POS.z);
-    this.group.add(this.codexHall);
-    this.codexPedestals = {};
+    this.treasuryHall = createTreasuryInterior();
+    this.treasuryHall.position.set(TREASURY_POS.x, TREASURY_POS.y, TREASURY_POS.z);
+    this.group.add(this.treasuryHall);
+    this.treasuryCases = {};
     // 个人图鉴：馆内贵宾区的 10 座金台
     this.displaySlots = Array.from({ length: DISPLAY_SLOTS }, () => ({ item: null, mesh: null }));
 
@@ -501,7 +503,7 @@ export class Game {
     this.addSign(petHouse, '🐾', 'petHouse');
     this.addSign(greenhouse, '🌸', 'greenhouse');
     this.addSign(achBuilding, '🏅', 'achievement');
-    this.addSign(codexBuilding, '📖', 'codex');
+    this.addSign(treasuryBuilding, '🏛️', 'treasury');
     this.addSign(aquariumBuilding, '🐠', 'aquarium');
     this.addSign(sorter, '⚙️', 'sorter');
     this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
@@ -786,15 +788,21 @@ export class Game {
   rollQuality(lucky = false) {
     const m = lucky ? 2 : 1;
     const r = Math.random();
-    return r < GOLD_CHANCE * m ? 'gold'
-      : r < (GOLD_CHANCE + SILVER_CHANCE) * m ? 'silver' : null;
+    // 变异排在最前面单独掷：它不吃幸运药剂的加倍。
+    // 药剂能把金银翻倍是「花钱买概率」，变异要是也能买就不叫变异了——
+    // 这也是「造不出来、只能撞上」这条设定的最后一道门
+    if (r < MUTANT_CHANCE) return 'mutant';
+    return r < MUTANT_CHANCE + GOLD_CHANCE * m ? 'gold'
+      : r < MUTANT_CHANCE + (GOLD_CHANCE + SILVER_CHANCE) * m ? 'silver' : null;
   }
 
   /* ---------- 快捷操作 ---------- */
 
-  // 图鉴还没收录的：不替玩家做主，只在背包里标出来供参考
+  // 典藏馆还缺这一格的：不替玩家做主，只在背包里标出来供参考。
+  // 必须走 treasurySlotOf——背包 key 未必就是展位 key（酒的尾巴上挂着窖藏天数）
   worthKeeping(key) {
-    return this.codexKeys().includes(key) && !this.codex[key];
+    const slot = treasurySlotOf(key);
+    return !!slot && !this.treasury[slot];
   }
 
   // 卖出指定的这些 key（玩家在背包里勾选好的），不传就是全卖
@@ -1077,87 +1085,162 @@ export class Game {
 
   /* ---------- 图鉴大楼 ---------- */
 
-  codexKeys() {
-    // 42 个展位：最初 14 种基础作物 × 3 品质（bonus 作物不占展位，展馆布局也就不用动）
-    const keys = [];
-    CODEX_SEEDS.forEach(s => CODEX_QUALITIES.forEach(q => keys.push(q ? `${s.id}:${q}` : s.id)));
-    return keys;
+  treasuryCount() { return Object.keys(this.treasury).length; }
+
+  // 当前正在展出的分类（面板切页时由 UI 改，默认农作物）
+  get treasuryCat() { return this._treasuryCat ?? 'crop'; }
+  set treasuryCat(id) {
+    if (this._treasuryCat === id) return;
+    this._treasuryCat = id;
+    this.refreshTreasury(); // 换厅：把上一类的展柜全撤掉，摆这一类的
   }
 
-  codexCount() { return Object.keys(this.codex).length; }
-
-  codexSlotPos(idx) {
-    const col = idx % 6, row = Math.floor(idx / 6);
-    return { x: (col - 2.5) * 2.5, z: (row - 3) * 2.7 - 4.4 }; // 整体靠后，给贵宾区腾地方
+  // 一个分类里第 idx 格的位置。8 列一排，最大的农作物 88 格正好 11 排。
+  // 整体靠后摆，给贵宾区（个人展台）腾出前场
+  treasurySlotPos(idx) {
+    const col = idx % 8, row = Math.floor(idx / 8);
+    return { x: (col - 3.5) * 2.4, z: (row - 5) * 2.3 - 6.5 };
   }
 
-  buildCodexPedestal(key) {
-    const old = this.codexPedestals[key];
-    if (old) this.codexHall.remove(old);
-    const idx = this.codexKeys().indexOf(key);
-    if (idx < 0) return;
-    const info = keyInfo(key);
-    const filled = !!this.codex[key];
+  // 只渲染当前分类：273 格全摆出来是上千个 mesh，帧率本来就只有 30~50
+  buildTreasuryCase(key) {
+    const old = this.treasuryCases[key];
+    if (old) { this.treasuryHall.remove(old); delete this.treasuryCases[key]; }
+    const cat = TREASURY_CATS.find(c => c.id === this.treasuryCat);
+    const idx = cat ? cat.keys().indexOf(key) : -1;
+    if (idx < 0) return; // 不属于当前展厅，不摆
+    const filled = !!this.treasury[key];
     const g = new THREE.Group();
-    g.add(createPedestalBase(filled));
-    // 说明牌：收录后写明数据，没收录只显示名字
-    const fmt = (s) => s >= 60 ? `${Math.floor(s / 60)}分${s % 60 ? `${s % 60}秒` : ''}` : `${s}秒`;
-    const qName = info.quality ? QUALITIES[info.quality].name : '普通';
-    const lines = filled
-      ? [`${info.icon} ${info.label}`, `品质：${qName}`,
-         `生长：${fmt(info.seed.growTime)} · 种子：${info.seed.cost}💰`, `售价：${info.price}💰`]
-      : [`${qName}${info.seed.name}`, '—— 未收录 ——'];
-    g.add(createPlaque(lines, !filled));
-    // 收录了就把作物摆上台
+    g.add(createTreasuryCase(filled));
+    // 收录了才摆实物；作物有现成模型，其余分类用 emoji 立牌代替
     if (filled) {
+      const model = this.treasuryExhibit(key);
+      if (model) { model.position.y = 1.12; g.add(model); }
+    }
+    const { x, z } = this.treasurySlotPos(idx);
+    g.position.set(x, 0, z);
+    this.treasuryHall.add(g);
+    this.treasuryCases[key] = g;
+  }
+
+  // 展柜里摆的东西。作物/杂交/花/酒有程序化模型，料理大菜海产用 emoji 牌
+  treasuryExhibit(key) {
+    try {
+      if (key.startsWith('w:')) {
+        const src = key.slice(2);
+        const m = createWineBottle(this.wineTint(keyInfo(src).price));
+        m.scale.setScalar(1.15);
+        return m;
+      }
+      if (key.startsWith('h:')) {
+        const m = createHybridCrop(key.slice(2));
+        m.scale.setScalar(1.15);
+        return m;
+      }
+      if (key.startsWith('f:')) {
+        const m = createFlowerMesh(key.slice(2));
+        m.scale.setScalar(0.62);
+        return m;
+      }
+      if (key.startsWith('k:') || key.startsWith('g:') || key.startsWith('s:')) {
+        // 走 treasurySlotInfo 而不是 keyInfo：大菜展位是 g:<菜id>，
+        // 真 key 尾巴上还挂着成交价，裸调 keyInfo 会抛
+        const info = treasurySlotInfo(key);
+        return createPlaque([info.icon, info.label], false);
+      }
+      // 作物本体：带品质镀层，变异会是流动虹彩
+      const info = keyInfo(key);
+      if (!info.seed) return null;
       const crop = createPlantMesh(info.seed.id, 3);
       applyPlating(crop, info.quality);
-      crop.position.y = 1.47;
-      crop.scale.setScalar(2.1);
-      g.add(crop);
-    }
-    const { x, z } = this.codexSlotPos(idx);
-    g.position.set(x, 0, z);
-    this.codexHall.add(g);
-    this.codexPedestals[key] = g;
+      crop.scale.setScalar(1.5);
+      return crop;
+    } catch { return null; }
   }
 
-  refreshCodex() {
-    this.codexKeys().forEach(key => this.buildCodexPedestal(key));
+  refreshTreasury() {
+    // 先把场上所有展柜撤干净（换厅时上一类的 key 不在新分类里，
+    // 光靠 buildTreasuryCase 的 idx<0 分支撤不掉它们）
+    Object.values(this.treasuryCases).forEach(m => this.treasuryHall.remove(m));
+    this.treasuryCases = {};
+    const cat = TREASURY_CATS.find(c => c.id === this.treasuryCat);
+    (cat ? cat.keys() : []).forEach(key => this.buildTreasuryCase(key));
+    this.refreshProsperity();
   }
 
-  donateCodex(key) {
-    // 花不在 42 格体系里（那是 14 作物 × 3 品质），收了也没有对应的展位
-    if (key.startsWith('f:')) {
-      this.onToast('🌸 图鉴收录的是 14 种作物，花可以摆到个人图鉴去');
+  // 繁荣度水晶柱：立在贵宾区拱门中间
+  refreshProsperity() {
+    if (!this.treasuryHall) return;
+    if (this._prosperityPillar) this.treasuryHall.remove(this._prosperityPillar);
+    const m = createProsperityPillar(treasuryRatio(this.treasury));
+    m.position.set(0, 0, 10.4);
+    this.treasuryHall.add(m);
+    this._prosperityPillar = m;
+  }
+
+  // 收录：交一件进典藏馆。收得下什么由 treasurySlotOf 说话，
+  // 它是白名单（认不出来的一律拒收），不会再出现「吃掉玩家东西」那种事
+  donateTreasury(key) {
+    const slot = treasurySlotOf(key);
+    if (!slot) {
+      this.onToast('🏛️ 典藏馆只收作物本体、料理、大菜、杂交、海产、花和果酒');
+      sfx.play('deny');
       return false;
     }
-    if (key.startsWith('p:') || key.startsWith('x:') || key.startsWith('k:') || key.startsWith('h:') || key === EGG.key) {
-      this.onToast('图鉴只收录新鲜的作物本体');
+    if (this.treasury[slot]) {
+      this.onToast('这一格已经收录过了');
+      sfx.play('deny');
       return false;
     }
-    // 特殊种子的收获物不占 42 格展位，只能摆到个人展台
-    if (seedById(key.split(':')[0])?.special) {
-      this.onToast('✨ 特殊种子的收获物只能摆到个人展台');
-      return false;
-    }
-    // 兜底：万一还有别的没想到的 key，宁可拒收也不能吃掉玩家的东西
-    if (this.codexKeys().indexOf(key) < 0) {
-      this.onToast('这个东西没有对应的收录台');
-      return false;
-    }
-    if (this.codex[key]) { this.onToast('这个品质的作物已经收录过啦'); return false; }
     if ((this.inventory[key] ?? 0) <= 0) return false;
     this.inventory[key] -= 1;
-    if (this.inventory[key] === 0) delete this.inventory[key];
-    this.codex[key] = true;
-    this.buildCodexPedestal(key);
+    if (this.inventory[key] <= 0) delete this.inventory[key];
+    this.treasury[slot] = true;
+    this.buildTreasuryCase(slot);
+    this.refreshProsperity();
     const info = keyInfo(key);
-    this.onToast(`📖 ${info.icon}${info.label} 收录成功！图鉴进度 ${this.codexCount()}/42`);
+    this.onToast(`🏛️ ${info.icon}${info.label} 入藏！典藏进度 ${this.treasuryCount()}/${TREASURY_TOTAL}`);
     sfx.play('codex');
     this.onState();
     this.save();
     return true;
+  }
+
+  // 老存档迁移：图鉴大楼那 42 格只是新典藏馆的一个角落。
+  // 玩了 600 多天的存档如果从 0/273 开始，等于把过去的成果一笔抹掉，
+  // 所以按「手上有实物 = 显然做出来过」把能认的都补记上。
+  // 只认得出「现在还留着的东西」——做完就卖掉的没有痕迹，补不回来，这是没办法的。
+  migrateTreasury(data) {
+    const t = {};
+    const take = (key) => { const s = treasurySlotOf(key); if (s) t[s] = true; };
+    // ① 原来的 42 格图鉴：全是作物本体，在新体系里一律有位
+    Object.keys(data.codex ?? {}).forEach(take);
+    // ② 水族馆里养着的鱼 = 抓过
+    (data.aquarium ?? []).forEach(id => { if (id) take(`s:${id}`); });
+    // ③ 背包 / 仓库 / 个人展台上还留着的东西
+    Object.keys(data.inventory ?? {}).forEach(take);
+    Object.keys(data.warehouse ?? {}).forEach(take);
+    (data.displaySlots ?? []).forEach(k => { if (typeof k === 'string') take(k); });
+    // ④ 酒窖里在陈酿的酒
+    (data.cellar ?? []).forEach(c => { if (c?.key) take(`w:${c.key}:0`); });
+    const n = Object.keys(t).length;
+    if (n) this._notices.push(
+      `🏛️ 典藏大楼落成：按你手上的藏品补记了 ${n} 格（共 ${TREASURY_TOTAL} 格）`);
+    return t;
+  }
+
+  // 背包里所有能入藏的东西 → 展位（同一格重复的只留一件）
+  treasuryDonatable() {
+    const out = [];
+    const seen = new Set();
+    for (const key of Object.keys(this.inventory)) {
+      if ((this.inventory[key] ?? 0) <= 0) continue;
+      const slot = treasurySlotOf(key);
+      if (!slot || this.treasury[slot] || seen.has(slot)) continue;
+      seen.add(slot);
+      out.push({ key, slot });
+    }
+    return out;
   }
 
   /* ---------- 料理工坊 ---------- */
@@ -1612,7 +1695,7 @@ export class Game {
       cook: mix([pct((this.cookSlots ?? []).filter(Boolean).length, COOK_SLOTS), 2],
         [pct((this.advCookSlots ?? []).filter(Boolean).length, ADV_COOK_SLOTS), 2],
         [pct(has('k:'), 10), 2], [pct(has('g:'), 5), 3]),
-      collect: mix([pct(Object.keys(this.codex ?? {}).length, 42), 3],
+      collect: mix([pct(Object.keys(this.treasury ?? {}).length, TREASURY_TOTAL), 3],
         [pct((this.aquarium ?? []).filter(Boolean).length, AQUARIUM_SLOTS), 2],
         [pct((this.displaySlots ?? []).filter(x => x.item).length, DISPLAY_SLOTS), 2],
         [pct(Object.keys(this.petsOwned ?? {}).length, PETS.length), 1],
@@ -2635,16 +2718,34 @@ export class Game {
     });
   }
 
+  // 典藏馆繁荣度带来的加成。
+  // 刻意乘在珍稀度算完之后，而不是把典藏掺进珍稀度的分母：
+  // 掺进分母的话，典藏馆刚落成、格子还空着，现有的门票和人流会当场被稀释——
+  // 那等于凭空砍掉玩家 19% 的收入。这里空馆时两个系数都是 1，只会往上加。
+  prosperity() {
+    const r = treasuryRatio(this.treasury);
+    return {
+      ratio: r,
+      ticketMult: 1 + r * TREASURY.ticketBoost,
+      rateMult: 1 + r * TREASURY.rateBoost,
+    };
+  }
+
   // 面板要的一整套数字，算一次给全，省得面板里到处调
   visitorStats() {
     const b = this.visitorBreakdown();
+    const p = this.prosperity();
+    const ticket = Math.round(visitorTicket(b.total) * p.ticketMult);
+    const rate = visitorRate(b.total) * p.rateMult;
     return {
       ...b,
       max: RARITY_MAX,
       ratio: Math.min(1, b.total / RARITY_MAX),
-      ticket: visitorTicket(b.total),
-      rate: visitorRate(b.total),
-      income: visitorIncome(b.total),
+      ticket, rate,
+      income: ticket * rate,
+      baseTicket: visitorTicket(b.total),   // 面板里要显示「繁荣度加成前/后」
+      baseRate: visitorRate(b.total),
+      prosperity: p,
       total: b.total,
       earned: this.visitorTotal,
     };
@@ -3065,7 +3166,7 @@ export class Game {
 
   buildGallerySlot(k) {
     const s = this.displaySlots[k];
-    if (s.mesh) this.codexHall.remove(s.mesh);
+    if (s.mesh) this.treasuryHall.remove(s.mesh);
     const g = new THREE.Group();
     g.add(createGalleryPedestal(!!s.item));
     if (s.item) {
@@ -3096,7 +3197,7 @@ export class Game {
     }
     const { x, z } = galleryPedestalPos(k);
     g.position.set(x, 0, z);
-    this.codexHall.add(g);
+    this.treasuryHall.add(g);
     s.mesh = g;
   }
 
@@ -3330,7 +3431,7 @@ export class Game {
     this.rebuildHouse();
     this.rebuildRoomShell();
     this.refreshInterior();
-    this.refreshCodex();
+    this.refreshTreasury();
     this.refreshGallery();
     this.refreshPondDecors();
     this.refreshHybridStations();
@@ -3550,7 +3651,9 @@ export class Game {
       poisonLeft: Math.max(0, this.poisonUntil - this.time),
       deadLeft: Math.max(0, this.deadUntil - this.time),
       bank: this.bank,
-      codex: this.codex,
+      // 新字段。老的 codex 不写了，但也不删——它会由下面 _rawSave 的展开原样留着，
+      // 万一要回滚到图鉴大楼那版代码，42 格进度还在
+      treasury: this.treasury,
       achievements: this.achievements,
     };
     // 比本机新的存档里会有这份代码不认识的字段（三台机器轮流开发时很常见：
@@ -3581,14 +3684,16 @@ export class Game {
     if (!this.unlockedSeeds.includes('sweetpot')) this.unlockedSeeds.unshift('sweetpot');
     this.inventory = data.inventory ?? {};
     this.items = data.items ?? {};
-    this.codex = data.codex ?? {};
-    // 老存档修复：以前花能捐进图鉴，可 42 格里根本没有花的展位，
-    // 结果花被扣掉、台子也不显示。把这类无效收录清掉，东西退回背包。
-    Object.keys(this.codex).forEach(k => {
-      if (this.codexKeys().includes(k)) return;
-      delete this.codex[k];
+    // 典藏馆：新存档直接读，老存档（只有 42 格 codex 的）走一次迁移
+    this.treasury = data.treasury ?? this.migrateTreasury(data);
+    // 兜底：把认不出来的展位清掉、东西退回背包。
+    // 老存档里真出现过这种脏数据——当年花能捐进图鉴，可 42 格里没有花的展位，
+    // 结果花被扣掉、台子也不显示。
+    Object.keys(this.treasury).forEach(k => {
+      if (treasuryKeys().includes(k)) return;
+      delete this.treasury[k];
       this.inventory[k] = (this.inventory[k] ?? 0) + 1;
-      this._notices.push(`↩️ ${keyInfo(k).icon}${keyInfo(k).label}没有对应的收录台，已退回背包`);
+      this._notices.push(`↩️ ${keyInfo(k).icon}${keyInfo(k).label}没有对应的展位，已退回背包`);
     });
     this.furniture = data.furniture ?? { bed: 1 };
     if (!this.furniture.bed) this.furniture.bed = 1; // 床永远都在
@@ -3716,7 +3821,8 @@ export class Game {
     this.visitorTotal = data.visitorTotal ?? 0;
     {
       const mins = Math.min(elapsed, VISITOR.offlineCap) / VISITOR.tick;
-      const got = Math.floor(visitorIncome(this.visitorBreakdown().total) * mins);
+      // 走 visitorStats 而不是裸 visitorIncome：前者带了典藏馆繁荣度加成
+      const got = Math.floor(this.visitorStats().income * mins);
       if (got > 0) {
         this.visitorTotal += got;
         this.coins += got;

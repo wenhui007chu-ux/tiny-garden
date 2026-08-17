@@ -250,69 +250,123 @@ export function decorSlotPos(k) {
 
 /* ================= 图鉴大楼 ================= */
 
-export function createCodexBuilding() {
+// 典藏大楼（原址就是拆掉的图鉴大楼）。比原来那座三角楣小庙气派一截：
+// 七根柱子对应七个展厅，屋顶换成金穹顶 + 旋转的宝箱招牌
+export function createTreasuryBuilding() {
   const g = new THREE.Group();
-  const stone = mat(0xefe6d4);
+  const stone = mat(0xf2ead8);
+  const trim = mat(0xd8cdb8);
   const gold = mat(0xf2c94c, { roughness: 0.35 });
-  // 台阶
-  [[3.9, 0.2, 0], [3.5, 0.2, 0.22], [3.1, 0.2, 0.44]].forEach(([w, h, y], k) =>
-    g.add(mesh(new THREE.BoxGeometry(w, h, 3.4 - k * 0.3), mat(0xd8cdb8), 0, y + k * 0.2, 0.3 + k * 0.15)));
+  // 三级台阶
+  [[4.4, 0], [4.0, 0.22], [3.6, 0.44]].forEach(([w, dz], k) =>
+    g.add(mesh(new THREE.BoxGeometry(w, 0.2, 3.6 - k * 0.3), trim, 0, 0.1 + k * 0.2, 0.3 + dz)));
   // 主体
-  g.add(mesh(new THREE.BoxGeometry(3.4, 2.6, 2.6), stone, 0, 1.9, -0.4));
-  // 四根立柱
-  [-1.3, -0.44, 0.44, 1.3].forEach(x => {
-    g.add(mesh(new THREE.CylinderGeometry(0.17, 0.19, 2.4, 10), stone, x, 1.85, 1.1));
-    g.add(mesh(new THREE.BoxGeometry(0.45, 0.14, 0.45), stone, x, 3.1, 1.1));
+  g.add(mesh(new THREE.BoxGeometry(3.8, 2.9, 2.8), stone, 0, 2.05, -0.4));
+  // 七根立柱（七个展厅）+ 柱头
+  [-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5].forEach(x => {
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.15, 2.6, 9), stone, x * 1.02, 1.9, 1.2));
+    g.add(mesh(new THREE.BoxGeometry(0.34, 0.12, 0.34), trim, x * 1.02, 3.26, 1.2));
   });
-  // 三角楣 + 屋檐
-  g.add(mesh(new THREE.BoxGeometry(3.9, 0.22, 3.2), mat(0xe0d5c0), 0, 3.28, 0.2));
-  const ped = mesh(new THREE.ConeGeometry(2.1, 0.9, 3), mat(0xe8dcc6), 0, 3.85, 0.2);
-  ped.rotation.y = Math.PI / 2;
-  g.add(ped);
-  // 大门
-  g.add(mesh(new THREE.BoxGeometry(1.1, 1.8, 0.1), mat(0x8a5a2b), 0, 1.5, 0.92));
-  // 屋顶金书招牌
-  const book = mesh(new THREE.BoxGeometry(0.8, 0.6, 0.16), gold, 0, 4.6, 0.2);
-  book.rotation.z = 0.15;
-  book.userData.spin = true;
-  g.add(book);
-  g.traverse(o => { if (o.isMesh) o.userData.codex = true; });
+  // 檐口
+  g.add(mesh(new THREE.BoxGeometry(4.3, 0.24, 3.4), mat(0xe4d9c4), 0, 3.46, 0.2));
+  // 金穹顶：三段渐收的圆柱 + 顶球
+  [[1.55, 0.5, 3.85], [1.15, 0.45, 4.28], [0.7, 0.4, 4.68]].forEach(([r, h, y]) =>
+    g.add(mesh(new THREE.CylinderGeometry(r * 0.78, r, h, 14), mat(0xe8dcc6), 0, y, 0.2)));
+  g.add(mesh(new THREE.SphereGeometry(0.42, 12, 10), gold, 0, 5.08, 0.2));
+  // 大门 + 门楣浮雕
+  g.add(mesh(new THREE.BoxGeometry(1.2, 2.0, 0.1), mat(0x7a4a24), 0, 1.6, 1.02));
+  g.add(mesh(new THREE.BoxGeometry(1.5, 0.16, 0.14), gold, 0, 2.72, 1.02));
+  // 屋顶旋转的金宝箱招牌
+  const chest = new THREE.Group();
+  chest.add(mesh(new THREE.BoxGeometry(0.62, 0.4, 0.44), gold, 0, 0, 0));
+  chest.add(mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.62, 10, 1, false, 0, Math.PI),
+    mat(0xffe08a, { roughness: 0.3 }), 0, 0.2, 0).rotateZ(Math.PI / 2));
+  chest.position.set(0, 5.85, 0.2);
+  chest.userData.spin = true;
+  g.add(chest);
+
+  g.traverse(o => { if (o.isMesh) o.userData.treasury = true; });
   return g;
 }
 
-// 馆内大厅（藏在岛下，进馆时镜头切过去）
-// 前区：42 台基础图鉴；后区（红毯贵宾厅）：10 台个人图鉴
-export function createCodexInterior() {
+// 馆内大厅（藏在岛下，进馆时镜头切过去）。
+// 一次只展出一个分类，所以厅只要装得下最大的那一类（农作物 88 格，8 列 × 11 行）。
+// 后区仍是红毯贵宾厅，摆 10 台个人展台。
+export function createTreasuryInterior() {
   const g = new THREE.Group();
-  const W = 17.5, D = 31;
+  const W = 21, D = 40;
   const wallMat = mat(0xf0ead9);
-  // 大理石地面 + 分隔线
+  // 大理石地面 + 纵向分隔线
   g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xdcd3c2), 0, -0.15, 0));
-  for (let k = -3; k <= 3; k++) {
-    g.add(mesh(new THREE.BoxGeometry(0.05, 0.02, D), mat(0xc4b9a4), k * 2.5, 0.01, 0));
+  for (let k = -4; k <= 4; k++) {
+    g.add(mesh(new THREE.BoxGeometry(0.05, 0.02, D), mat(0xc4b9a4), k * 2.4, 0.01, 0));
   }
-  // 后墙 + 左墙
-  g.add(mesh(new THREE.BoxGeometry(W, 5, 0.3), wallMat, 0, 2.5, -D / 2 + 0.15));
-  g.add(mesh(new THREE.BoxGeometry(0.3, 5, D), wallMat, -W / 2 + 0.15, 2.5, 0));
+  // 后墙 + 两侧墙
+  g.add(mesh(new THREE.BoxGeometry(W, 6, 0.3), wallMat, 0, 3, -D / 2 + 0.15));
+  [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 6, D), wallMat, s * (W / 2 - 0.15), 3, 0)));
   // 后墙高窗
-  [-5, 0, 5].forEach(x =>
-    g.add(mesh(new THREE.BoxGeometry(2, 1.6, 0.1),
-      mat(0xbfe3f0, { emissive: 0x89b8d4, emissiveIntensity: 0.4 }), x, 3.4, -D / 2 + 0.25)));
+  [-6.5, 0, 6.5].forEach(x =>
+    g.add(mesh(new THREE.BoxGeometry(2.2, 1.8, 0.1),
+      mat(0xbfe3f0, { emissive: 0x89b8d4, emissiveIntensity: 0.4 }), x, 4.1, -D / 2 + 0.25)));
   // 贵宾区：红毯 + 金柱拱门分界
-  g.add(mesh(new THREE.BoxGeometry(14.4, 0.06, 8.8), mat(0xa8433a), 0, 0.04, 11));
-  g.add(mesh(new THREE.BoxGeometry(13.6, 0.02, 8), mat(0xc9584a), 0, 0.08, 11));
+  g.add(mesh(new THREE.BoxGeometry(15.4, 0.06, 8.8), mat(0xa8433a), 0, 0.04, 15));
+  g.add(mesh(new THREE.BoxGeometry(14.6, 0.02, 8), mat(0xc9584a), 0, 0.08, 15));
   const gold = mat(0xf2c94c, { roughness: 0.35 });
-  [[-7], [7]].forEach(([x]) => {
-    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 3.4, 10), gold, x, 1.7, 6.4));
-    g.add(mesh(new THREE.SphereGeometry(0.3, 8, 7), gold, x, 3.6, 6.4));
+  [-7.6, 7.6].forEach(x => {
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.26, 3.6, 10), gold, x, 1.8, 10.4));
+    g.add(mesh(new THREE.SphereGeometry(0.3, 8, 7), gold, x, 3.8, 10.4));
   });
-  g.add(mesh(new THREE.BoxGeometry(14.8, 0.28, 0.5), gold, 0, 3.95, 6.4));
-  // 顶灯（两个展区各自照明）
-  [[-4, -10], [4, -10], [-4, -2], [4, -2], [0, 3], [-4, 11], [4, 11]].forEach(([x, z]) => {
-    const l = new THREE.PointLight(0xfff2d8, 0.5, 20, 1.8);
-    l.position.set(x, 4.2, z);
+  g.add(mesh(new THREE.BoxGeometry(15.8, 0.28, 0.5), gold, 0, 4.15, 10.4));
+  // 顶灯
+  [[-5, -14], [5, -14], [-5, -7], [5, -7], [-5, 0], [5, 0], [0, 6], [-5, 15], [5, 15]].forEach(([x, z]) => {
+    const l = new THREE.PointLight(0xfff2d8, 0.45, 22, 1.8);
+    l.position.set(x, 5, z);
     g.add(l);
   });
+  return g;
+}
+
+// 繁荣度水晶柱：立在贵宾区拱门中间，越满越亮越高。ratio ∈ [0,1]
+export function createProsperityPillar(ratio = 0) {
+  const g = new THREE.Group();
+  const r = Math.min(1, Math.max(0, ratio));
+  g.add(mesh(new THREE.CylinderGeometry(0.85, 1.05, 0.3, 12), mat(0xd8cdb8), 0, 0.15, 0));
+  g.add(mesh(new THREE.CylinderGeometry(0.62, 0.72, 0.24, 12),
+    mat(0xf2c94c, { roughness: 0.35 }), 0, 0.42, 0));
+  // 空柱（外壳）
+  g.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 3.4, 12),
+    mat(0xbfd4e0, { transparent: true, opacity: 0.28, roughness: 0.2 }), 0, 2.25, 0));
+  // 里面按繁荣度灌起来的光柱
+  if (r > 0.001) {
+    const h = 3.3 * r;
+    g.add(mesh(new THREE.CylinderGeometry(0.27, 0.27, h, 12),
+      mat(0xffe08a, { emissive: 0xd8a63a, emissiveIntensity: 0.85, roughness: 0.2 }),
+      0, 0.58 + h / 2, 0));
+    const l = new THREE.PointLight(0xffd9a0, 0.3 + r * 0.9, 9, 2);
+    l.position.set(0, 0.6 + h, 0);
+    g.add(l);
+  }
+  // 顶冠
+  g.add(mesh(new THREE.SphereGeometry(0.3, 10, 9),
+    mat(0xf2c94c, { roughness: 0.3, emissive: 0x8a6a1a, emissiveIntensity: 0.2 + r * 0.5 }), 0, 4.1, 0));
+  return g;
+}
+
+// 典藏展柜：比原来的说明台紧凑得多（88 格同屏，台座那套 6 个 mesh 撑不住）。
+// 空柜只有灰底座 + 半透玻璃罩，收录了才镶金、亮灯、把东西摆进去
+export function createTreasuryCase(filled) {
+  const g = new THREE.Group();
+  const stone = mat(filled ? 0xf7f2e6 : 0xa9a191);
+  g.add(mesh(new THREE.BoxGeometry(0.86, 0.12, 0.86), stone, 0, 0.06, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.56, 0.78, 0.56), stone, 0, 0.51, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), stone, 0, 0.95, 0));
+  if (filled) {
+    g.add(mesh(new THREE.BoxGeometry(0.84, 0.035, 0.84),
+      mat(0xf2c94c, { roughness: 0.35, emissive: 0x8a6a1a, emissiveIntensity: 0.25 }), 0, 1.01, 0));
+    // 玻璃罩
+    g.add(mesh(new THREE.BoxGeometry(0.66, 0.8, 0.66),
+      mat(0xcfe4ee, { transparent: true, opacity: 0.16, roughness: 0.15 }), 0, 1.42, 0));
+  }
   return g;
 }
 
@@ -3627,6 +3681,22 @@ export function createPlantMesh(seedId, stage) {
 // 稀有品质镀层：保留原色，罩一层淡金/淡银的金属光
 export function applyPlating(group, quality) {
   if (!quality) return;
+  // 变异不是单色罩：逐个 mesh 沿色环取不同色相，整株看上去像流动的虹彩，
+  // 一眼就能从一片金银里认出来
+  if (quality === 'mutant') {
+    let i = 0;
+    group.traverse(o => {
+      if (!o.isMesh) return;
+      const hue = (i++ * 0.17) % 1;
+      const tint = new THREE.Color().setHSL(hue, 0.85, 0.62);
+      o.material.color.lerp(tint, 0.72);
+      o.material.roughness = 0.18;
+      o.material.metalness = 0.35;
+      o.material.emissive = tint.clone().multiplyScalar(0.42);
+      o.material.emissiveIntensity = 1;
+    });
+    return;
+  }
   const tint = new THREE.Color(quality === 'gold' ? 0xf7cf6a : 0xc9d6e4);
   const glow = quality === 'gold' ? 0.28 : 0.16;
   const amount = quality === 'gold' ? 0.5 : 0.32; // 银色淡淡罩一层就好，别盖掉原色

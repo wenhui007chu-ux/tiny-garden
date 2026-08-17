@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, CODEX_POS, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, CODEX_SEEDS, SPECIAL_SEEDS, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -26,7 +26,7 @@ export class UI {
     this.selectedSoil = 1;   // 商场土壤页里选好目标土壤，再进升级模式
     this.selectedDecor = null;
     this.mallTab = 'items';   // 商场大楼里包揽了原来商店的全部页签
-    this.codexTab = 'donate'; // 图鉴大楼：donate 基础图鉴 / gallery 个人图鉴
+    this.codexTab = 'crop'; // 典藏大楼：七个展厅的 id，或 gallery（贵宾区个人展台）
     this.achTab = 'all';      // 成就殿堂：all 全部 / done 已达成 / todo 未达成
     this.sellMode = false;    // 一键售卖的勾选状态
     this.sellExcluded = new Set(); // 被玩家点掉、不卖的那些 key
@@ -1320,9 +1320,9 @@ export class UI {
         target: this.controls.target.clone(),
         minD: this.controls.minDistance,
       };
-      const p = CODEX_POS;
+      const p = TREASURY_POS;
       this.controls.target.set(p.x, p.y + 0.8, p.z);
-      this.camera.position.set(p.x + 11, p.y + 11, p.z + 16);
+      this.camera.position.set(p.x + 13, p.y + 14, p.z + 20);
       this.controls.minDistance = 3;
       this.controls.update();
       this.inCodex = true;
@@ -1347,62 +1347,104 @@ export class UI {
   renderCodex() {
     const body = $('#codex-body');
     const g = this.game;
+    const scrolled = body.scrollTop;
     body.innerHTML = '';
 
-    // 两个展区页签
+    // 顶部：总进度 + 繁荣度（这两个数是整馆的，跟当前看哪个厅无关）
+    const vs = g.visitorStats();
+    const pr = vs.prosperity;
+    const pct = Math.round(pr.ratio * 100);
+    body.insertAdjacentHTML('beforeend', `
+      <div id="codex-progress">🏛️ ${tp('tr.total', { n: g.treasuryCount(), max: TREASURY_TOTAL })}
+        <small>${tp('tr.prosperity', {
+          pct, ticket: pr.ticketMult.toFixed(2), rate: pr.rateMult.toFixed(2),
+        })}</small>
+        <div class="ach-bar"><i style="width:${pct}%"></i></div>
+      </div>`);
+
+    // 八个页签：七个典藏展厅 + 贵宾区个人展台
     const tabs = document.createElement('div');
     tabs.id = 'codex-tabs';
-    [['donate', '📖 基础图鉴'], ['gallery', '🏆 个人图鉴']].forEach(([id, label]) => {
+    const tabDefs = TREASURY_CATS.map(c => {
+      const keys = c.keys();
+      const got = keys.filter(k => g.treasury[k]).length;
+      return [c.id, `${c.emoji}${got}/${keys.length}`];
+    });
+    // 用数组长度而不是 meshes.js 的 DISPLAY_SLOTS：数值一样，
+    // 而 ui.js 至今没有依赖 meshes.js，不值得为一个常量新拉一条
+    tabDefs.push(['gallery', `🏆${g.displaySlots.filter(s => s.item).length}/${g.displaySlots.length}`]);
+    tabDefs.forEach(([id, label]) => {
       const tab = document.createElement('button');
       tab.className = 'shop-tab' + (this.codexTab === id ? ' active' : '');
       tab.textContent = label;
-      tab.addEventListener('click', () => { this.codexTab = id; this.codexChoosing = null; this.renderCodex(); });
+      tab.addEventListener('click', () => {
+        this.codexTab = id;
+        this.codexChoosing = null;
+        // 3D 展厅跟着页签换，只渲染当前这一类（273 格全摆出来帧率撑不住）
+        if (id !== 'gallery') this.game.treasuryCat = id;
+        this.renderCodex();
+        $('#codex-body').scrollTop = 0;
+      });
       tabs.appendChild(tab);
     });
     body.appendChild(tabs);
 
-    if (this.codexTab === 'donate') this.renderCodexDonate(body);
-    else this.renderCodexGallery(body);
+    if (this.codexTab === 'gallery') this.renderCodexGallery(body);
+    else this.renderTreasuryCat(body, this.codexTab);
+    body.scrollTop = scrolled; // 定时重绘别把滚动位置弹回顶部
   }
 
-  // 基础图鉴：42 台收录
-  renderCodexDonate(body) {
+  // 一个典藏展厅：先列背包里能交的，再铺一张全格总览
+  renderTreasuryCat(body, catId) {
     const g = this.game;
-    body.insertAdjacentHTML('beforeend',
-      `<div id="codex-progress">📖 收录进度 ${g.codexCount()} / 42</div>`);
-    // 只列 42 格体系里真正有展位的东西，花/罐头/料理/杂交果都不在其中
-    const donatable = Object.entries(g.inventory)
-      .filter(([k, n]) => n > 0 && g.codexKeys().includes(k));
-    if (!donatable.length) {
+    const cat = TREASURY_CATS.find(c => c.id === catId) ?? TREASURY_CATS[0];
+    const keys = cat.keys();
+
+    // ① 背包里属于这一厅、且还缺的
+    const ready = g.treasuryDonatable().filter(({ slot }) => keys.includes(slot));
+    if (ready.length) {
       body.insertAdjacentHTML('beforeend',
-        '<div class="bag-empty">背包里没有可收录的作物<br>去地里收点新鲜的来 🌱</div>');
-      return;
+        `<div class="ach-group">${tp('tr.canDonate', { n: ready.length })}</div>`);
+      ready.forEach(({ key, slot }) => {
+        const info = keyInfo(key);
+        const el = document.createElement('div');
+        el.className = 'ws-slot' + (info.quality ? ` quality-${info.quality}` : '');
+        el.innerHTML = `<div class="icon">${info.icon}</div>
+          <div class="info"><b>${info.label} ×${g.inventory[key]}</b>
+          <p>${tp('tr.worth', { p: info.price.toLocaleString() })}</p></div>`;
+        const btn = document.createElement('button');
+        btn.textContent = `🏛️ ${t('tr.donate')}`;
+        btn.addEventListener('click', () => { g.donateTreasury(key); this.renderCodex(); });
+        el.appendChild(btn);
+        body.appendChild(el);
+      });
+    } else {
+      body.insertAdjacentHTML('beforeend',
+        `<div class="bag-empty">${t('tr.nothingToDonate')}</div>`);
     }
-    donatable.sort(([a], [b]) => {
-      const ia = keyInfo(a), ib = keyInfo(b);
-      const rank = { undefined: 0, silver: 1, gold: 2 };
-      return SEEDS.indexOf(ia.seed) - SEEDS.indexOf(ib.seed) || rank[ia.quality] - rank[ib.quality];
+
+    // ② 全格总览：收录的亮着，没收录的留灰格
+    body.insertAdjacentHTML('beforeend',
+      `<div class="ach-group">${cat.emoji} ${tp('tr.shelf', {
+        name: t(`tr.cat.${cat.id}`), got: keys.filter(k => g.treasury[k]).length, max: keys.length,
+      })}</div>`);
+    const grid = document.createElement('div');
+    grid.id = 'tr-grid';
+    keys.forEach(slot => {
+      const got = !!g.treasury[slot];
+      // 必须走 treasurySlotInfo：展位是「切掉尾巴」的短 key，
+      // 裸调 keyInfo 的话大菜（g:<id>，真 key 还带成交价）会直接抛
+      const info = treasurySlotInfo(slot);
+      const cell = document.createElement('div');
+      cell.className = 'tr-cell' + (got ? ' got' : '');
+      if (info?.quality) cell.className += ` quality-${info.quality}`;
+      cell.innerHTML = got
+        ? `<b>${info?.icon ?? '❔'}</b><span>${info?.label ?? slot}</span>`
+        : `<b>🔒</b><span>${info?.label ?? slot}</span>`;
+      cell.title = got ? `${info?.label} · ${info?.price?.toLocaleString()}💰` : t('tr.locked');
+      grid.appendChild(cell);
     });
-    donatable.forEach(([key, n]) => {
-      const info = keyInfo(key);
-      const done = !!g.codex[key];
-      const el = document.createElement('div');
-      el.className = 'ws-slot' + (info.quality ? ` quality-${info.quality}` : '');
-      el.innerHTML = `<div class="icon">${info.icon}</div>
-        <div class="info"><b>${info.label} ×${n}</b><p>${done ? '✓ 已收录过' : `售价 ${info.price}💰 · 尚未收录`}</p></div>`;
-      const btn = document.createElement('button');
-      if (done) {
-        btn.textContent = '已收录';
-        btn.className = 'owned';
-        btn.disabled = true;
-        btn.style.cssText = 'border-color:#b8b8b8;background:#f3f3f3;color:#888;cursor:default;';
-      } else {
-        btn.textContent = '收录';
-        btn.addEventListener('click', () => { g.donateCodex(key); this.renderCodex(); });
-      }
-      el.appendChild(btn);
-      body.appendChild(el);
-    });
+    body.appendChild(grid);
   }
 
   // 个人图鉴：贵宾区 10 座金台，随摆随收
@@ -3030,11 +3072,10 @@ export class UI {
           owned ? null : () => { g.unlockSeed(s.id); this.renderMall(); },
           owned ? 'owned' : '');
       };
-      body.insertAdjacentHTML('beforeend', `<div class="ach-group">${tp('mall.seedBase', { n: CODEX_SEEDS.length })}</div>`);
-      CODEX_SEEDS.forEach(seedRow);
-      body.insertAdjacentHTML('beforeend', `<div class="ach-group">${tp('mall.seedSpecial', { n: SPECIAL_SEEDS.length })}</div>`);
-      body.insertAdjacentHTML('beforeend', `<p class="shop-note">${t('mall.seedSpecialNote')}</p>`);
-      SPECIAL_SEEDS.forEach(seedRow);
+      // 原来分「基础 14 种 / ✨特殊 8 种」两区。特殊种子概念随典藏馆一起删了，
+      // 所有作物一律平等、都能入藏，所以并成一条按解锁价排好的清单
+      body.insertAdjacentHTML('beforeend', `<div class="ach-group">${tp('mall.seedBase', { n: SEEDS.length })}</div>`);
+      SEEDS.forEach(seedRow);
     }
 
     if (this.mallTab === 'soil') {
@@ -3404,7 +3445,7 @@ export class UI {
       } },
       { icon: '🥕', k: 'crops', v: {
         table: `<table class="wtable"><tr><th>${th('crop')}</th><th>${th('seed')}</th><th>${th('sell')}</th><th>${th('grow')}</th><th>${th('unlock')}</th></tr>
-          ${SEEDS.map(s => `<tr><td>${s.emoji}${seedName(s)}${s.special ? ' ✨' : ''}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || dft}</td></tr>`).join('')}</table>`,
+          ${SEEDS.map(s => `<tr><td>${s.emoji}${seedName(s)}</td><td>${s.cost}</td><td>${s.sell}</td><td>${fmtTime(s.growTime)}</td><td>${s.unlock || dft}</td></tr>`).join('')}</table>`,
       } },
       { icon: '\ud83d\udc04', k: 'ranch', v: {
         n: ANIMALS.length, pens: RANCH_GRID * RANCH_GRID, tick: '1',
@@ -3418,11 +3459,7 @@ export class UI {
           ${CUTS.map(c => `<tr><td>${c.emoji}${cutName(c)}</td><td>\u00d7${c.share}</td><td>${cutPrice('cow', c.id).toLocaleString()}</td></tr>`).join('')}
           <tr><td><b>${th('total')}</b></td><td><b>\u00d7${BUTCHER.mult}</b></td><td><b>${CUTS.reduce((s, c) => s + cutPrice('cow', c.id), 0).toLocaleString()}</b></td></tr></table>`,
       } },
-      { icon: '✨', k: 'special', v: {
-        n: SPECIAL_SEEDS.length, base: CODEX_SEEDS.length,
-        list: SPECIAL_SEEDS.map(s => s.emoji + seedName(s)).join('、'),
-      } },
-      { icon: '✨', k: 'quality', v: { gold: pct(GOLD_CHANCE), silver: pct(SILVER_CHANCE) } },
+      { icon: '✨', k: 'quality', v: { gold: pct(GOLD_CHANCE), silver: pct(SILVER_CHANCE), mutant: pct(MUTANT_CHANCE) } },
       { icon: '⏰', k: 'time', v: {
         dayMin: DAY_CYCLE / 60, night: NIGHT_SLOW,
         sun: pct(1 - DROUGHT.chance - RAIN.chance), rain: pct(RAIN.chance), drought: pct(DROUGHT.chance),
@@ -3470,7 +3507,12 @@ export class UI {
       { icon: '🏦', k: 'bank', v: {
         gain: pct(BANK.gainChance), lose: pct(1 - BANK.gainChance), min: BANK.magMin, max: BANK.magMax,
       } },
-      { icon: '📖', k: 'codex', v: { base: CODEX_SEEDS.length, slots: CODEX_SEEDS.length * 3 } },
+      { icon: '🏛️', k: 'treasury', v: {
+        total: TREASURY_TOTAL,
+        table: `<table class="wtable"><tr><th>${th('hall')}</th><th>${th('slots')}</th></tr>`
+          + TREASURY_CATS.map(c => `<tr><td>${c.emoji}${t('tr.cat.' + c.id)}</td><td>${c.keys().length}</td></tr>`).join('')
+          + `</table>`,
+      } },
       { icon: '🏠', k: 'house', v: {
         n: FURNITURE.length, max: FURNITURE_MAX_LEVEL,
         parts: Object.keys(HOUSE_SKINS).length, styles: Object.values(HOUSE_SKINS)[0].options.length,
