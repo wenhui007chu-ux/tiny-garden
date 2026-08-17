@@ -125,7 +125,7 @@ export class UI {
     // 中毒/死亡状态显示
     $('#poison-use').addEventListener('click', () => {
       if ((this.game.items.antidote ?? 0) > 0) this.game.useItem('antidote');
-      else this.toast('没有解毒剂！去商场买（20💰）');
+      else this.toast(tp('t.noAntidote', { cost: itemById('antidote')?.cost ?? 20 }));
     });
     setInterval(() => this.updateHealth(), 250);
     // 工具栏保存布局按钮
@@ -142,7 +142,7 @@ export class UI {
       if (wasHidden) { menu.classList.remove('hidden'); this.renderSettingsMenu(); }
     });
     music.onTrack = (name) => {
-      this.toast(`🎵 正在播放《${name}》`);
+      this.toast(tp('t.nowPlaying', { name }));
       if (!$('#music-menu').classList.contains('hidden')) this.renderMusicMenu();
     };
     // 选曲弹窗
@@ -207,11 +207,11 @@ export class UI {
     $('#settings-menu').classList.add('hidden');
     if (tool === 'plant') this.renderSeedPicker();
     const tips = {
-      soil: `点击地块升级为${SOILS[this.selectedSoil].name}（每格 ${SOILS[this.selectedSoil].cost}💰）`,
-      decor: '点击盒子四周的装饰台摆放',
-      water: this.game.waterLevel === 2 ? '自动灌溉包生长，浇水专门找🦐卵' : '点击土地浇水',
-      spray: `点作物打药：${PESTICIDE.cost}💰 一株，卖价 +${PESTICIDE.bonus}💰，但有 ${Math.round(PESTICIDE.ruinChance * 100)}% 概率卖不出去`,
-      shovel: '点击作物或装饰铲除',
+      soil: tp('hint.soil', { name: tf(`soil.name.${this.selectedSoil}`, SOILS[this.selectedSoil].name), cost: SOILS[this.selectedSoil].cost }),
+      decor: t('hint.decor'),
+      water: this.game.waterLevel === 2 ? t('hint.autoWater') : t('hint.water'),
+      spray: tp('hint.spray', { cost: PESTICIDE.cost, bonus: PESTICIDE.bonus, pct: Math.round(PESTICIDE.ruinChance * 100) }),
+      shovel: t('hint.shovel'),
     };
     if (tips[tool]) this.toast(tips[tool]);
     sfx.play('tap');
@@ -239,7 +239,7 @@ export class UI {
     $('#sell-bar')?.remove(); // 每次重画都先撤掉旧的确认栏，否则会一条条堆起来
     const entries = Object.entries(g.inventory).filter(([, n]) => n > 0);
     if (!entries.length) {
-      body.innerHTML = '<div class="bag-empty">背包空空如也<br>去收获点作物吧 🌱</div>';
+      body.innerHTML = `<div class="bag-empty">${t('bag.empty')}</div>`;
       this.exitSellMode();
       return;
     }
@@ -273,17 +273,17 @@ export class UI {
       }
 
       el.insertAdjacentHTML('beforeend', `<div class="icon">${info.icon}</div>
-        <div class="info"><b>${info.label} ×${n}${keep ? '<i class="keep-tag">📖 图鉴未收录</i>' : ''}</b>
-          <p>单价 ${info.price}💰 · 共 ${info.price * n}💰</p></div>`);
+        <div class="info"><b>${info.label} ×${n}${keep ? `<i class="keep-tag">${t('bag.keepTag')}</i>` : ''}</b>
+          <p>${tp('bag.unit', { price: info.price, total: info.price * n })}</p></div>`);
 
       // 非售卖模式才给单卖按钮，免得点勾和点卖混在一起
       if (!this.sellMode) {
         const sellOne = document.createElement('button');
-        sellOne.textContent = '卖1个';
+        sellOne.textContent = t('bag.sellOne');
         sellOne.addEventListener('click', () => { g.sellCrop(key, 1); this.renderBag(); });
         const sellAll = document.createElement('button');
         sellAll.className = 'sell-all';
-        sellAll.textContent = '全卖';
+        sellAll.textContent = t('bag.sellAll');
         sellAll.addEventListener('click', () => { g.sellCrop(key, n); this.renderBag(); });
         el.append(sellOne, sellAll);
       }
@@ -299,7 +299,7 @@ export class UI {
   openSellMode() {
     const g = this.game;
     if (!Object.keys(g.inventory).some(k => g.inventory[k] > 0)) {
-      this.toast('背包里没有东西可以卖');
+      this.toast(t('t.nothingToSell'));
       return;
     }
     this.closePanels();
@@ -323,10 +323,10 @@ export class UI {
     const total = picked.reduce((s, [key, n]) => s + keyInfo(key).price * n, 0);
     const bar = document.createElement('div');
     bar.id = 'sell-bar';
-    bar.innerHTML = `<small>点条目上的 ✅ 可以取消，取消的会留在背包</small>`;
+    bar.innerHTML = `<small>${t('sell.tip')}</small>`;
     const btn = document.createElement('button');
     btn.disabled = !picked.length;
-    btn.textContent = picked.length ? `💰 卖出 ${count} 件 · ${total}💰` : '一件都没选';
+    btn.textContent = picked.length ? tp('sell.confirm', { count, total }) : t('sell.none');
     btn.addEventListener('click', () => {
       g.sellKeys(picked.map(([key]) => key));
       this.exitSellMode();
@@ -334,7 +334,7 @@ export class UI {
     });
     const cancel = document.createElement('button');
     cancel.className = 'ghost';
-    cancel.textContent = '取消';
+    cancel.textContent = t('ui.cancel');
     cancel.addEventListener('click', () => { this.exitSellMode(); this.renderBag(); sfx.play('close'); });
     bar.append(btn, cancel);
     $('#bag').appendChild(bar);
@@ -1295,7 +1295,7 @@ export class UI {
     el.innerHTML = `
       <div class="ach-banner-icon">${a.emoji}</div>
       <div>
-        <div class="ach-banner-top">🏅 成就达成 · ${tier.name}</div>
+        <div class="ach-banner-top">${tp('ach.banner', { tier: tier.name })}</div>
         <div class="ach-banner-name">${a.name}</div>
         <div class="ach-banner-desc">${a.desc}</div>
       </div>`;
@@ -3236,26 +3236,26 @@ export class UI {
     };
 
     if (view === 'main') {
-      addBtn('🧺 一键收取 <small>所有成熟作物收进背包 · 快捷键 H</small>', () => {
+      addBtn(t('quick.harvest'), () => {
         g.harvestAll();
         menu.classList.add('hidden');
       });
-      addBtn('💰 一键售卖 <small>跳到背包勾选，不想卖的点掉再确认 · 快捷键 S</small>', () => {
+      addBtn(t('quick.sell'), () => {
         this.openSellMode();
         menu.classList.add('hidden');
       });
-      addBtn('📊 评估发展 <small>十项评级 + 两条针对你的建议</small>', () => {
+      addBtn(t('quick.review'), () => {
         this.openReview();
         menu.classList.add('hidden');
       });
-      addBtn('🌱 一键播种 <small>从保存过的布局中选一个 · 快捷键 R</small>', () => {
+      addBtn(t('quick.plant'), () => {
         this.openQuickMenu('layouts');
       });
-      addBtn(`💦 一键浇水 <small>全场灌满 · ${QUICK_WATER_COST}💰 · 快捷键 W</small>`, () => {
+      addBtn(tp('quick.water', { cost: QUICK_WATER_COST }), () => {
         g.waterAll();
         menu.classList.add('hidden');
       });
-      addBtn('📖 游戏百科 <small>所有玩法规则都在这里</small>', () => {
+      addBtn(t('quick.wiki'), () => {
         this.openWiki();
       });
       return;
@@ -3265,7 +3265,7 @@ export class UI {
     if (!g.savedLayouts.length) {
       const p = document.createElement('div');
       p.style.cssText = 'padding:8px 12px;color:#a1834f;font-size:13px;line-height:1.8;text-align:center;';
-      p.innerHTML = '还没有保存过布局<br>种好一茬后点「💾 保存当前布局」';
+      p.innerHTML = t('quick.noLayout');
       menu.appendChild(p);
     }
     g.savedLayouts.forEach((entry, i) => {
@@ -3279,7 +3279,7 @@ export class UI {
       });
       const summary = Object.entries(counts).map(([id, n]) => `${seedById(id).emoji}×${n}`).join(' ');
       const b = addBtn(
-        `🌱 ${entry.name} <small>${summary} · 成本 ${cost}💰</small>`,
+        `🌱 ${entry.name} <small>${summary} · ${tp('quick.layoutCost', { cost })}</small>`,
         () => { g.sowLayout(i); menu.classList.add('hidden'); });
       const del = document.createElement('span');
       del.textContent = '✕';
@@ -3303,7 +3303,7 @@ export class UI {
       // 挂机 = 整个世界暂停，音乐没道理还在放
       music.stop();
     } else {
-      this.toast('☀️ 解冻！世界继续转动');
+      this.toast(t('t.thaw'));
       sfx.play('resume');
       if (music.enabled) music.start();
       this.refresh();
@@ -3571,11 +3571,11 @@ export class UI {
     if (poisoned) {
       $('#poison-timer').textContent = g.poisonLeft();
       const n = g.items.antidote ?? 0;
-      $('#poison-use').textContent = n > 0 ? `💉 立刻解毒（${n}）` : '💉 没有解毒剂！';
+      $('#poison-use').textContent = n > 0 ? tp('health.cure', { n }) : t('health.noCure');
     }
     $('#dead-overlay').classList.toggle('hidden', !dead);
     if (dead) {
-      $('#dead-timer').textContent = `复活倒计时 ${g.reviveLeft()} 秒`;
+      $('#dead-timer').textContent = tp('health.revive', { n: g.reviveLeft() });
       this.closePanels(); // 死了就把面板全关掉
     }
   }

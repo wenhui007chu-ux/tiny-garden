@@ -58,6 +58,32 @@ import { t, tf, tp } from './i18n.js';
 
 export const SAVE_KEY = 'farming-mini-game-save-v1';
 
+// ===== 存档版本 =====
+// 以前只有 key 名带 v1，存档体里没有版本号，全靠 load() 里几十个 `??` 兜底。
+// 字段少的时候还行，现在一次能加七八个（towerLevel / trainer / harborSold …），
+// 再不上版本号就迁不动了。
+//
+// v1 = 加版本号之前的所有存档（没有 v 字段，靠 `data.v ?? 1` 认出来）
+// v2 = 2026-08-17，引入版本号本身；结构没变，只是打戳
+export const SAVE_VERSION = 2;
+
+// 迁移函数表：键是「升到哪一版」，值是把上一版的 data 改成这一版的形状。
+// 以后改存档结构，就在这里加一格，别再往 load() 里塞新的 `??`。
+const SAVE_MIGRATIONS = {
+  2: (d) => d,   // 1 → 2：只打版本戳，字段一个没动
+};
+
+function migrateSave(data) {
+  let v = data.v ?? 1;
+  while (v < SAVE_VERSION) {
+    v += 1;
+    const step = SAVE_MIGRATIONS[v];
+    if (step) data = step(data) ?? data;
+  }
+  data.v = Math.max(v, data.v ?? 1);
+  return data;
+}
+
 const stageOf = (plant, seed) => {
   const p = plant.progress / seed.growTime;
   return p >= 1 ? 3 : p >= 0.66 ? 2 : p >= 0.33 ? 1 : 0;
@@ -3332,6 +3358,7 @@ export class Game {
 
   save() {
     const data = {
+      v: SAVE_VERSION,
       coins: this.coins,
       waterLevel: this.waterLevel,
       unlockedSeeds: this.unlockedSeeds,
@@ -3402,7 +3429,11 @@ export class Game {
       codex: this.codex,
       achievements: this.achievements,
     };
-    const json = JSON.stringify(data);
+    // 比本机新的存档里会有这份代码不认识的字段（三台机器轮流开发时很常见：
+    // 另一台加了繁荣塔/港湾，这台还没 pull）。原样带回去，否则老代码存一次
+    // 就把新系统的进度整个抹掉——而且没有任何报错，等发现时已经晚了。
+    // 已知字段一律以本次 data 为准，只有不认识的才从 _rawSave 里保留。
+    const json = JSON.stringify({ ...this._rawSave, ...data });
     localStorage.setItem(SAVE_KEY, json);
     // 同步落盘备份（开发服务器提供 /__save；失败也不影响游戏）
     fetch('/__save', { method: 'POST', body: json }).catch(() => {});
@@ -3412,6 +3443,13 @@ export class Game {
     let data;
     try { data = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { /* 存档损坏则重新开始 */ }
     if (!data) return;
+    // 原始存档留一份：save() 时把本版本不认识的字段原样写回去，别弄丢别人的进度
+    this._rawSave = data;
+    if ((data.v ?? 1) > SAVE_VERSION) {
+      this._notices.push(`⚠️ 这份存档来自更新的版本（v${data.v}，本机 v${SAVE_VERSION}）。`
+        + '本机不认识的内容会原样保留但显示不出来，建议先 git pull 再玩。');
+    }
+    data = migrateSave(data);
     this.coins = data.coins ?? START_COINS;
     this.waterLevel = data.waterLevel ?? 0;
     this.unlockedSeeds = data.unlockedSeeds ?? ['sweetpot', 'radish'];
