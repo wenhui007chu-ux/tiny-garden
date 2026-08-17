@@ -59,6 +59,15 @@ export function createToyBox() {
 
 /* ================= 二层农田的平台 ================= */
 
+// 梯子的安放参数。平台的矮墙要在同一处开豁口，所以两个函数共用这一组常量，
+// 别在各自函数里各写一份——改了一边忘了另一边，梯子就又从栏杆里穿出去了。
+const LADDER_Z = -5.4;        // 梯子沿平台右边缘停在这个 z
+const LADDER_GAP = 1.5;       // 右侧矮墙给梯子留的豁口宽度
+const LADDER_LEAN = 0.26;     // 倚靠倾角，约 15°
+const LADDER_H = 5.3;         // 梯长：够到台面之后还高出一截，跟真梯子一样
+const LADDER_BASE_X = 4.87;   // 底端落点，正好让梯身贴着平台外沿而不是插进去
+const LADDER_BASE_Y = -0.51;  // 草地高度
+
 export function createUpperDeck() {
   const g = new THREE.Group();
   const size = GRID + 1.2, wallH = 0.55, wallT = 0.35;
@@ -67,13 +76,18 @@ export function createUpperDeck() {
 
   // 平台底板
   g.add(mesh(new THREE.BoxGeometry(size, 0.5, size), mat(0xb2854f), 0, -0.25, 0));
-  // 四周矮墙
+  // 三面矮墙照常
   const gx = new THREE.BoxGeometry(size, wallH, wallT);
   const gz = new THREE.BoxGeometry(wallT, wallH, size);
   g.add(mesh(gx, woodMat, 0, wallH / 2, -out));
   g.add(mesh(gx, woodMat, 0, wallH / 2, out));
   g.add(mesh(gz, woodMat, -out, wallH / 2, 0));
-  g.add(mesh(gz, woodMat, out, wallH / 2, 0));
+  // 右侧矮墙拆成两段，中间留个豁口给梯子——原来四面封死，梯子顶端只能从墙里穿出来
+  const gapC = LADDER_Z - UPPER_Z;                       // 豁口中心（本地 z）
+  [[-size / 2, gapC - LADDER_GAP / 2], [gapC + LADDER_GAP / 2, size / 2]].forEach(([z0, z1]) => {
+    if (z1 - z0 <= 0.01) return;
+    g.add(mesh(new THREE.BoxGeometry(wallT, wallH, z1 - z0), woodMat, out, wallH / 2, (z0 + z1) / 2));
+  });
   // 后方两根支柱撑住悬空的一边
   [-2.6, 2.6].forEach(x => g.add(mesh(
     new THREE.BoxGeometry(0.5, UPPER_Y, 0.5), mat(0x9a6a4a), x, -UPPER_Y / 2 - 0.3, -size / 2 + 0.4)));
@@ -87,18 +101,22 @@ export function createUpperDeck() {
 export function createLadder() {
   const g = new THREE.Group();
   const woodMat = mat(0x8a5a2b);
-  const H = 5;   // 先在本地坐标里立直：底端在原点，顶端在 y=H
-  // 两根扶手
-  [-0.42, 0.42].forEach(x =>
-    g.add(mesh(new THREE.BoxGeometry(0.13, H, 0.13), woodMat, x, H / 2, 0)));
+  const H = LADDER_H;   // 先在本地坐标里立直：底端在原点，顶端在 y=H
+  // 两根扶手沿 z 分开，于是「攀爬面」朝向 ±X。
+  // 这一点必须和倾斜轴对上：梯子是绕 z 轴倾斜（在 XZ 里朝 -x 倒向平台），
+  // 横档就得垂直于那个倾斜平面。原来扶手沿 x 分开、横档也沿 x，
+  // 一倾斜横档跟着歪，看上去是人得侧着身子爬。
+  [-0.42, 0.42].forEach(z =>
+    g.add(mesh(new THREE.BoxGeometry(0.13, H, 0.13), woodMat, 0, H / 2, z)));
   // 横档：等间距爬满两根扶手之间
-  const rungs = 7, step = (H - 0.7) / (rungs - 1);
+  const rungs = 8, step = (H - 0.7) / (rungs - 1);
   for (let k = 0; k < rungs; k++) {
-    g.add(mesh(new THREE.BoxGeometry(0.96, 0.1, 0.15), woodMat, 0, 0.45 + k * step, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.15, 0.1, 0.96), woodMat, 0, 0.45 + k * step, 0));
   }
-  // 整体靠在二层平台右侧边缘：底端落在草地上，顶端刚好够到台面
-  g.position.set(4.6, -0.51, -5.4);
-  g.rotation.z = 0.22;
+  // 倚在平台右侧「外沿」上：整根梯身都在 x>3.6 的外侧，只有顶端 0.4 探过台面，
+  // 正对矮墙那个豁口。原来底端太靠里，梯身在半空就钻进底板里去了。
+  g.position.set(LADDER_BASE_X, LADDER_BASE_Y, LADDER_Z);
+  g.rotation.z = LADDER_LEAN;
   return g;
 }
 
