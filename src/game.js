@@ -18,6 +18,7 @@ import {
   SEAFOOD, seafoodById, seafoodName, rollSeafood,
   ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS, RANCH_IDLE_TICK,
   BUTCHER, CUTS, cutPrice, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
+  VISITOR, rarityBreakdown, RARITY_MAX, visitorTicket, visitorRate, visitorIncome,
   BLACK_MARKET, blackMarketMood, blackMoodOf,
   weatherOfDay, OBSERVATORY, WEATHER_INFO,
   WAREHOUSE, warehouseCap,
@@ -42,7 +43,7 @@ import {
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
-  createAnimalMesh, createRanchPen, createRanchGround, ranchPos, createButcher,
+  createAnimalMesh, createRanchPen, createRanchGround, ranchPos, createButcher, createVisitor,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
@@ -339,6 +340,13 @@ export class Game {
     this.ranchPens = Array(RANCH_GRID * RANCH_GRID).fill(null); // 每栏：null 或 { id, readyAt }
     this.ranchAnimalMeshes = {};   // 栏位序号 -> 动物模型
     this.ranchTimer = 0;           // 挂机收益的计时器
+
+    // 参观客：小人挂在自己的 Group 下，方便整批显隐/清理
+    this.visitorGroup = new THREE.Group();
+    this.group.add(this.visitorGroup);
+    this.visitors = [];            // 正在岛上走动的小人
+    this.visitorTimer = 0;         // 结算计时器
+    this.visitorTotal = 0;         // 累计门票收入，面板上显示
     for (let j = 0; j < RANCH_GRID; j++) {
       for (let i = 0; i < RANCH_GRID; i++) {
         const pen = createRanchPen();
@@ -2615,6 +2623,96 @@ export class Game {
     this.ranchAnimalMeshes[i] = m;
   }
 
+  /* ---------- 参观客 ---------- */
+
+  // 三处装饰的珍稀度。取的是「已投入的金币」，所以以后加家具加鱼会自动跟着算
+  visitorBreakdown() {
+    return rarityBreakdown({
+      furniture: this.furniture,
+      petDecors: this.petDecorsOwned,
+      pets: this.petsOwned,
+      aquarium: this.aquarium,
+    });
+  }
+
+  // 面板要的一整套数字，算一次给全，省得面板里到处调
+  visitorStats() {
+    const b = this.visitorBreakdown();
+    return {
+      ...b,
+      max: RARITY_MAX,
+      ratio: Math.min(1, b.total / RARITY_MAX),
+      ticket: visitorTicket(b.total),
+      rate: visitorRate(b.total),
+      income: visitorIncome(b.total),
+      total: b.total,
+      earned: this.visitorTotal,
+    };
+  }
+
+  // 参观路线：从岛的东南角上岸 → 小屋 → 宠物间 → 水族馆 → 往西边离岛。
+  // 三处的坐标跟建筑摆放写死在一起，改建筑位置时记得一起改
+  visitorRoute() {
+    return [
+      { x: 20, z: 15 },            // 上岸
+      { x: 10, z: 6.4, stop: true },   // 🏠 小屋（站在门口一点，别插进墙里）
+      { x: 6.5, z: 14.3, stop: true }, // 🐾 宠物间
+      { x: -15, z: 2.3, stop: true },  // 🐠 水族馆
+      { x: -26, z: 8 },            // 离岛
+    ];
+  }
+
+  spawnVisitor() {
+    if (this.visitors.length >= VISITOR.maxOnScreen) return;
+    const mesh = createVisitor();
+    const route = this.visitorRoute();
+    // 起点稍微散开，不然一串人走同一条线像列队
+    const jitter = () => (Math.random() - 0.5) * 1.6;
+    const path = route.map(p => ({ x: p.x + jitter(), z: p.z + jitter(), stop: !!p.stop }));
+    mesh.position.set(path[0].x, -0.51, path[0].z);
+    this.visitorGroup.add(mesh);
+    this.visitors.push({ mesh, path, leg: 0, wait: 0 });
+  }
+
+  // 每帧推进小人：沿路点走，到「停留点」站一会儿看看，走完整条路就消失
+  updateVisitors(dt) {
+    for (let i = this.visitors.length - 1; i >= 0; i--) {
+      const v = this.visitors[i];
+      if (v.wait > 0) {
+        v.wait -= dt;
+        // 站着看的时候原地轻轻晃，不然像个木桩
+        v.mesh.rotation.y += dt * 0.6;
+        continue;
+      }
+      const to = v.path[v.leg + 1];
+      if (!to) {   // 走完了，离场
+        this.visitorGroup.remove(v.mesh);
+        this.visitors.splice(i, 1);
+        continue;
+      }
+      const p = v.mesh.position;
+      const dx = to.x - p.x, dz = to.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.15) {
+        v.leg += 1;
+        if (to.stop) v.wait = VISITOR.stay;
+        continue;
+      }
+      const step = Math.min(d, VISITOR.speed * dt);
+      p.x += dx / d * step;
+      p.z += dz / d * step;
+      v.mesh.rotation.y = Math.atan2(dx, dz);
+      // 四肢摆动 + 走路的上下起伏
+      const ph = (v.mesh.userData.walkPhase += dt * 9);
+      const sw = Math.sin(ph) * 0.5;
+      v.mesh.userData.legs[0].rotation.x = sw;
+      v.mesh.userData.legs[1].rotation.x = -sw;
+      v.mesh.userData.arms[0].rotation.x = -sw * 0.7;
+      v.mesh.userData.arms[1].rotation.x = sw * 0.7;
+      p.y = -0.51 + Math.abs(Math.sin(ph)) * 0.03;
+    }
+  }
+
   /* ---------- 屠宰场 ---------- */
 
   // 背包里能送进屠宰场的：只有整只动物（a: 前缀）
@@ -3293,6 +3391,30 @@ export class Game {
       }
     }
 
+    // 参观客：每分钟按期望人数结算一次门票
+    this.updateVisitors(dt);
+    const vs = this.visitorStats();
+    this.visitorTimer += dt;
+    if (this.visitorTimer >= VISITOR.tick) {
+      const rounds = Math.floor(this.visitorTimer / VISITOR.tick);
+      this.visitorTimer -= rounds * VISITOR.tick;
+      // rate 小于 1 时它就是「这一分钟来人的概率」——空屋 0.01 正好是玩家定的 1%。
+      // 所以不能直接乘出小数取整，那样低珍稀度永远是 0，得掷骰子
+      let people = 0;
+      for (let k = 0; k < rounds; k++) {
+        const whole = Math.floor(vs.rate);
+        people += whole + (Math.random() < vs.rate - whole ? 1 : 0);
+      }
+      if (people > 0) {
+        const got = people * vs.ticket;
+        this.visitorTotal += got;
+        this.gain(got);
+        this.onToast(tp('t.visitor', { n: people, coin: got.toLocaleString() }));
+        // 同屏放几个，别按人数全放出来——满装修一分钟 30 人，全放帧率就没了
+        for (let k = 0; k < Math.min(people, VISITOR.maxOnScreen - this.visitors.length); k++) this.spawnVisitor();
+      }
+    }
+
     // 风车发电：每台每分钟 +1💰
     const mills = this.decorSlots.filter(s => s.decor?.id === 'windmill').length;
     if (mills > 0) {
@@ -3406,6 +3528,8 @@ export class Game {
       clock: this.clock,
       windTimer: this.windTimer,
       ranchTimer: this.ranchTimer,
+      visitorTimer: this.visitorTimer,
+      visitorTotal: this.visitorTotal,
       butcher: this.butcher.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
       ranchPens: this.ranchPens.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       dayCount: this.dayCount,
@@ -3586,6 +3710,19 @@ export class Game {
 
     // 牧场：离线照常长大，成年后的那段时间也照付挂机收益（和风车一样最多算 12 小时）
     this.ranchTimer = data.ranchTimer ?? 0;
+    // 参观客：离线期间照常有人来。逐分钟掷骰子没意义（也算不动），直接按期望值补，
+    // 和牧场一样封顶 12 小时
+    this.visitorTimer = data.visitorTimer ?? 0;
+    this.visitorTotal = data.visitorTotal ?? 0;
+    {
+      const mins = Math.min(elapsed, VISITOR.offlineCap) / VISITOR.tick;
+      const got = Math.floor(visitorIncome(this.visitorBreakdown().total) * mins);
+      if (got > 0) {
+        this.visitorTotal += got;
+        this.coins += got;
+        this._notices.push(`\u{1f3ab} 离线期间来了些参观客，门票收入 +${got.toLocaleString()}\u{1f4b0}`);
+      }
+    }
     this.ranchPens = (data.ranchPens ?? []).slice(0, RANCH_GRID * RANCH_GRID).map(p =>
       p && animalById(p.id) ? { id: p.id, readyAt: this.time + Math.max(0, (p.remain ?? 0) - elapsed) } : null);
     while (this.ranchPens.length < RANCH_GRID * RANCH_GRID) this.ranchPens.push(null);

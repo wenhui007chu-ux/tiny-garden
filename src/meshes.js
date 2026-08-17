@@ -5102,3 +5102,53 @@ export function createTrainer() {
   g.traverse(o => { if (o.isMesh) o.userData.trainer = true; });
   return g;
 }
+
+/* ================= 参观客小人 ================= */
+
+// 来岛上参观小屋 / 宠物间 / 水族馆的游客。做得很小（约 0.75 高），
+// 因为同屏会有好几个，而且岛已经很挤了——比建筑抢眼就喧宾夺主了。
+const VISITOR_SHIRTS = [0xe86a5c, 0x5c9ae8, 0x6fbf73, 0xe8b84a, 0xa87fd4, 0xe87fb0, 0x4ec8c0, 0xd4763a];
+const VISITOR_HAIR = [0x3a2a20, 0x6b4a2a, 0x1e1a18, 0x8a6a3a, 0xc0a070];
+const VISITOR_SKIN = [0xf0c9a0, 0xe0b088, 0xc99366, 0xf5d9bc];
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+export function createVisitor() {
+  const g = new THREE.Group();
+  const shirt = mat(pick(VISITOR_SHIRTS));
+  const skin = mat(pick(VISITOR_SKIN));
+  const pants = mat(0x4a5a72);
+
+  // 两条腿：走路时由 game 那边摆动，所以各自装进一个小 Group 好绕髋部转
+  const legs = [];
+  [-0.075, 0.075].forEach(x => {
+    const hip = new THREE.Group();
+    hip.position.set(x, 0.26, 0);
+    hip.add(mesh(new THREE.BoxGeometry(0.1, 0.26, 0.1), pants, 0, -0.13, 0));
+    g.add(hip);
+    legs.push(hip);
+  });
+  // 身体 + 脑袋
+  g.add(mesh(new THREE.BoxGeometry(0.24, 0.28, 0.16), shirt, 0, 0.4, 0));
+  g.add(mesh(new THREE.SphereGeometry(0.115, 10, 8), skin, 0, 0.63, 0));
+  // 头发：一顶扣在后脑的小壳
+  const hair = mesh(new THREE.SphereGeometry(0.12, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(pick(VISITOR_HAIR)), 0, 0.635, 0);
+  g.add(hair);
+  // 两条胳膊，同样挂 Group 好摆动
+  const arms = [];
+  [-0.155, 0.155].forEach(x => {
+    const sh = new THREE.Group();
+    sh.position.set(x, 0.52, 0);
+    sh.add(mesh(new THREE.BoxGeometry(0.07, 0.24, 0.07), skin, 0, -0.12, 0));
+    g.add(sh);
+    arms.push(sh);
+  });
+  // 十个里有一个背相机——游客感全靠这个小细节
+  if (Math.random() < 0.35) {
+    g.add(mesh(new THREE.BoxGeometry(0.12, 0.08, 0.06), mat(0x2a2a2a), 0, 0.45, 0.11));
+    g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 8), mat(0x8ac6e0), 0, 0.45, 0.15).rotateX(Math.PI / 2));
+  }
+  g.userData.legs = legs;
+  g.userData.arms = arms;
+  g.userData.walkPhase = Math.random() * Math.PI * 2;
+  return g;
+}

@@ -3,6 +3,7 @@ import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybr
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
 import { BUTCHER, CUTS, cutById, cutName, cutPrice } from './config.js';
+import { VISITOR, RARITY_MAX } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
 import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
@@ -78,6 +79,7 @@ export class UI {
     $('#greenhouse-close').addEventListener('click', () => this.exitGreenhouse());
     $('#ranch-close').addEventListener('click', () => this.exitRanch());
     $('#butcher-close').addEventListener('click', () => this.exitButcher());
+    $('#visitor-close').addEventListener('click', () => $('#visitor').classList.add('hidden'));
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
@@ -107,6 +109,7 @@ export class UI {
       if (!$('#greenhouse').classList.contains('hidden')) this.renderGreenhouse();
       if (!$('#ranch').classList.contains('hidden')) this.renderRanch();
       if (!$('#butcher').classList.contains('hidden') && this.butcherPicking === null) this.renderButcher();
+      if (!$('#visitor').classList.contains('hidden')) this.renderVisitor();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
       // 酒庄/食品店的「挑东西」那一屏整屏都是静态的（背包里的作物不会自己变），
       // 定时重绘除了把滚动条弹回顶上，还可能正好在两次点击之间把按钮换掉、吞掉一下点击。
@@ -343,7 +346,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1981,6 +1984,64 @@ export class UI {
     });
   }
 
+  /* ---------- 参观客 ---------- */
+
+  openVisitor() {
+    this.closePanels();
+    $('#visitor').classList.remove('hidden');
+    this.renderVisitor();
+  }
+
+  renderVisitor() {
+    const g = this.game;
+    const body = $('#visitor-body');
+    const scrolled = body.scrollTop;
+    const s = g.visitorStats();
+    const pct = (v) => (v / RARITY_MAX * 100);
+    const n = (v) => Math.round(v).toLocaleString();
+
+    // 三处各自的贡献，按占比排序好让玩家一眼看出哪儿最亏
+    const parts = [
+      { k: 'house', icon: '\ud83c\udfe0', v: s.house },
+      { k: 'petRoom', icon: '\ud83d\udc3e', v: s.petRoom },
+      { k: 'aqua', icon: '\ud83d\udc20', v: s.aqua },
+    ];
+    const worst = parts.slice().sort((a, b) => a.v - b.v)[0];
+
+    body.innerHTML = `
+      <div id="visitor-note">${tp('visitor.note', {
+        min: VISITOR.ticketMin, max: VISITOR.ticketMax.toLocaleString(),
+        rate: VISITOR.rateMax, cap: VISITOR.offlineCap / 3600,
+      })}</div>
+
+      <div class="vis-score">
+        <div class="vis-score-top">
+          <b>${t('visitor.rarity')}</b>
+          <span>${(s.ratio * 100).toFixed(1)}%</span>
+        </div>
+        <div class="vis-bar"><i style="width:${(s.ratio * 100).toFixed(1)}%"></i></div>
+        <small>${n(s.total)} / ${n(RARITY_MAX)}</small>
+      </div>
+
+      <div class="vis-stats">
+        <div><span>${t('visitor.ticket')}</span><b>${n(s.ticket)}\ud83d\udcb0</b></div>
+        <div><span>${t('visitor.rate')}</span><b>${s.rate < 1 ? (s.rate * 100).toFixed(0) + '%' : s.rate.toFixed(1)}</b></div>
+        <div><span>${t('visitor.income')}</span><b>${n(s.income)}\ud83d\udcb0</b></div>
+        <div><span>${t('visitor.earned')}</span><b>${n(s.earned)}\ud83d\udcb0</b></div>
+      </div>
+
+      <div class="gh-title">${t('visitor.sources')}</div>
+      ${parts.map(p => `
+        <div class="vis-part">
+          <div class="vis-part-top"><b>${p.icon} ${t('visitor.' + p.k)}</b><span>${n(p.v)}</span></div>
+          <div class="vis-bar sm"><i style="width:${Math.min(100, pct(p.v)).toFixed(1)}%"></i></div>
+          <small>${tp('visitor.share', { pct: (s.total ? p.v / s.total * 100 : 0).toFixed(0) })}</small>
+        </div>`).join('')}
+
+      <p class="ranch-hint">${tp('visitor.tip', { where: t('visitor.' + worst.k) })}</p>`;
+    body.scrollTop = scrolled;
+  }
+
   /* ---------- 屠宰场 ---------- */
 
   openButcher() {
@@ -3254,6 +3315,9 @@ export class UI {
       addBtn(tp('quick.water', { cost: QUICK_WATER_COST }), () => {
         g.waterAll();
         menu.classList.add('hidden');
+      });
+      addBtn(t('quick.visitor'), () => {
+        this.openVisitor();
       });
       addBtn(t('quick.wiki'), () => {
         this.openWiki();

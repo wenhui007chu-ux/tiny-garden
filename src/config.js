@@ -1633,3 +1633,69 @@ export const trainerTimeAt = (lineKey, lv) => {
   const L = trainerLineBy(lineKey);
   return L ? Math.round(L.base * trainerRatio(lineKey, lv)) : 0;
 };
+
+// ===== 参观客：把小屋 / 宠物间 / 水族馆的装饰变成收入 =====
+// 家具 26 件、宠物 20 只、宠物窝 10 件玩家早就买齐升满了，但在此之前
+// 这三处纯粹是支出——`comfort()` 全代码只出现一次且不参与任何计算。
+// 参观客给它们接上回报：珍稀度越高，门票越贵、来的人越多。
+//
+// 珍稀度 = 三处**已投入的金币总额**（家具/宠物窝按已升到的等级逐级累加，
+// 宠物按买价，水族馆按鱼的卖价乘权重——鱼太便宜，不加权摆满也拉不动分）。
+// 拿投入当珍稀度的好处是它自动跟着内容走：以后加家具加鱼，分母自己会变。
+//
+// 两端由玩家定死：屋里只有那张免费的稻草床（床 1 级）时珍稀度 = 0，
+// 门票 1 块、每分钟 1% 概率来一个人。满装修另一端定在门票 700、
+// 每分钟约 30 人 ≈ 21,000/分，大约是满编牧场挂机的 4%——
+// 刚把牧场砍到 1/3 就是嫌挂机压死手动，这里特意留在「像样的补贴」而不是新的挂机大头。
+export const VISITOR = {
+  tick: 60,           // 每 60 秒结算一次，和牧场同一个节奏
+  ticketMin: 1,       // 空屋门票
+  ticketMax: 700,     // 满装修门票
+  rateMin: 0.01,      // 空屋每分钟期望来客数（= 1% 概率来一个）
+  rateMax: 30,        // 满装修每分钟期望来客数
+  ticketCurve: 1.4,   // 曲线指数 >1：越往后涨得越猛，鼓励一路升满而不是浅尝辄止
+  rateCurve: 1.2,
+  aquaWeight: 25,     // 鱼的卖价只有几十到 260，不加权重在六位数的分母里等于没有
+  offlineCap: 43200,  // 离线最多累计 12 小时，和牧场同一个规矩
+  maxOnScreen: 6,     // 同屏最多几个小人；帧率本来就只有 30，不能敞开放
+  speed: 2.4,         // 小人行走速度（世界单位/秒）
+  stay: 2.5,          // 每站停留观赏的秒数
+};
+
+// 一件家具 / 宠物窝升到 lv 级为止的累计投入（lv 从 1 起算，1 级就是买价）
+export function itemInvested(def, lv) {
+  if (!def || !lv) return 0;
+  let s = def.cost ?? 0;
+  const up = def.up ?? [];
+  for (let i = 0; i < Math.min(lv - 1, up.length); i++) s += up[i];
+  return s;
+}
+
+// 三处各自的珍稀度，分开返回是为了在面板里告诉玩家「哪一处还有得升」
+export function rarityBreakdown({ furniture = {}, petDecors = {}, pets = {}, aquarium = [] } = {}) {
+  const house = FURNITURE.reduce((s, f) => s + itemInvested(f, furniture[f.id]), 0);
+  const petRoom = PET_DECORS.reduce((s, d) => s + itemInvested(d, petDecors[d.id]), 0)
+    + PETS.reduce((s, p) => s + (pets[p.id] ? p.cost : 0), 0);
+  const aqua = (aquarium ?? []).reduce((s, id) => s + (seafoodById(id)?.sell ?? 0) * VISITOR.aquaWeight, 0);
+  return { house, petRoom, aqua, total: house + petRoom + aqua };
+}
+
+// 满装修的珍稀度（分母）。水族馆按「15 格全摆最贵的鱼」算上限——
+// 现实里不会真摆 15 只恐龙虾，但当分母得取得到的最大值才讲得通
+export const RARITY_MAX = (() => {
+  const f = FURNITURE.reduce((s, x) => s + itemInvested(x, FURNITURE_MAX_LEVEL), 0);
+  const d = PET_DECORS.reduce((s, x) => s + itemInvested(x, FURNITURE_MAX_LEVEL), 0);
+  const p = PETS.reduce((s, x) => s + x.cost, 0);
+  const best = Math.max(...SEAFOOD.map(x => x.sell));
+  return f + d + p + best * AQUARIUM_SLOTS * VISITOR.aquaWeight;
+})();
+
+const rarityRatio = (score) => Math.min(1, Math.max(0, score / RARITY_MAX));
+// 门票单价
+export const visitorTicket = (score) => Math.round(
+  VISITOR.ticketMin + Math.pow(rarityRatio(score), VISITOR.ticketCurve) * (VISITOR.ticketMax - VISITOR.ticketMin));
+// 每分钟期望来客数（小于 1 时就是「这一分钟来人的概率」）
+export const visitorRate = (score) =>
+  VISITOR.rateMin + Math.pow(rarityRatio(score), VISITOR.rateCurve) * (VISITOR.rateMax - VISITOR.rateMin);
+// 每分钟期望收入，面板上直接显示这个数
+export const visitorIncome = (score) => visitorTicket(score) * visitorRate(score);
