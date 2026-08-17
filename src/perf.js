@@ -59,7 +59,9 @@ class Perf {
     this.el = document.createElement('div');
     this.el.id = 'fps-hud';
     this.el.classList.toggle('hidden', !this.showFps);
-    document.body.appendChild(this.el);
+    // 挂进左上角的 HUD 竖列（排在灌溉方式下面），而不是 body 的右上角——
+    // 右上角跟所有面板的「出门」按钮重叠，会把它挡住点不到
+    (document.getElementById('hud') ?? document.body).appendChild(this.el);
   }
 
   setLevel(level, byAuto = false) {
