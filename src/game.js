@@ -298,10 +298,14 @@ export class Game {
     this.petHall.position.set(PET_POS.x, PET_POS.y, PET_POS.z);
     this.group.add(this.petHall);
 
-    // 游客招待厅：参观客上岛后先在这儿坐 20 秒再出门参观
+    // 游客招待厅：参观客上岛后先在这儿坐 20 秒再出门参观。
+    // 占的是食品店腾出来的那块地（食品店已挪到岛北 18,-5）。
+    // rotation 必须是 0：斜着摆会把轴对齐包围盒从 4.4×4.1 撑到 5.7×5.6，
+    // 而这个口袋（小屋/料理工坊/宠物间/分拣台围出来的）只有 5.0×5.9，
+    // 斜着放无论挪到哪都会压到小屋或料理工坊——实测扫过整片，零间隙也无解
     const reception = createReceptionBuilding();
-    reception.position.set(12.5, -0.51, 7.5);
-    reception.rotation.y = -0.5;
+    reception.position.set(11.1, -0.51, 11.5);
+    reception.rotation.y = 0;
     this.group.add(reception);
     this.receptionMeshes = [];
     reception.traverse(o => { if (o.isMesh) this.receptionMeshes.push(o); });
@@ -457,11 +461,13 @@ export class Game {
     this.vatMeshes = [];
     this.rackMeshes = [];
 
-    // 食品店：农田右前方的临街店面 + 藏在岛下的后堂货架
+    // 食品店：岛北那片空地（银行 / 温室花房 / 成就殿堂 / 屠宰场 / 牧场围出来的）
+    // + 藏在岛下的后堂货架。
+    // 原来在 (12.5, 8.2)，跟小屋和料理工坊本来就压着，招待厅进来后更挤，索性搬开
     // 货架格：{ keys:[4个作物key], price, soldAt } 或 null；soldAt 是「到点自动成交」的时刻
     this.shelf = Array(GIFTBOX.slots).fill(null);
     const foodShop = createFoodShop();
-    foodShop.position.set(12.5, -0.51, 8.2);
+    foodShop.position.set(18, -0.51, -5);
     foodShop.rotation.y = -0.45;
     this.group.add(foodShop);
     this.foodShopMeshes = [];
@@ -2911,7 +2917,9 @@ export class Game {
   // 三处的坐标跟建筑摆放写死在一起，改建筑位置时记得一起改
   visitorRoute() {
     return [
-      { x: 20, z: 15 },            // 上岸
+      // 起点改成招待厅门口（11.1, 11.5 的南侧）——人是从厅里走出来的，
+      // 再从岛外凭空冒出来就说不通了
+      { x: 11.1, z: 14.2 },
       { x: 10, z: 6.4, stop: true },   // 🏠 小屋（站在门口一点，别插进墙里）
       { x: 6.5, z: 14.3, stop: true }, // 🐾 宠物间
       { x: -15, z: 2.3, stop: true },  // 🐠 水族馆
