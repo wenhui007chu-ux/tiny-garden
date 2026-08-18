@@ -41,7 +41,7 @@ import {
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createTreasuryBuilding, createTreasuryInterior, createTreasuryCase, createProsperityPillar,
-  createDishMesh,
+  createDishMesh, createCaseLabel, disposeTree,
   createPedestalBase, createPlaque,
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
@@ -1106,7 +1106,7 @@ export class Game {
   // 只渲染当前分类：273 格全摆出来是上千个 mesh，帧率本来就只有 30~50
   buildTreasuryCase(key) {
     const old = this.treasuryCases[key];
-    if (old) { this.treasuryHall.remove(old); delete this.treasuryCases[key]; }
+    if (old) { this.treasuryHall.remove(old); disposeTree(old); delete this.treasuryCases[key]; }
     const cat = TREASURY_CATS.find(c => c.id === this.treasuryCat);
     const idx = cat ? cat.keys().indexOf(key) : -1;
     if (idx < 0) return; // 不属于当前展厅，不摆
@@ -1118,6 +1118,10 @@ export class Game {
       const model = this.treasuryExhibit(key);
       if (model) { model.position.y = 1.12; g.add(model); }
     }
+    // 铭牌：写清楚这一格是什么、值多少。空格也写（压暗），
+    // 不然换成真模型之后，没做过那道菜的人根本认不出柜子里摆的是什么
+    const info = treasurySlotInfo(key);
+    g.add(createCaseLabel(info.label, info.price, filled));
     const { x, z } = this.treasurySlotPos(idx);
     g.position.set(x, 0, z);
     this.treasuryHall.add(g);
@@ -1175,7 +1179,7 @@ export class Game {
   refreshTreasury() {
     // 先把场上所有展柜撤干净（换厅时上一类的 key 不在新分类里，
     // 光靠 buildTreasuryCase 的 idx<0 分支撤不掉它们）
-    Object.values(this.treasuryCases).forEach(m => this.treasuryHall.remove(m));
+    Object.values(this.treasuryCases).forEach(m => { this.treasuryHall.remove(m); disposeTree(m); });
     this.treasuryCases = {};
     const cat = TREASURY_CATS.find(c => c.id === this.treasuryCat);
     (cat ? cat.keys() : []).forEach(key => this.buildTreasuryCase(key));
@@ -1185,7 +1189,7 @@ export class Game {
   // 繁荣度水晶柱：立在贵宾区拱门中间
   refreshProsperity() {
     if (!this.treasuryHall) return;
-    if (this._prosperityPillar) this.treasuryHall.remove(this._prosperityPillar);
+    if (this._prosperityPillar) { this.treasuryHall.remove(this._prosperityPillar); disposeTree(this._prosperityPillar); }
     const m = createProsperityPillar(treasuryRatio(this.treasury));
     m.position.set(0, 0, 10.4);
     this.treasuryHall.add(m);

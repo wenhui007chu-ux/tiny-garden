@@ -5470,3 +5470,76 @@ export function createDishMesh(emoji, scale = 1) {
   g.scale.setScalar(scale);
   return g;
 }
+
+/* ================= 典藏展柜的铭牌 ================= */
+
+// 273 格从 emoji 立牌换成真模型之后丢了最关键的东西：名字。
+// 老玩家认得出「那个金色三层塔是满汉全席」，新玩家只看见一个不知道是啥的小模型。
+// 所以每座柜子前面挂一块铭牌，写清楚这一格是什么、值多少钱。
+//
+// 空格也照样写（整块压暗），这才是图鉴该有的样子——玩家得能看出「还差哪些、
+// 值不值得专门去做一趟」，而不是收录了才告诉他这格原来是什么。
+export function createCaseLabel(name, price, filled) {
+  const W = 256, H = 148;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = filled ? '#fffaf0' : '#6e675c';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = filled ? '#c9a97e' : '#4f4a42';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, W - 8, H - 8);
+  ctx.textAlign = 'center';
+
+  // 名字：中文名长短差很多（「面」到「传说彩虹盛宴」），按实际宽度缩字号，别溢出
+  ctx.fillStyle = filled ? '#5a3a1c' : '#cfc9bd';
+  const MAXW = W - 28;
+  let fs = 40;
+  do {
+    ctx.font = 'bold ' + fs + 'px "Microsoft YaHei", sans-serif';
+    fs -= 2;
+  } while (fs > 18 && ctx.measureText(name).width > MAXW);
+  // 缩到最小字号还塞不下就截断。中文最长的「传说彩虹盛宴」正好卡在上限，
+  // 但英俄译名会长得多（Legendary Rainbow Feast…），没有这一步就会糊出画框
+  let txt = name;
+  if (ctx.measureText(txt).width > MAXW) {
+    while (txt.length > 1 && ctx.measureText(txt + '…').width > MAXW) txt = txt.slice(0, -1);
+    txt += '…';
+  }
+  ctx.fillText(txt, W / 2, 62);
+
+  // 身价：数字 + 💰，语言无关，不用翻译
+  ctx.fillStyle = filled ? '#c8871f' : '#9a948a';
+  const money = Number(price ?? 0).toLocaleString() + '\u{1F4B0}';
+  fs = 32;
+  do {
+    ctx.font = 'bold ' + fs + 'px "Microsoft YaHei", sans-serif';
+    fs -= 2;
+  } while (fs > 14 && ctx.measureText(money).width > W - 28);
+  ctx.fillText(money, W / 2, 112);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.62, 0.36),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+  );
+  // 贴在柱身正面，稍微仰起一点——馆内镜头是俯视的，完全竖直会看成一条缝
+  m.position.set(0, 0.52, 0.31);
+  m.rotation.x = -0.22;
+  return m;
+}
+
+// 释放一整棵子树的显存。换展厅时 60~88 座柜子整批换掉，
+// 每座都带一张 canvas 贴图，只 remove 不 dispose 就是纯漏显存。
+// mat() 和各几何都是每次新建、没有跨对象共享，所以逐个释放是安全的。
+export function disposeTree(obj) {
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    const list = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    list.forEach(mm => {
+      if (mm.map) mm.map.dispose();
+      mm.dispose();
+    });
+  });
+}
