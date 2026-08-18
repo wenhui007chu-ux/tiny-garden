@@ -3265,9 +3265,16 @@ export function createGalleryPedestal(filled) {
   return g;
 }
 
+// 10 座个人展台在贵宾厅里的位置，5 列 x 2 排。
+// 两排都必须整个落在红毯上——红毯是 createTreasuryInterior 里那块
+// BoxGeometry(15.4, 0.06, 8.8) @ z=15，也就是 x[-7.7, 7.7] / z[10.6, 19.4]，
+// 金柱拱门立在 z=10.4 划出分界。
+// 原来第一排在 z=9，整排跑到拱门外面、落进典藏展区里去了（看着就是「一半在
+// 基础图鉴里」）。现在两排改成以红毯中心 z=15 对称，台座（1.05 见方）占
+// z[12.68, 13.73] 和 [16.28, 17.33]，离水晶柱（z=10.4）还有 2.8 的余量。
 export function galleryPedestalPos(k) {
   const col = k % 5, row = Math.floor(k / 5);
-  return { x: (col - 2) * 3, z: 9 + row * 3.6 };
+  return { x: (col - 2) * 3, z: 13.2 + row * 3.6 };
 }
 
 /* ================= 作物（按阶段 0-3） ================= */
