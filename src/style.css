@@ -192,18 +192,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer, #tasks {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head, #tasks-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close, #tasks-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body, #tasks-body { padding: 12px; overflow-y: auto; flex: 1; }
 
 /* 高级料理的配方有 5~6 样原料，一行塞不下，让它自己换行 */
 #gourmet-body .recipe { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -1178,3 +1178,61 @@ body {
   border-color: #b04ac2;
   background: linear-gradient(135deg, #fff0fb, #eaf4ff 40%, #f6ffe8 70%, #fff4e0);
 }
+
+/* ---------- 每日任务：早上 6 点的强制难度面板 ---------- */
+/* 没有关闭按钮，也不响应点背景关闭——玩家定的规矩是「必须选好才能走」。
+   z-index 要压过所有面板（最高的是 45 的睡觉遮罩），否则会被别的挡住 */
+#task-pick {
+  position: fixed; inset: 0; z-index: 60;
+  background: radial-gradient(ellipse at 50% 40%, #2a1f10cc 0%, #14100aee 75%);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  animation: sleep-in 0.5s ease-out;
+}
+#task-pick-card {
+  background: #fffaf0; border: 4px solid #e8c68f; border-radius: 22px;
+  padding: 22px 20px; max-width: 560px; width: 100%;
+  box-shadow: 0 10px 40px #0007; text-align: center;
+}
+#task-pick-card h2 { color: #6b4a24; font-size: 20px; margin-bottom: 8px; }
+#task-pick-card p { color: #a1834f; font-size: 13px; line-height: 1.7; margin-bottom: 16px; }
+#task-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.task-tier {
+  border: 3px solid #d9b071; background: #fff8ec; border-radius: 16px;
+  padding: 12px 6px; cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; transition: transform .08s;
+}
+.task-tier:hover { transform: translateY(-3px); background: #ffe9b8; border-color: #e09b3d; }
+.task-tier b { font-size: 26px; line-height: 1.1; }
+.task-tier span { font-size: 13px; font-weight: 700; color: #6b4a24; }
+.task-tier small { font-size: 11px; color: #a1834f; line-height: 1.4; }
+
+/* ---------- 每日任务面板 ---------- */
+#task-top {
+  border: 2px solid #d9b071; border-radius: 14px; background: #fff8ec;
+  padding: 10px 12px; margin-bottom: 10px;
+}
+#task-top b { color: #8a5a2b; font-size: 15px; }
+#task-top small { display: block; font-size: 12px; color: #a1834f; margin-top: 4px; line-height: 1.6; }
+#task-claim-all {
+  width: 100%; margin-bottom: 10px; padding: 10px;
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 14px;
+}
+#task-claim-all:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }
+.task-row {
+  border: 2px solid #eedcba; border-radius: 14px; background: #fff;
+  padding: 10px 12px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px;
+}
+.task-row.done { border-color: #6aae5e; background: linear-gradient(135deg, #fff, #eff9ec); }
+.task-row.claimed { opacity: .5; }
+.task-row .icon { font-size: 26px; flex-shrink: 0; }
+.task-row .info { flex: 1; min-width: 0; }
+.task-row .info b { color: #6b4a24; font-size: 14px; }
+.task-row .info p { font-size: 12px; color: #a1834f; margin-top: 2px; }
+.task-row button {
+  border: 2px solid #6aae5e; background: #dff3d8; color: #3d7a33;
+  border-radius: 10px; padding: 7px 12px; cursor: pointer;
+  font-weight: 700; font-size: 13px; white-space: nowrap;
+}
+.task-row button:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }

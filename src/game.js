@@ -6,6 +6,7 @@ import {
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   TREASURY_POS, PEST, POISON,
+  TASK_COUNT, TASK_TIERS, taskTierById, taskTypeById, dailyTasks,
   TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
   DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
   pondDecorById, pondName, POND_MAX_PLACED, HYBRIDS, hybridById,
@@ -350,6 +351,12 @@ export class Game {
     this.visitors = [];            // 正在岛上走动的小人
     this.visitorTimer = 0;         // 结算计时器
     this.visitorTotal = 0;         // 累计门票收入，面板上显示
+
+    // 每日任务：每个游戏日早上 6 点强制选一档难度，选完刷 10 个同档任务
+    this.taskDay = -1;             // 当前这批任务属于哪一天
+    this.taskTier = null;          // 这一天选的档位
+    this.tasks = [];               // [{ type, target, progress, claimed }]
+    this.awaitingTaskPick = false; // 真时：面板必须选完，tick 冻结
     for (let j = 0; j < RANCH_GRID; j++) {
       for (let i = 0; i < RANCH_GRID; i++) {
         const pen = createRanchPen();
@@ -655,6 +662,7 @@ export class Game {
       sfx.play('poison');
       this.onState();
     } else {
+      this.bumpTask('pest', 1);
       this.onToast(`👏 啪！拍掉了${seed.emoji}${seed.name}上的虫子`);
       sfx.play('swat');
     }
@@ -762,6 +770,7 @@ export class Game {
     if (tile.plant) { this.onToast(t('plant.occupied')); return; }
     if (!this.spend(seed.cost)) return;
     tile.plant = { seedId, progress: 0, stage: -1, quality: this.rollQuality(tile.lucky) };
+    this.bumpTask('plant', 1);
     if (tile.lucky) { tile.lucky = false; this.onToast(t('plant.lucky')); }
     this.updatePlantMesh(tile);
     sfx.play('plant');
@@ -822,6 +831,7 @@ export class Game {
       delete this.inventory[key];
     });
     this.gain(total);
+    this.bumpTask('sell', total);
     this.onToast(`💰 卖掉 ${count} 件，收入 ${total}💰${ruined ? `（${ruined} 个打过药的报废了）` : ''}`);
     sfx.play('coin');
     this.onState();
@@ -829,7 +839,7 @@ export class Game {
   }
 
   harvestAll() {
-    let count = 0;
+    let count = 0, qCount = 0; // qCount：其中带金/银/变异品质的，每日任务要数
     for (const t of this.tiles) {
       if (!t.plant || t.plant.stage < 3) continue;
       const seed = seedById(t.plant.seedId);
@@ -837,11 +847,14 @@ export class Game {
       const key = (this.badWeather() || t.plant.pest ? 'x:' : '')
         + (t.plant.quality ? `${seed.id}:${t.plant.quality}` : seed.id);
       this.inventory[key] = (this.inventory[key] ?? 0) + n;
+      if (t.plant.quality) qCount += n;
       this.removePlant(t);
       count += n;
     }
     if (!count) { this.onToast(t('harvest.noneRipe')); return; }
     this.onState();
+    this.bumpTask('harvest', count);
+    this.bumpTask('quality', qCount);
     this.onToast(`🧺 一键收取！${count} 个作物进了背包`);
     this.save();
   }
@@ -895,6 +908,7 @@ export class Game {
       planted += 1;
     });
     this.onState();
+    this.bumpTask('plant', planted);
     if (!planted) this.onToast(lackMoney ? '金币不够，一块都种不起 😢' : '布局里的地都种着呢');
     else this.onToast(`🌱 按「${entry.name}」播种了 ${planted} 块地，花费 ${cost}💰${lackMoney ? '（金币不够没种完）' : ''}`);
     this.save();
@@ -951,6 +965,8 @@ export class Game {
     const q = QUALITIES[quality];
     // keyInfo 已经把「生长不良/打过药/品质/作物名」按当前语言拼好了，直接用，省得每种情况各写一句
     const got = keyInfo(key);
+    this.bumpTask('harvest', count);
+    if (quality) this.bumpTask('quality', count);
     this.onToast(`${got.icon}${got.label} ×${count} ${t('harvest.bagged')}`);
     // 连着收会一级级升调，一片收完像走完一段音阶
     this._combo = (this.time - (this._comboAt ?? -9) < 2) ? Math.min((this._combo ?? 0) + 1, 6) : 0;
@@ -977,6 +993,7 @@ export class Game {
     const ruined = info.sprayed ? this.rollSprayed(n) : 0;
     const total = info.price * (n - ruined);
     this.gain(total);
+    this.bumpTask('sell', total);
     this.onToast(ruined
       ? `卖出${info.icon}${info.label} ×${n}，其中 ${ruined} 个药坏了没人要 +${total} 💰`
       : `卖出${info.icon}${info.label} ×${n} +${total} 💰`);
@@ -1217,6 +1234,7 @@ export class Game {
     this.buildTreasuryCase(slot);
     this.refreshProsperity();
     const info = keyInfo(key);
+    this.bumpTask('treasury', 1);
     this.onToast(`🏛️ ${info.icon}${info.label} 入藏！典藏进度 ${this.treasuryCount()}/${TREASURY_TOTAL}`);
     sfx.play('codex');
     this.onState();
@@ -1294,6 +1312,7 @@ export class Game {
     this.inventory[dkey] = (this.inventory[dkey] ?? 0) + 1;
     this.cookSlots[slot] = null;
     const cb = this.payTrainerBonus('cook', slot);
+    this.bumpTask('cook', 1);
     this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包` + (cb ? ` （熟练工 +${cb}💰）` : ''));
     sfx.play('done');
     this.onState();
@@ -1374,6 +1393,7 @@ export class Game {
     this.advCookSlots[slot] = null;
     const ab = this.payTrainerBonus('adv', slot);
     if (ab) this.onToast(tp('t.trainerBonus', { n: ab }));
+    this.bumpTask('gourmet', 1);
     this.onToast(tp('t.advDone', { name: `${dish.emoji}${dish.name}`, n: s.price.toLocaleString() }));
     sfx.play('done');
     this.onState();
@@ -1880,6 +1900,7 @@ export class Game {
     this.inventory[hkey] = (this.inventory[hkey] ?? 0) + 1;
     this.hybridSlots[slot] = null;
     this.refreshHybridStations();
+    this.bumpTask('hybrid', 1);
     this.onToast(`🧬 培养完成！${h.emoji}${h.name}放入背包`);
     sfx.play('done');
     this.onState();
@@ -2009,6 +2030,7 @@ export class Game {
     const sf = seafoodById(c.seafood);
     this.inventory[`s:${sf.id}`] = (this.inventory[`s:${sf.id}`] ?? 0) + 1;
     this.fishingEarned += sf.sell;
+    this.bumpTask('fish', 1);
     this.onToast(`${c.label} 钓上来一只${sf.emoji}${sf.name}！值 ${sf.sell}💰，可以养进水族馆`);
     this.pendingCatch = this.catchQueue.shift() ?? null;
     if (this.pendingCatch) this.onToast('🐟 又一条在钩上，继续收杆！');
@@ -2105,6 +2127,7 @@ export class Game {
     this.fishNets[k] = null;
     this.refreshNets();
     this.inventory[`s:${sf.id}`] = (this.inventory[`s:${sf.id}`] ?? 0) + 1;
+    this.bumpTask('fish', 1);
     this.onToast(tp('t.netCollect', { name: `${sf.emoji}${seafoodName(sf)}`, n: sf.sell }));
     sfx.play('done');
     this.onState();
@@ -2213,6 +2236,7 @@ export class Game {
     const price = Math.floor(sum * BOUQUET_MULT);
     for (const k in need) { this.inventory[k] -= need[k]; if (this.inventory[k] <= 0) delete this.inventory[k]; }
     this.coins += price;
+    this.bumpTask('bouquet', 1);
     this.onToast(tp('t.bouquetSold', { n: price }));
     sfx.play('bouquet');
     this.onState();
@@ -2341,6 +2365,7 @@ export class Game {
     this.inventory[metal] = (this.inventory[metal] ?? 0) + 1;
     this.sorter[slot] = null;
     const pi = keyInfo(plain), mi = keyInfo(metal);
+    this.bumpTask('metal', 1);
     this.onToast(`⚙️ 分拣完成！${pi.icon}${pi.label} + ${mi.icon}${mi.label}（${mi.price}💰）`);
     sfx.play('done');
     this.onState();
@@ -2396,6 +2421,7 @@ export class Game {
     this.brewery[slot] = null;
     this.cellar[free] = { key, sinceDay: this.dayCount };
     const info = keyInfo(key);
+    this.bumpTask('brew', 1);
     this.onToast(`🍷 ${info.label}酒出缸！进了 ${free + 1} 号酒架，开始窖藏`);
     sfx.play('done');
     this.refreshBrewery();
@@ -2490,6 +2516,7 @@ export class Game {
     }
     const wait = GIFTBOX.minWait + Math.random() * (GIFTBOX.maxWait - GIFTBOX.minWait);
     this.shelf[slot] = { keys: [...keys], price, soldAt: this.time + wait };
+    this.bumpTask('gift', 1);
     this.onToast(`🎁 礼盒上架！标价 ${price}💰，等人来买`);
     sfx.play('done');
     this.refreshShelf();
@@ -2700,6 +2727,7 @@ export class Game {
     this.inventory[key] = (this.inventory[key] ?? 0) + 1;
     this.ranchPens[pen] = null;
     this.refreshRanchPen(pen);
+    this.bumpTask('animal', 1);
     this.onToast(tp('t.animalCollected', { name: `${an.emoji}${animalName(an)}`, n: an.sell }));
     sfx.play('harvest');
     this.onState();
@@ -2722,6 +2750,92 @@ export class Game {
     m.position.set(RANCH_POS.x + x, y - 0.44, RANCH_POS.z + z);
     this.group.add(m);
     this.ranchAnimalMeshes[i] = m;
+  }
+
+  /* ---------- 每日任务 ---------- */
+
+  // 新的一天：把旧任务连同没领的奖励一起作废，等玩家选档
+  // （「不领就过期」是玩家定的规矩，为的是每天真的回来看一眼）
+  openTaskPick() {
+    const lost = this.tasks.filter(q => q.progress >= q.target && !q.claimed).length;
+    if (lost) this._notices.push(`⏰ 昨天有 ${lost} 个任务做完了没领，奖励已经作废`);
+    this.taskDay = this.dayCount;
+    this.taskTier = null;
+    this.tasks = [];
+    this.awaitingTaskPick = true;
+    this.onState();
+  }
+
+  // 选档 → 刷出 10 个同档任务，时间恢复流动
+  pickTaskTier(tierId) {
+    const tier = taskTierById(tierId);
+    if (!tier || !this.awaitingTaskPick) return false;
+    this.taskTier = tier.id;
+    this.tasks = dailyTasks(this.weatherSeed, this.dayCount, tier.id)
+      .map(q => ({ ...q, progress: 0, claimed: false }));
+    this.awaitingTaskPick = false;
+    this.taskDay = this.dayCount;
+    this.onToast(`📋 今天走「${tier.emoji}${tier.name}」——${TASK_COUNT} 个任务，每个 ${tier.reward.toLocaleString()}💰`);
+    sfx.play('open');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 各处产出时调这个记数。kind 对应 TASK_TYPES 里的 kind。
+  // 只推进「没做完的」，做完了就停住等领取——否则进度条会一直涨，看着像还没完成
+  bumpTask(kind, n = 1) {
+    if (!n || !this.tasks.length || this.awaitingTaskPick) return;
+    let done = false;
+    for (const q of this.tasks) {
+      if (q.progress >= q.target) continue;
+      if (taskTypeById(q.type)?.kind !== kind) continue;
+      q.progress = Math.min(q.target, q.progress + n);
+      if (q.progress >= q.target) {
+        done = true;
+        const type = taskTypeById(q.type);
+        this.onToast(`✅ 任务完成：${type.emoji}${type.name.replace('{n}', q.target)} —— 记得去领奖`);
+      }
+    }
+    if (done) { sfx.play('done'); this.onState(); this.save(); }
+  }
+
+  taskTierDef() { return taskTierById(this.taskTier); }
+  // 做完了但还没领的个数——工具栏上那个红点用它
+  taskClaimable() {
+    return this.tasks.filter(q => q.progress >= q.target && !q.claimed).length;
+  }
+
+  claimTask(i) {
+    const q = this.tasks[i];
+    const tier = this.taskTierDef();
+    if (!q || !tier) return false;
+    if (q.progress < q.target) { this.onToast('这个任务还没做完'); sfx.play('deny'); return false; }
+    if (q.claimed) { this.onToast('这个已经领过了'); sfx.play('deny'); return false; }
+    q.claimed = true;
+    this.gain(tier.reward);
+    const type = taskTypeById(q.type);
+    this.onToast(`🎁 领取「${type.emoji}${type.name.replace('{n}', q.target)}」+${tier.reward.toLocaleString()}💰`);
+    sfx.play('coin');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  claimAllTasks() {
+    let n = 0, got = 0;
+    const tier = this.taskTierDef();
+    if (!tier) return 0;
+    this.tasks.forEach(q => {
+      if (q.progress >= q.target && !q.claimed) { q.claimed = true; n++; got += tier.reward; }
+    });
+    if (!n) { this.onToast('没有可领的任务'); sfx.play('deny'); return 0; }
+    this.gain(got);
+    this.onToast(`🎁 一次领了 ${n} 个任务 +${got.toLocaleString()}💰`);
+    sfx.play('coin');
+    this.onState();
+    this.save();
+    return n;
   }
 
   /* ---------- 参观客 ---------- */
@@ -2882,6 +2996,7 @@ export class Game {
     });
     this.butcher[slot] = null;
     const an = animalById(animalId);
+    this.bumpTask('butcher', 1);
     this.onToast(tp('t.butcherDone', { name: `${an.emoji}${animalName(an)}`,
       n: CUTS.length, total: total.toLocaleString() }));
     sfx.play('harvest');
@@ -3302,6 +3417,7 @@ export class Game {
     this.workshop[slot] = null;
     const wb = this.payTrainerBonus('workshop', slot);
     const info = keyInfo(pkey);
+    this.bumpTask('can', 1);
     this.onToast(`${info.icon} ${info.label}完成！放入背包` + (wb ? ` （熟练工 +${wb}💰）` : ''));
     sfx.play('done');
     this.onState();
@@ -3470,6 +3586,11 @@ export class Game {
 
   tick(dt) {
     if (this.paused) return; // 挂机中：时间、生长、加工全部冻结
+    // 早上 6 点的难度面板没选完之前，整个世界停住——玩家定的规矩：
+    // 「必须选好才能走，这个时候时间会停住」。
+    // 放在 this.time += dt 之前，所以生长/加工/挂机一并冻结，
+    // 不会出现「停着不动却白嫖了一批罐头」
+    if (this.awaitingTaskPick) return;
     this.time += dt;
     // 花圃：花开的那一刻把花苞换成整朵花
     for (let i = 0; i < this.flowerPlots.length; i++) {
@@ -3489,6 +3610,10 @@ export class Game {
         this.onToast(tp('t.shipArrive', { n: HARBOR.slots }));
         sfx.play('done');
       }
+      // 每日任务：新的一天，旧任务作废，弹出难度面板并冻结时间。
+      // 放在这一段最后：上面那些日结（天气/银行/商船）属于「昨天收尾」，
+      // 该照常跑完，冻结的是接下来的时间流逝
+      this.openTaskPick();
     }
 
     // 昼夜切换提示
@@ -3656,6 +3781,12 @@ export class Game {
       ranchTimer: this.ranchTimer,
       visitorTimer: this.visitorTimer,
       visitorTotal: this.visitorTotal,
+      // 每日任务：题目本身由 (种子, 天, 档位) 算得出来，不必存；
+      // 只存「哪一天的、选了哪档、各自做到哪、领没领」
+      taskDay: this.taskDay,
+      taskTier: this.taskTier,
+      tasks: this.tasks,
+      awaitingTaskPick: this.awaitingTaskPick,
       butcher: this.butcher.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
       ranchPens: this.ranchPens.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       dayCount: this.dayCount,
@@ -3853,6 +3984,22 @@ export class Game {
         this.coins += got;
         this._notices.push(`\u{1f3ab} 离线期间来了些参观客，门票收入 +${got.toLocaleString()}\u{1f4b0}`);
       }
+    }
+    // 每日任务。老存档没有这些字段，或者离线跨了天（dayCount 已经被
+    // offlineDays 顶上去了），两种情况都归到「该重新选档」——
+    // 离线期间没做的任务本来也就作废了，跟坐在电脑前过一天是一个待遇
+    this.taskDay = data.taskDay ?? -1;
+    this.taskTier = data.taskTier ?? null;
+    this.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    if (this.taskDay !== this.dayCount || !this.taskTier || !this.tasks.length) {
+      const lost = this.tasks.filter(q => q.progress >= q.target && !q.claimed).length;
+      if (lost) this._notices.push(`⏰ 有 ${lost} 个做完的任务没领，已经过期了`);
+      this.taskDay = this.dayCount;
+      this.taskTier = null;
+      this.tasks = [];
+      this.awaitingTaskPick = true;
+    } else {
+      this.awaitingTaskPick = !!data.awaitingTaskPick;
     }
     this.ranchPens = (data.ranchPens ?? []).slice(0, RANCH_GRID * RANCH_GRID).map(p =>
       p && animalById(p.id) ? { id: p.id, readyAt: this.time + Math.max(0, (p.remain ?? 0) - elapsed) } : null);

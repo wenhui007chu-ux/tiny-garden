@@ -418,6 +418,9 @@ function animate() {
   if (game.sleeping) dt *= SLEEP_SPEED;
   ensureSize();
   game.tick(dt);
+  // 早上 6 点的强制难度面板：game.tick 里已经把时间冻住了，
+  // 这里只负责把面板显出来（选完自己会隐藏）
+  ui.renderTaskPick();
   controls.update();
 
   const t = game.time;

@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -85,6 +85,7 @@ export class UI {
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
+    $('#tasks-close').addEventListener('click', () => $('#tasks').classList.add('hidden'));
     $('#brew-close').addEventListener('click', () => this.exitBrewery());
     $('#shop2-close').addEventListener('click', () => this.exitFoodShop());
     $('#ware-close').addEventListener('click', () => $('#ware').classList.add('hidden'));
@@ -116,6 +117,7 @@ export class UI {
       // 只在总览屏刷新，倒计时该跳还是跳。同钓鱼面板收杆时的处理。
       if (!$('#brew').classList.contains('hidden') && this.brewPick === null) this.renderBrewery();
       if (!$('#shop2').classList.contains('hidden') && !this.giftPicking) this.renderFoodShop();
+      if (!$('#tasks').classList.contains('hidden')) this.renderTasks();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -346,7 +348,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#tasks', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1867,6 +1869,88 @@ export class UI {
 
   /* ---------- 发展评估 ---------- */
 
+  /* ---------- 每日任务 ---------- */
+
+  // 早上 6 点的强制难度面板。没有关闭按钮，也不接 Esc——
+  // 玩家定的规矩：必须选好才能走，期间 game.tick 整个冻结
+  renderTaskPick() {
+    const g = this.game;
+    const wrap = $('#task-pick');
+    if (!g.awaitingTaskPick) { wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
+    const box = $('#task-tiers');
+    if (box.dataset.day === String(g.dayCount)) return; // 已经画过这一天的，别每帧重建
+    box.dataset.day = String(g.dayCount);
+    box.innerHTML = '';
+    TASK_TIERS.forEach(tier => {
+      const b = document.createElement('button');
+      b.className = 'task-tier';
+      b.innerHTML = `<b>${tier.emoji}</b><span>${t('task.tier.' + tier.id)}</span>`
+        + `<small>${tp('task.tierNote', {
+          mult: tier.scale, reward: tier.reward.toLocaleString(),
+        })}</small>`;
+      b.addEventListener('click', () => {
+        g.pickTaskTier(tier.id);
+        wrap.classList.add('hidden');
+        box.dataset.day = '';
+      });
+      box.appendChild(b);
+    });
+  }
+
+  openTasks() {
+    this.closePanels();
+    $('#tasks').classList.remove('hidden');
+    this.renderTasks();
+  }
+
+  renderTasks() {
+    const g = this.game;
+    const body = $('#tasks-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    const tier = g.taskTierDef();
+    if (!tier) {
+      body.innerHTML = `<div class="bag-empty">${t('task.notPicked')}</div>`;
+      return;
+    }
+    const done = g.tasks.filter(q => q.progress >= q.target).length;
+    const claimable = g.taskClaimable();
+    body.insertAdjacentHTML('beforeend', `
+      <div id="task-top">
+        <b>${tier.emoji} ${t('task.tier.' + tier.id)} · ${tp('task.doneOf', { n: done, max: g.tasks.length })}</b>
+        <small>${tp('task.topNote', { reward: tier.reward.toLocaleString() })}</small>
+      </div>`);
+
+    const all = document.createElement('button');
+    all.id = 'task-claim-all';
+    all.disabled = !claimable;
+    all.textContent = claimable
+      ? `🎁 ${tp('task.claimAll', { n: claimable, coin: (claimable * tier.reward).toLocaleString() })}`
+      : t('task.nothingToClaim');
+    all.addEventListener('click', () => { g.claimAllTasks(); this.renderTasks(); });
+    body.appendChild(all);
+
+    g.tasks.forEach((q, i) => {
+      const type = taskTypeById(q.type);
+      const ok = q.progress >= q.target;
+      const el = document.createElement('div');
+      el.className = 'task-row' + (ok ? ' done' : '') + (q.claimed ? ' claimed' : '');
+      el.innerHTML = `<div class="icon">${type.emoji}</div>
+        <div class="info"><b>${tp('task.name.' + type.id, { n: q.target.toLocaleString() })}</b>
+        <p>${q.progress.toLocaleString()} / ${q.target.toLocaleString()}</p>
+        <div class="ach-bar"><i style="width:${Math.round(Math.min(1, q.progress / q.target) * 100)}%"></i></div></div>`;
+      const btn = document.createElement('button');
+      btn.disabled = !ok || q.claimed;
+      btn.textContent = q.claimed ? `✅ ${t('task.claimed')}`
+        : ok ? `🎁 ${t('task.claim')}` : t('task.doing');
+      if (ok && !q.claimed) btn.addEventListener('click', () => { g.claimTask(i); this.renderTasks(); });
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled;
+  }
+
   openReview() {
     this.closePanels();
     $('#review').classList.remove('hidden');
@@ -3346,6 +3430,14 @@ export class UI {
         this.openSellMode();
         menu.classList.add('hidden');
       });
+      {
+        // 有能领的就在按钮上挂个红点，省得玩家忘了领——不领第二天就作废了
+        const n = g.taskClaimable();
+        addBtn(t('quick.tasks') + (n ? ` <em class="bag-badge">${n}</em>` : ''), () => {
+          this.openTasks();
+          menu.classList.add('hidden');
+        });
+      }
       addBtn(t('quick.review'), () => {
         this.openReview();
         menu.classList.add('hidden');

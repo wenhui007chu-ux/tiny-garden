@@ -157,8 +157,12 @@ export const METAL = {
 export const metalPrice = (seedId, quality) =>
   Math.max(1, Math.floor(seedById(seedId).sell * METAL[quality].bars * SORTER_MULT));
 
-// 昼夜循环：现实 20 分钟 = 游戏一天（白天/夜晚各 10 分钟），夜晚生长减半
-export const DAY_CYCLE = 1200;      // 秒
+// 昼夜循环：现实 40 分钟 = 游戏一天（白天/夜晚各 20 分钟），夜晚生长减半。
+// 2026-08-18 从 20 分钟（白天/夜晚各 10 分钟）翻倍，为的是每日任务——
+// 一天只有 10 分钟白天的话，10 个任务根本来不及做，领取窗口也短得离谱。
+// 代价：所有按「游戏日」结算的东西在现实时间里都慢一倍（天气、银行日结、
+// 港湾商船周期、酒窖陈酿、黑市半天翻牌、天文台预报覆盖的时长）。
+export const DAY_CYCLE = 2400;      // 秒
 export const NIGHT_SLOW = 0.5;
 
 // 睡觉：不再「一瞬间跳到天亮」，而是把时间快进着走完。
@@ -1816,3 +1820,69 @@ export const visitorRate = (score) =>
   VISITOR.rateMin + Math.pow(rarityRatio(score), VISITOR.rateCurve) * (VISITOR.rateMax - VISITOR.rateMin);
 // 每分钟期望收入，面板上直接显示这个数
 export const visitorIncome = (score) => visitorTicket(score) * visitorRate(score);
+
+/* ================= 每日任务 =================
+ * 每个游戏日早上 6 点强制弹面板选一档难度，选完刷出 10 个同档任务。
+ * 难度只决定「目标量」和「奖励」，任务种类是随机抽的。
+ * 做完要手动点领取才到账；不领的话第二天刷新就作废——这是玩家定的规矩，
+ * 目的是让人每天真的回来看一眼，而不是躺着等钱自己进口袋。
+ */
+export const TASK_COUNT = 10;
+
+// 目标量 = 基准 × scale；奖励是定额。
+// reward/scale 这一列是「单位工作量的回报」：32k → 70k 一路走高，
+// 所以挑硬的更划算——但也只是「更划算」，不是碾压。
+// 早先试过奖励差 100 倍，结果极困难只完成三成都比极简单全清赚得多，
+// 那样五个档位就只剩一个有意义了。
+export const TASK_TIERS = [
+  { id: 'vEasy', name: '极简单', emoji: '🟢', scale: 0.25, reward: 8000 },
+  { id: 'easy',  name: '简单',   emoji: '🔵', scale: 0.5,  reward: 18000 },
+  { id: 'mid',   name: '中等',   emoji: '🟡', scale: 1,    reward: 45000 },
+  { id: 'hard',  name: '困难',   emoji: '🟠', scale: 2,    reward: 110000 },
+  { id: 'vHard', name: '极困难', emoji: '🔴', scale: 4,    reward: 280000 },
+];
+export const taskTierById = (id) => TASK_TIERS.find(t => t.id === id);
+
+// kind 是计数器名字，game.bumpTask(kind, n) 在各处产出时调用。
+// base 是「中等」档的目标量，其余档位按 scale 缩放。
+export const TASK_TYPES = [
+  { id: 'harvest', kind: 'harvest', emoji: '🧺', name: '收获 {n} 个作物',        base: 40 },
+  { id: 'plant',   kind: 'plant',   emoji: '🌱', name: '种下 {n} 株作物',        base: 30 },
+  { id: 'quality', kind: 'quality', emoji: '🥇', name: '收获 {n} 个金/银品质',   base: 6 },
+  { id: 'sell',    kind: 'sell',    emoji: '💰', name: '卖出 {n}💰 的东西',      base: 50000 },
+  { id: 'can',     kind: 'can',     emoji: '🥫', name: '做出 {n} 个罐头',        base: 3 },
+  { id: 'cook',    kind: 'cook',    emoji: '🍲', name: '做出 {n} 道料理',        base: 3 },
+  { id: 'gourmet', kind: 'gourmet', emoji: '🍽️', name: '做出 {n} 道大菜',        base: 1 },
+  { id: 'fish',    kind: 'fish',    emoji: '🐟', name: '捕到 {n} 条水产',        base: 3 },
+  { id: 'brew',    kind: 'brew',    emoji: '🍷', name: '酿出 {n} 瓶果酒',        base: 2 },
+  { id: 'gift',    kind: 'gift',    emoji: '🎁', name: '装出 {n} 盒礼盒',        base: 2 },
+  { id: 'hybrid',  kind: 'hybrid',  emoji: '🧬', name: '合成 {n} 个杂交作物',    base: 2 },
+  { id: 'bouquet', kind: 'bouquet', emoji: '💐', name: '扎出 {n} 束花',          base: 2 },
+  { id: 'metal',   kind: 'metal',   emoji: '🔩', name: '分拣出 {n} 根金属条',    base: 3 },
+  { id: 'pest',    kind: 'pest',    emoji: '🐛', name: '除掉 {n} 只虫子',        base: 3 },
+  { id: 'animal',  kind: 'animal',  emoji: '🐄', name: '收 {n} 只成年动物',      base: 3 },
+  { id: 'butcher', kind: 'butcher', emoji: '🔪', name: '屠宰 {n} 只动物',        base: 2 },
+  { id: 'treasury',kind: 'treasury',emoji: '🏛️', name: '典藏入藏 {n} 格',        base: 2 },
+];
+export const taskTypeById = (id) => TASK_TYPES.find(t => t.id === id);
+
+export const taskTarget = (type, tier) =>
+  Math.max(1, Math.round(type.base * tier.scale));
+
+// 当天刷哪 10 个任务：跟天气一样由 (存档种子, 第几天) 算出来，
+// 所以不用把题目存进存档，读档也不会变题。加 tier 进种子是为了
+// 换档位时题目也跟着换一批，不至于换个难度还是那十道。
+export function dailyTasks(seed, day, tierId) {
+  const tier = taskTierById(tierId) ?? TASK_TIERS[2];
+  const tierIdx = TASK_TIERS.indexOf(tier);
+  const pool = [...TASK_TYPES];
+  const out = [];
+  for (let i = 0; i < TASK_COUNT && pool.length; i++) {
+    // 同一串正弦伪随机，(seed, day, tier, i) 定死一个结果
+    const x = Math.sin(seed * 3.71 + day * 91.7 + tierIdx * 13.3 + i * 57.13) * 43758.5453;
+    const r = x - Math.floor(x);
+    const pick = pool.splice(Math.floor(r * pool.length), 1)[0];
+    out.push({ type: pick.id, target: taskTarget(pick, tier) });
+  }
+  return out;
+}
