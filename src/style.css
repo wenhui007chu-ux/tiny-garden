@@ -63,17 +63,25 @@ body {
   display: flex; flex-direction: column; align-items: center;
   gap: clamp(4px, 1vw, 8px); z-index: 10;
 }
-.tb-row { display: flex; justify-content: center; gap: clamp(4px, 1.2vw, 10px); }
-/* 尺寸随屏宽伸缩：桌面维持原来的 64px，窄屏自动缩到能塞下 6 个 */
+/* stretch：让同一排的按钮统一拉到最高那个的高度。
+   有了它，某个按钮的文字折成两行时整排一起变高，而不是它自己鼓出来 */
+.tb-row { display: flex; justify-content: center; align-items: stretch; gap: clamp(4px, 1.2vw, 10px); }
+/* 尺寸随屏宽伸缩：桌面维持原来的 64px，窄屏自动缩到能塞下 6 个。
+   高度用 min-height 而不是写死 height——「快捷与其他」这种长标签在窄屏上
+   会折两行，写死的话文字直接溢出按钮外面（俄语 Быстрое и др. 更长） */
 .tool-btn {
-  width: clamp(46px, 13vw, 64px); height: clamp(46px, 13vw, 64px);
+  width: clamp(46px, 13vw, 64px); min-height: clamp(46px, 13vw, 64px);
+  padding: 3px 2px;
   border-radius: 18px; border: 3px solid #d9b071;
   background: #fff8ec; font-size: clamp(18px, 5vw, 24px); cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   box-shadow: 0 4px 0 #d9b071; transition: transform .08s;
   flex: 0 0 auto;
 }
-.tool-btn span { font-size: clamp(9px, 2.4vw, 11px); color: #8a5a2b; font-weight: 600; margin-top: 2px; }
+.tool-btn span {
+  font-size: clamp(9px, 2.4vw, 11px); color: #8a5a2b; font-weight: 600; margin-top: 2px;
+  line-height: 1.15; text-align: center;
+}
 .tool-btn:hover { transform: translateY(-2px); }
 .tool-btn.active { background: #ffe9b8; border-color: #e09b3d; box-shadow: 0 4px 0 #e09b3d; }
 

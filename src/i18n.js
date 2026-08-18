@@ -92,7 +92,7 @@ const DICT = {
     // 工具栏
     'tool.harvest': '收获', 'tool.plant': '种植', 'tool.water': '浇水',
     'tool.spray': '打药', 'tool.shovel': '铲除', 'tool.save': '保存',
-    'tool.quick': '快捷', 'tool.afk': '挂机', 'tool.music': '选曲',
+    'tool.quick': '快捷与其他', 'tool.afk': '挂机', 'tool.music': '选曲',
     'tool.settings': '设置', 'tool.bag': '背包', 'tool.items': '道具',
     // 面板标题
     'panel.bag': '🎒 背包', 'panel.ws': '🏭 工坊', 'panel.mall': '🛒 商场',
@@ -732,7 +732,7 @@ const DICT = {
     'wiki.butcher.h': 'A red-roofed hut north of the ranch with <b>{slots} stations</b>. Load a whole animal from your bag: <b>{kill}</b> to slaughter, then <b>{cut}</b> to break down — <b>{all}</b> in all, and it keeps running while you are offline.<br>Each animal splits into 4 cuts whose prices add up to exactly <b>{mult}×</b> the whole animal — {all} of waiting buys a 50% premium. Cuts can only be sold, never processed further.<br>{table}',
     'tool.harvest': 'Harvest', 'tool.plant': 'Plant', 'tool.water': 'Water',
     'tool.spray': 'Spray', 'tool.shovel': 'Clear', 'tool.save': 'Save',
-    'tool.quick': 'Quick', 'tool.afk': 'AFK', 'tool.music': 'Music',
+    'tool.quick': 'Quick & more', 'tool.afk': 'AFK', 'tool.music': 'Music',
     'tool.settings': 'Settings', 'tool.bag': 'Bag', 'tool.items': 'Items',
     'panel.bag': '🎒 Backpack', 'panel.ws': '🏭 Workshop', 'panel.mall': '🛒 Mall',
     'panel.items': '🧰 Item Bag', 'panel.codex': '🏛️ Treasury Hall', 'panel.bank': '🏦 Bank',
@@ -1362,7 +1362,7 @@ const DICT = {
     'wiki.butcher.h': 'Домик с красной крышей к северу от ранчо, <b>{slots} рабочих места</b>. Положите целое животное из рюкзака: <b>{kill}</b> на забой, затем <b>{cut}</b> на разделку — всего <b>{all}</b>, процесс идёт и оффлайн.<br>Каждое животное делится на 4 части, сумма их цен ровно в <b>{mult} раза</b> больше целого — {all} ожидания дают наценку 50%. Части можно только продать, переработать нельзя.<br>{table}',
     'tool.harvest': 'Сбор', 'tool.plant': 'Посев', 'tool.water': 'Полив',
     'tool.spray': 'Опрыск', 'tool.shovel': 'Убрать', 'tool.save': 'Схема',
-    'tool.quick': 'Быстро', 'tool.afk': 'Пауза', 'tool.music': 'Музыка',
+    'tool.quick': 'Быстрое и др.', 'tool.afk': 'Пауза', 'tool.music': 'Музыка',
     'tool.settings': 'Настройки', 'tool.bag': 'Рюкзак', 'tool.items': 'Предметы',
     'panel.bag': '🎒 Рюкзак', 'panel.ws': '🏭 Мастерская', 'panel.mall': '🛒 Магазин',
     'panel.items': '🧰 Предметы', 'panel.codex': '🏛️ Зал сокровищ', 'panel.bank': '🏦 Банк',
