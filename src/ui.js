@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -1836,6 +1836,32 @@ export class UI {
       `<div id="trainer-note">👷 ${total} 个工位各自单独培养，每级 ${TRAINER.cost}💰，最高 ${TRAINER.maxLevel} 级。<br>
        每升一级：这条线加工更快，出货时每件多给 ${TRAINER.pricePerLevel}💰。<br>
        总进度 <b>${done} / ${total * TRAINER.maxLevel}</b> 级</div>`);
+
+    // 员工：一次性招募，之后自动干活。跟下面那些「工位等级」是两回事，
+    // 所以单独一块摆在最上面
+    body.insertAdjacentHTML('beforeend', `<div class="ach-group">${t('staff.title')}</div>`);
+    TRAINER_STAFF.forEach(def => {
+      const hired = !!g.staff[def.id];
+      const left = hired ? Math.max(0, def.period - (g.staffTimer[def.id] ?? 0)) : 0;
+      const el = document.createElement('div');
+      el.className = 'ws-slot' + (hired ? '' : ' locked');
+      el.innerHTML = `<div class="icon">${def.emoji}</div>
+        <div class="info"><b>${staffName(def)}</b>
+        <p>${t('staff.desc.' + def.id)}</p>
+        ${hired ? `<p>${tp('staff.next', { s: Math.ceil(left) })}</p>
+          <div class="ach-bar"><i style="width:${Math.round((1 - left / def.period) * 100)}%"></i></div>` : ''}</div>`;
+      const btn = document.createElement('button');
+      if (hired) {
+        btn.textContent = `✅ ${t('staff.hired')}`;
+        btn.disabled = true;
+        btn.className = 'owned';
+      } else {
+        btn.textContent = `${def.cost.toLocaleString()}💰`;
+        btn.addEventListener('click', () => { g.hireStaff(def.id); this.renderTrainer(); });
+      }
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
 
     TRAINER_LINES.forEach(line => {
       const wrap = document.createElement('div');

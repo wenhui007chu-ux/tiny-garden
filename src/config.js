@@ -1752,6 +1752,35 @@ export const trainerTimeAt = (lineKey, lv) => {
   return L ? Math.round(L.base * trainerRatio(lineKey, lv)) : 0;
 };
 
+// ===== 员工：一次性招募，之后自动干活 =====
+// 跟上面那五条「工位等级」是两回事：那边是花钱把加工线提速，
+// 这边是雇人替你做那件事本身，产出照常记进每日任务。
+//
+// 收入很小（垂钓者约 780💰/小时、花房管理员约 4500💰/小时），这是有意的：
+// 它们是替你推任务进度的，不是新的挂机财源——零点击收入刚砍过两轮，
+// 不该从这儿又漏回来。
+export const TRAINER_STAFF = [
+  {
+    id: 'angler', emoji: '🎣', name: '垂钓者', cost: 50000, period: 60,
+    // 产出跟玩家自己用钓竿一个档次（ROD.min~max），所以「捕到 N 条水产」照算
+    desc: '每分钟用钓竿捞上来一条水产，直接进背包',
+  },
+  {
+    id: 'florist', emoji: '💐', name: '花房管理员', cost: 50000, period: 180,
+    desc: '每 3 分钟扎一束便宜花束，当场卖掉换钱',
+  },
+];
+export const trainerStaffById = (id) => TRAINER_STAFF.find(s => s.id === id);
+export const staffName = (s) => (s ? tf(`staff.${s.id}`, s.name) : '');
+
+// 花房管理员扎的是最便宜那种花束：最便宜的花 × BOUQUET_SIZE × BOUQUET_MULT。
+// 跟着花表走，以后加了更便宜的花会自动跟上
+export const cheapBouquetPrice = () => {
+  const cheapest = FLOWERS.reduce((a, f) => (f.sell < a.sell ? f : a), FLOWERS[0]);
+  return Math.max(1, Math.floor(cheapest.sell * BOUQUET_SIZE * BOUQUET_MULT));
+};
+
+
 // ===== 参观客：把小屋 / 宠物间 / 水族馆的装饰变成收入 =====
 // 家具 26 件、宠物 20 只、宠物窝 10 件玩家早就买齐升满了，但在此之前
 // 这三处纯粹是支出——`comfort()` 全代码只出现一次且不参与任何计算。

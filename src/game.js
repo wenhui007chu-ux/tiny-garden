@@ -7,6 +7,7 @@ import {
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   TREASURY_POS, PEST, POISON,
   TASK_COUNT, TASK_TIERS, taskTierById, taskTypeById, dailyTasks,
+  TRAINER_STAFF, trainerStaffById, staffName, cheapBouquetPrice,
   RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorById,
   receptionDecorName, receptionLevelName, receptionRatio, RECEPTION,
   TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
@@ -316,6 +317,8 @@ export class Game {
     this.receptionStyle = {};      // id -> 当前展示第几级的外观
     this.receptionMeshMap = {};    // id -> 场上的那个 mesh
     this.lobby = [];               // 正在厅里候场的参观客
+    this.staff = {};               // 已招募的员工 id -> true
+    this.staffTimer = {};          // 各自攒了多少秒
 
     // 花房温室：菜园右后方的玻璃温室 + 藏在岛下的花房内部
     // （原来在左前方，跟水塘挤在一起，挪到后方空地避开水塘和装饰台）
@@ -2927,6 +2930,80 @@ export class Game {
     ];
   }
 
+
+  /* ---------- 员工 ---------- */
+
+  hireStaff(id) {
+    const s = trainerStaffById(id);
+    if (!s || this.staff[id]) return false;
+    if (!this.spend(s.cost)) return false;
+    this.staff[id] = true;
+    this.staffTimer[id] = 0;
+    this.onToast(`${s.emoji} ${staffName(s)}入职了！${s.desc}`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+    return true;
+  }
+
+  // 一次产出。silent 用于离线补偿：那时候不该弹几百条提示，
+  // 也不该记进每日任务（那批任务在离线跨天时已经作废重刷了）
+  staffProduce(id, silent = false) {
+    if (id === 'angler') {
+      const sf = rollSeafood(ROD.min, ROD.max);
+      const key = `s:${sf.id}`;
+      this.inventory[key] = (this.inventory[key] ?? 0) + 1;
+      if (!silent) {
+        this.bumpTask('fish', 1);
+        this.onToast(`🎣 垂钓者钓上来一只${sf.emoji}${seafoodName(sf)}，值 ${sf.sell}💰`);
+      }
+      return sf.sell;
+    }
+    if (id === 'florist') {
+      // 花束当场卖掉，不占背包
+      const price = cheapBouquetPrice();
+      this.gain(price);
+      if (!silent) {
+        this.bumpTask('bouquet', 1);
+        this.bumpTask('sell', price);
+        this.onToast(`💐 花房管理员扎了一束花，卖了 ${price}💰`);
+      }
+      return price;
+    }
+    return 0;
+  }
+
+  // 每帧推进。跟牧场/参观客一个节奏：攒够一个周期就产一次，
+  // 一帧里攒够多个周期就补多次（掉帧或快进时不会漏产）
+  tickStaff(dt) {
+    for (const def of TRAINER_STAFF) {
+      if (!this.staff[def.id]) continue;
+      this.staffTimer[def.id] = (this.staffTimer[def.id] ?? 0) + dt;
+      let rounds = Math.floor(this.staffTimer[def.id] / def.period);
+      if (rounds <= 0) continue;
+      this.staffTimer[def.id] -= rounds * def.period;
+      // 一次别产太多，免得掉帧后一口气刷几十条提示
+      rounds = Math.min(rounds, 20);
+      for (let k = 0; k < rounds; k++) this.staffProduce(def.id);
+      this.save();
+    }
+  }
+
+  // 离线补偿：按经过时间补产，封顶跟牧场/参观客一样是 12 小时
+  offlineStaff(elapsed) {
+    const capped = Math.min(elapsed, VISITOR.offlineCap);
+    for (const def of TRAINER_STAFF) {
+      if (!this.staff[def.id]) continue;
+      const n = Math.floor((capped + (this.staffTimer[def.id] ?? 0)) / def.period);
+      if (n <= 0) continue;
+      this.staffTimer[def.id] = (capped + (this.staffTimer[def.id] ?? 0)) % def.period;
+      let total = 0;
+      for (let k = 0; k < n; k++) total += this.staffProduce(def.id, true);
+      const s = trainerStaffById(def.id);
+      this._notices.push(`${s.emoji} 离线期间${staffName(s)}干了 ${n} 次，共 ${total.toLocaleString()}💰`);
+    }
+  }
+
   /* ---------- 游客招待厅 ---------- */
 
   buyReceptionDecor(id) {
@@ -3766,6 +3843,7 @@ export class Game {
     }
 
     // 参观客：每分钟按期望人数结算一次门票
+    this.tickStaff(dt);     // 雇来的员工按各自周期产出
     this.updateLobby(dt);   // 招待厅里候场的人先走这个计时
     this.updateVisitors(dt);
     const vs = this.visitorStats();
@@ -3907,6 +3985,8 @@ export class Game {
       visitorTotal: this.visitorTotal,
       // 每日任务：题目本身由 (种子, 天, 档位) 算得出来，不必存；
       // 只存「哪一天的、选了哪档、各自做到哪、领没领」
+      staff: this.staff,
+      staffTimer: this.staffTimer,
       receptionOwned: this.receptionOwned,
       receptionStyle: this.receptionStyle,
       taskDay: this.taskDay,
@@ -4111,6 +4191,9 @@ export class Game {
         this._notices.push(`\u{1f3ab} 离线期间来了些参观客，门票收入 +${got.toLocaleString()}\u{1f4b0}`);
       }
     }
+    this.staff = data.staff ?? {};
+    this.staffTimer = data.staffTimer ?? {};
+    this.offlineStaff(elapsed);
     this.receptionOwned = data.receptionOwned ?? {};
     this.receptionStyle = data.receptionStyle ?? {};
     // 每日任务。老存档没有这些字段，或者离线跨了天（dayCount 已经被
