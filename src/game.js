@@ -7,6 +7,8 @@ import {
   UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   TREASURY_POS, PEST, POISON,
   TASK_COUNT, TASK_TIERS, taskTierById, taskTypeById, dailyTasks,
+  RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorById,
+  receptionDecorName, receptionLevelName, receptionRatio, RECEPTION,
   TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
   DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
   pondDecorById, pondName, POND_MAX_PLACED, HYBRIDS, hybridById,
@@ -41,6 +43,7 @@ import {
   createUpperDeck, createLadder, createHouse, createLockEdge,
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
+  createReceptionBuilding, createReceptionInterior, createReceptionDecor,
   createTreasuryBuilding, createTreasuryInterior, createTreasuryCase, createProsperityPillar,
   createDishMesh, createCaseLabel, disposeTree,
   createPedestalBase, createPlaque,
@@ -295,6 +298,21 @@ export class Game {
     this.petHall.position.set(PET_POS.x, PET_POS.y, PET_POS.z);
     this.group.add(this.petHall);
 
+    // 游客招待厅：参观客上岛后先在这儿坐 20 秒再出门参观
+    const reception = createReceptionBuilding();
+    reception.position.set(12.5, -0.51, 7.5);
+    reception.rotation.y = -0.5;
+    this.group.add(reception);
+    this.receptionMeshes = [];
+    reception.traverse(o => { if (o.isMesh) this.receptionMeshes.push(o); });
+    this.receptionHall = createReceptionInterior();
+    this.receptionHall.position.set(RECEPTION_POS.x, RECEPTION_POS.y, RECEPTION_POS.z);
+    this.group.add(this.receptionHall);
+    this.receptionOwned = {};      // id -> 已解锁到几级
+    this.receptionStyle = {};      // id -> 当前展示第几级的外观
+    this.receptionMeshMap = {};    // id -> 场上的那个 mesh
+    this.lobby = [];               // 正在厅里候场的参观客
+
     // 花房温室：菜园右后方的玻璃温室 + 藏在岛下的花房内部
     // （原来在左前方，跟水塘挤在一起，挪到后方空地避开水塘和装饰台）
     const greenhouse = createGreenhouse();
@@ -512,6 +530,7 @@ export class Game {
     this.addSign(greenhouse, '🌸', 'greenhouse');
     this.addSign(achBuilding, '🏅', 'achievement');
     this.addSign(treasuryBuilding, '🏛️', 'treasury');
+    this.addSign(reception, '🛎️', 'reception');
     this.addSign(aquariumBuilding, '🐠', 'aquarium');
     this.addSign(sorter, '⚙️', 'sorter');
     this.addSign(blackMarket, '🕶️', 'blackMarket'); // 之前漏了这块
@@ -2867,8 +2886,11 @@ export class Game {
   visitorStats() {
     const b = this.visitorBreakdown();
     const p = this.prosperity();
-    const ticket = Math.round(visitorTicket(b.total) * p.ticketMult);
-    const rate = visitorRate(b.total) * p.rateMult;
+    const rc = this.receptionBonus();
+    // 两层加成叠乘：典藏馆繁荣度 × 招待厅装修。
+    // 都是「额外加在珍稀度算完之后」，所以两个都空着时系数都是 1，不会倒扣
+    const ticket = Math.round(visitorTicket(b.total) * p.ticketMult * rc.ticketMult);
+    const rate = visitorRate(b.total) * p.rateMult * rc.rateMult;
     return {
       ...b,
       max: RARITY_MAX,
@@ -2878,6 +2900,8 @@ export class Game {
       baseTicket: visitorTicket(b.total),   // 面板里要显示「繁荣度加成前/后」
       baseRate: visitorRate(b.total),
       prosperity: p,
+      reception: rc,
+      reception: rc,
       total: b.total,
       earned: this.visitorTotal,
     };
@@ -2895,9 +2919,99 @@ export class Game {
     ];
   }
 
+  /* ---------- 游客招待厅 ---------- */
+
+  buyReceptionDecor(id) {
+    const d = receptionDecorById(id);
+    if (!d || this.receptionOwned[id]) return;
+    if (!this.spend(d.cost)) return;
+    this.receptionOwned[id] = 1;
+    this.receptionStyle[id] = 1;
+    this.refreshReception();
+    this.onToast(`${d.emoji} ${receptionDecorName(d)}摆进招待厅`);
+    sfx.play('done');
+    this.onState();
+    this.save();
+  }
+
+  upgradeReceptionDecor(id) {
+    const d = receptionDecorById(id);
+    const lv = this.receptionOwned[id] ?? 0;
+    if (!d || !lv) return;
+    if (lv >= FURNITURE_MAX_LEVEL) { this.onToast(`${receptionDecorName(d)}已经是满级了`); return; }
+    if (!this.spend(d.up[lv - 1])) return;
+    this.receptionOwned[id] = lv + 1;
+    this.receptionStyle[id] = lv + 1; // 刚升的新外观先亮出来
+    this.refreshReception();
+    this.onToast(`${d.emoji} 升级成「${receptionLevelName(d, lv + 1)}」！`);
+    sfx.play('upgrade');
+    this.onState();
+    this.save();
+  }
+
+  setReceptionStyle(id, lv) {
+    if ((this.receptionOwned[id] ?? 0) < lv) return;
+    this.receptionStyle[id] = lv;
+    this.refreshReception();
+    this.onState();
+    this.save();
+  }
+
+  refreshReception() {
+    if (!this.receptionHall) return;
+    RECEPTION_DECORS.forEach(d => {
+      const old = this.receptionMeshMap[d.id];
+      if (old) { this.receptionHall.remove(old); delete this.receptionMeshMap[d.id]; }
+      const owned = this.receptionOwned[d.id] ?? 0;
+      if (!owned) return;
+      const shown = Math.min(owned, this.receptionStyle[d.id] ?? owned);
+      const m = createReceptionDecor(d, shown);
+      m.position.set(d.pos[0], 0, d.pos[1]);
+      this.receptionHall.add(m);
+      this.receptionMeshMap[d.id] = m;
+    });
+  }
+
+  // 招待厅给参观客的加成。跟典藏馆繁荣度一样是「乘在珍稀度算完之后」，
+  // 不掺进分母——厅刚盖好还空着的时候不会把现有收入稀释掉
+  receptionBonus() {
+    const r = receptionRatio(this.receptionOwned);
+    return {
+      ratio: r,
+      ticketMult: 1 + r * RECEPTION.ticketBoost,
+      rateMult: 1 + r * RECEPTION.rateBoost,
+    };
+  }
+
+  /* ---------- 参观客 ---------- */
+
+  // 上岛的人先进招待厅坐 RECEPTION_WAIT 秒，再出门开始参观。
+  // 候场的人挂在招待厅内部，玩家进厅就能看见他们坐着等
   spawnVisitor() {
-    if (this.visitors.length >= VISITOR.maxOnScreen) return;
+    if (this.visitors.length + this.lobby.length >= VISITOR.maxOnScreen) return;
     const mesh = createVisitor();
+    // 厅内随机找个位置站着（避开正中央的迎宾地毯）
+    const a = Math.random() * Math.PI * 2, r = 1.8 + Math.random() * 3.2;
+    mesh.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    this.receptionHall.add(mesh);
+    this.lobby.push({ mesh, left: RECEPTION_WAIT });
+  }
+
+  // 候场计时：到点就把人从厅里挪到岛上，开始走参观路线
+  updateLobby(dt) {
+    for (let i = this.lobby.length - 1; i >= 0; i--) {
+      const v = this.lobby[i];
+      v.left -= dt;
+      v.mesh.rotation.y += dt * 0.5; // 坐着等的时候慢慢转，别像木桩
+      if (v.left > 0) continue;
+      this.lobby.splice(i, 1);
+      this.receptionHall.remove(v.mesh);
+      this.startTour(v.mesh);
+    }
+  }
+
+  // 出厅上岛：接上原来那条参观路线
+  startTour(mesh) {
     const route = this.visitorRoute();
     // 起点稍微散开，不然一串人走同一条线像列队
     const jitter = () => (Math.random() - 0.5) * 1.6;
@@ -3580,6 +3694,7 @@ export class Game {
     this.refreshGreenhouse();
     this.refreshRanch();
     this.refreshShelf();
+    this.refreshReception();
   }
 
   /* ---------- 主循环 ---------- */
@@ -3643,6 +3758,7 @@ export class Game {
     }
 
     // 参观客：每分钟按期望人数结算一次门票
+    this.updateLobby(dt);   // 招待厅里候场的人先走这个计时
     this.updateVisitors(dt);
     const vs = this.visitorStats();
     this.visitorTimer += dt;
@@ -3783,6 +3899,8 @@ export class Game {
       visitorTotal: this.visitorTotal,
       // 每日任务：题目本身由 (种子, 天, 档位) 算得出来，不必存；
       // 只存「哪一天的、选了哪档、各自做到哪、领没领」
+      receptionOwned: this.receptionOwned,
+      receptionStyle: this.receptionStyle,
       taskDay: this.taskDay,
       taskTier: this.taskTier,
       tasks: this.tasks,
@@ -3985,6 +4103,8 @@ export class Game {
         this._notices.push(`\u{1f3ab} 离线期间来了些参观客，门票收入 +${got.toLocaleString()}\u{1f4b0}`);
       }
     }
+    this.receptionOwned = data.receptionOwned ?? {};
+    this.receptionStyle = data.receptionStyle ?? {};
     // 每日任务。老存档没有这些字段，或者离线跨了天（dayCount 已经被
     // offlineDays 顶上去了），两种情况都归到「该重新选档」——
     // 离线期间没做的任务本来也就作废了，跟坐在电脑前过一天是一个待遇

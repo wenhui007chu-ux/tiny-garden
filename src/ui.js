@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -86,6 +86,7 @@ export class UI {
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
     $('#tasks-close').addEventListener('click', () => $('#tasks').classList.add('hidden'));
+    $('#reception-close').addEventListener('click', () => this.exitReception());
     $('#brew-close').addEventListener('click', () => this.exitBrewery());
     $('#shop2-close').addEventListener('click', () => this.exitFoodShop());
     $('#ware-close').addEventListener('click', () => $('#ware').classList.add('hidden'));
@@ -118,6 +119,7 @@ export class UI {
       if (!$('#brew').classList.contains('hidden') && this.brewPick === null) this.renderBrewery();
       if (!$('#shop2').classList.contains('hidden') && !this.giftPicking) this.renderFoodShop();
       if (!$('#tasks').classList.contains('hidden')) this.renderTasks();
+      if (!$('#reception').classList.contains('hidden')) this.renderReception();
       if (!$('#fish').classList.contains('hidden')) {
         // 正在狂点收杆时别整块重绘，会打断连点
         if (this.game.pendingCatch && $('#reel-btn')) return;
@@ -348,7 +350,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#tasks', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#tasks', '#reception', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -359,6 +361,7 @@ export class UI {
     this.exitAchievement();
     this.exitAquarium();
     this.exitBrewery();
+    this.exitReception();
     this.exitFoodShop();
     this.exitRanch(); // 漏了这条的后果：在牧场点开别的面板，镜头会卡在岛东回不来
   }
@@ -366,7 +369,8 @@ export class UI {
   // 加 !! 保证返回真正的布尔：|| 链在全部 falsy 时会返回最后一项（undefined）
   inside() {
     return !!(this.inHouse || this.inCodex || this.inFishing || this.inHybridLab
-      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium || this.inBrewery || this.inFoodShop);
+      || this.inPetRoom || this.inGreenhouse || this.inAchievement || this.inAquarium || this.inBrewery
+      || this.inFoodShop || this.inReception);
   }
 
   /* ---------- 主动钓鱼 ---------- */
@@ -1945,6 +1949,107 @@ export class UI {
       btn.textContent = q.claimed ? `✅ ${t('task.claimed')}`
         : ok ? `🎁 ${t('task.claim')}` : t('task.doing');
       if (ok && !q.claimed) btn.addEventListener('click', () => { g.claimTask(i); this.renderTasks(); });
+      el.appendChild(btn);
+      body.appendChild(el);
+    });
+    body.scrollTop = scrolled;
+  }
+
+
+  /* ---------- 游客招待厅 ---------- */
+
+  openReception() {
+    this.closePanels();
+    // 镜头切进厅里（跟宠物间/花房一个套路）
+    if (!this.inReception && this.camera) {
+      this._camBackup = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        minD: this.controls.minDistance,
+      };
+      const p = RECEPTION_POS;
+      // 面板占掉右边一条，所以镜头往右偏半个面板宽，厅才落在露出来的那半屏中间
+      const dist = 14;
+      const visH = 2 * dist * Math.tan((this.camera.fov * Math.PI / 180) / 2);
+      const el = $('#reception');
+      const pw = el.getBoundingClientRect().width || Math.min(420, window.innerWidth * 0.5);
+      const shift = visH * this.camera.aspect * (pw / window.innerWidth) / 2;
+      this.controls.target.set(p.x + shift, p.y + 1, p.z);
+      this.camera.position.set(p.x + shift, p.y + 9, p.z + 13);
+      this.controls.minDistance = 3;
+      this.controls.update();
+      this.inReception = true;
+    }
+    $('#reception').classList.remove('hidden');
+    this.renderReception();
+    $('#reception-body').scrollTop = 0;
+  }
+
+  exitReception() {
+    $('#reception').classList.add('hidden');
+    if (!this.inReception) return;
+    this.inReception = false;
+    if (this._camBackup) {
+      this.camera.position.copy(this._camBackup.pos);
+      this.controls.target.copy(this._camBackup.target);
+      this.controls.minDistance = this._camBackup.minD;
+      this.controls.update();
+      this._camBackup = null;
+    }
+  }
+
+  renderReception() {
+    const g = this.game;
+    const body = $('#reception-body');
+    const scrolled = body.scrollTop;
+    body.innerHTML = '';
+    const owned = RECEPTION_DECORS.filter(d => g.receptionOwned[d.id]).length;
+    const rc = g.receptionBonus();
+    body.insertAdjacentHTML('beforeend', `
+      <div id="pet-progress">🛎️ ${tp('rec.progress', { n: owned, max: RECEPTION_DECORS.length })}
+        <small>${tp('rec.bonus', {
+          pct: Math.round(rc.ratio * 100),
+          ticket: rc.ticketMult.toFixed(2), rate: rc.rateMult.toFixed(2),
+          wait: RECEPTION_WAIT, n: g.lobby.length,
+        })}</small>
+        <div class="ach-bar"><i style="width:${Math.round(rc.ratio * 100)}%"></i></div>
+      </div>`);
+
+    RECEPTION_DECORS.forEach(d => {
+      const lv = g.receptionOwned[d.id] ?? 0;
+      const shown = lv ? Math.min(g.receptionStyle[d.id] ?? lv, lv) : 0;
+      const el = document.createElement('div');
+      el.className = 'fur-row' + (lv ? '' : ' locked');
+      const desc = lv
+        ? tp('rec.owned', { lv, max: FURNITURE_MAX_LEVEL, name: receptionLevelName(d, shown) })
+        : tp('rec.locked', { name: receptionLevelName(d, 1), cost: d.cost.toLocaleString(), max: FURNITURE_MAX_LEVEL });
+      el.innerHTML = `<div class="icon">${d.emoji}</div>
+        <div class="info"><b>${receptionDecorName(d)}</b><p>${desc}</p></div>`;
+      // 已解锁的外观随便换
+      if (lv >= 2) {
+        const chips = document.createElement('div');
+        chips.className = 'style-chips';
+        for (let k = 1; k <= lv; k++) {
+          const chip = document.createElement('button');
+          chip.textContent = receptionLevelName(d, k);
+          chip.className = k === shown ? 'active' : '';
+          chip.addEventListener('click', () => { g.setReceptionStyle(d.id, k); this.renderReception(); });
+          chips.appendChild(chip);
+        }
+        el.querySelector('.info').appendChild(chips);
+      }
+      const btn = document.createElement('button');
+      if (!lv) {
+        btn.textContent = `${d.cost.toLocaleString()}💰`;
+        btn.addEventListener('click', () => { g.buyReceptionDecor(d.id); this.renderReception(); });
+      } else if (lv < FURNITURE_MAX_LEVEL) {
+        btn.textContent = `⬆️ ${d.up[lv - 1].toLocaleString()}💰`;
+        btn.addEventListener('click', () => { g.upgradeReceptionDecor(d.id); this.renderReception(); });
+      } else {
+        btn.textContent = `✅ ${t('rec.maxed')}`;
+        btn.disabled = true;
+        btn.className = 'owned';
+      }
       el.appendChild(btn);
       body.appendChild(el);
     });

@@ -192,18 +192,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer, #tasks {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer, #tasks, #reception {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head, #tasks-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head, #tasks-head, #reception-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close, #tasks-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body, #tasks-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close, #tasks-close, #reception-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body, #tasks-body, #reception-body { padding: 12px; overflow-y: auto; flex: 1; }
 
 /* 高级料理的配方有 5~6 样原料，一行塞不下，让它自己换行 */
 #gourmet-body .recipe { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -216,7 +216,7 @@ body {
    铺满会把 3D 场景整个盖住。原来固定 330px，做酒庄时试过 420px，
    玩下来一个觉得偏窄一个偏宽，折中定在视口的 1/2.5（40%）。
    clamp 夹住两头：窗口很窄时别挤没内容，很宽的桌面屏上也别把 3D 遮去一大半。 */
-#codex, #hybrid, #pet, #house, #greenhouse, #ach, #brew, #aqua, #shop2 {
+#codex, #hybrid, #pet, #house, #greenhouse, #ach, #brew, #aqua, #shop2, #reception {
   width: clamp(300px, 40vw, 480px);
 }
 

@@ -1886,3 +1886,63 @@ export function dailyTasks(seed, day, tierId) {
   }
   return out;
 }
+
+/* ================= 游客招待厅 =================
+ * 参观客上岛后先在招待厅坐 20 秒，然后才出现在岛上开始参观。
+ * 厅里像小屋一样可以买装饰、升到 5 级、已解锁的外观随时切换。
+ *
+ * 装饰对收入的影响是「额外加成」，不掺进珍稀度的分母——
+ * 掺进去的话厅刚盖好还空着，现有的门票和人流会当场被稀释，
+ * 等于凭空砍收入（典藏馆繁荣度当初就是为这个才做成加成的）。
+ */
+export const RECEPTION_POS = { x: -60, y: -60, z: -120 }; // 独立厅室，藏在岛下
+export const RECEPTION_WAIT = 20;   // 参观客在厅里待多久（秒）
+export const RECEPTION_SLOTS = 15;  // 一共能摆几件
+
+// 五档外观的统称，升级换的就是这个前缀。
+// 用共享前缀而不是给 15 件各写 5 个专名：75 个名字 ×3 语言 = 225 条，
+// 手写既臃肿又必然翻漏，前缀只要 5×3 条就够，读起来也整齐
+export const RECEPTION_TIERS = ['朴素', '精致', '豪华', '鎏金', '传说'];
+const rtier = (name) => RECEPTION_TIERS.map(p => p + name);
+
+// cost 是买价，up 是四级升级费（1→2、2→3、3→4、4→5），一律翻倍。
+// 单件全满 = cost × 31；15 件全满约 5000 万，是给中后期的一个长线目标
+const rdecor = (id, name, emoji, cost, kind, pos) =>
+  ({ id, name, emoji, cost, up: [cost * 2, cost * 4, cost * 8, cost * 16],
+     kind, pos, levelNames: rtier(name) });
+
+export const RECEPTION_DECORS = [
+  rdecor('desk',    '前台',     '🛎️', 180000, 'desk',    [0, -4.2]),
+  rdecor('bench',   '等候长椅', '🪑', 90000,  'bench',   [-3.6, -1.2]),
+  rdecor('bench2',  '双人沙发', '🛋️', 120000, 'sofa',    [3.6, -1.2]),
+  rdecor('rug',     '迎宾地毯', '🟥', 60000,  'rug',     [0, 0.6]),
+  rdecor('tea',     '茶水台',   '🍵', 110000, 'tea',     [-4.6, 1.8]),
+  rdecor('plant',   '迎客松',   '🪴', 70000,  'plant',   [4.6, 1.8]),
+  rdecor('lamp',    '落地灯',   '🏮', 80000,  'lamp',    [-5.2, -3.4]),
+  rdecor('chand',   '水晶吊灯', '💡', 260000, 'chand',   [0, -1.4]),
+  rdecor('art',     '壁画',     '🖼️', 140000, 'art',     [0, -5.6]),
+  rdecor('clock',   '立钟',     '🕰️', 100000, 'clock',   [5.2, -3.4]),
+  rdecor('shelf',   '纪念品架', '🎁', 150000, 'shelf',   [-5.2, 3.6]),
+  rdecor('tank',    '观赏鱼缸', '🐠', 200000, 'tank',    [5.2, 3.6]),
+  rdecor('screen',  '屏风',     '🎴', 130000, 'screen',  [-2.2, 4.6]),
+  rdecor('music',   '留声机',   '🎶', 160000, 'music',   [2.2, 4.6]),
+  rdecor('arch',    '迎宾拱门', '⛩️', 300000, 'arch',    [0, 6.4]),
+];
+export const receptionDecorById = (id) => RECEPTION_DECORS.find(d => d.id === id);
+export const receptionDecorName = (d) => (d ? tf(`rdecor.${d.id}`, d.name) : '');
+// 第 lv 档的外观名：本地化的档位前缀 + 本地化的物件名
+export const receptionLevelName = (d, lv) =>
+  `${tf(`rtier.${lv - 1}`, RECEPTION_TIERS[lv - 1] ?? '')}${receptionDecorName(d)}`;
+
+// 满厅投入（分母）。跟珍稀度那套一样按「已投入的金币」算，
+// 以后加装饰、调价都会自动跟上
+export const RECEPTION_MAX = RECEPTION_DECORS.reduce(
+  (s, d) => s + itemInvested(d, FURNITURE_MAX_LEVEL), 0);
+
+// 招待厅给参观客的加成：满厅门票 ×1.6、人流 ×1.3。
+// 比典藏馆繁荣度弱一档——那边要填 273 格，这边只要 15 件
+export const RECEPTION = { ticketBoost: 0.6, rateBoost: 0.3 };
+export const receptionScore = (owned = {}) =>
+  RECEPTION_DECORS.reduce((s, d) => s + itemInvested(d, owned[d.id]), 0);
+export const receptionRatio = (owned) =>
+  Math.min(1, Math.max(0, receptionScore(owned) / RECEPTION_MAX));
