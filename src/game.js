@@ -565,7 +565,7 @@ export class Game {
     const w = this.weatherAt(this.dayCount);
     this.setWeather(w === 'drought', w === 'rain');
     this.onToast(this.drought
-      ? '☀️☀️☀️ 大旱天！生长缓慢，今天的收成会生长不良'
+      ? '☀️☀️☀️ 大旱天！生长缓慢，今天的收成会生长不良——但太热了，虫子一只都不会出来'
       : this.rain
         ? '⛈ 暴雨天！今天的收成会生长不良'
         : '🌅 新的一天，风调雨顺');
@@ -3419,10 +3419,17 @@ export class Game {
     if (stage === t.plant.stage) return;
     if (t.plant.mesh) this.group.remove(t.plant.mesh);
     t.plant.stage = stage;
-    // 成熟那一刻掷虫害骰子，每株只掷一次
+    // 成熟那一刻掷虫害骰子，每株只掷一次。
+    // 大旱天不长虫：太热了虫子不出来。这不只是个设定——大旱本来就已经
+    // 生长 ×1/3 + 收成全变生长不良，再叠一层虫害是往伤口上撒盐，
+    // 而且那天的收成反正都是生长不良，虫子叮不叮结果一样，纯粹添堵。
+    //
+    // pestRolled 必须照常置位（哪怕这次不掷），否则读档时 refreshAllVisuals
+    // 会把 stage 重置成 -1 再跑一遍这里：旱天成熟的作物等天气转好后一刷新
+    // 就突然长虫，「长不长虫」变成了「你什么时候刷的页面」。
     if (stage === 3 && !t.plant.pestRolled) {
       t.plant.pestRolled = true;
-      if (Math.random() < PEST.chance) {
+      if (!this.drought && Math.random() < PEST.chance) {
         t.plant.pest = true;
         if (!this._booting) this.onToast(`🐛 ${seed.emoji}${seed.name}生虫了！不打药收上来就是生长不良`);
       }

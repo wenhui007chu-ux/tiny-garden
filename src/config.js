@@ -174,6 +174,8 @@ export const EGG = { key: 'egg', name: '恐龙虾卵', emoji: '🦐', sell: 10, 
 // 恶劣天气：每天掷一次，大旱 15%、暴雨 20%
 // 大旱：三个太阳，生长 ×1/3；暴雨：持续降雨，生长速度正常
 // 两种天气下收获的作物都是"生长不良"，只卖半价——纯削经济，没有福利
+// 大旱不长虫（见 game.js updatePlantMesh）：这天生长已经 ×1/3、收成还全是
+// 生长不良，再叠虫害纯属添堵，而且反正都要变生长不良，叮不叮结果一样
 export const DROUGHT = { chance: 0.15, growSlow: 1 / 3, sellMult: 0.5 };
 export const RAIN = { chance: 0.2 };
 
@@ -242,7 +244,7 @@ export const OBSERVATORY = {
 };
 export const WEATHER_INFO = {
   clear:   { icon: '🌅', name: '风调雨顺', tone: 'clear',   desc: '正常生长' },
-  drought: { icon: '☀️', name: '大旱',     tone: 'drought', desc: '生长 ×1/3，收成生长不良' },
+  drought: { icon: '☀️', name: '大旱',     tone: 'drought', desc: '生长 ×1/3，收成生长不良，但不长虫' },
   rain:    { icon: '⛈', name: '暴雨',     tone: 'rain',    desc: '收成生长不良' },
 };
 
