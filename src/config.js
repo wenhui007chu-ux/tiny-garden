@@ -15,28 +15,30 @@ export const UNLOCK_COST = 1000; // 二层每块地的解锁价
 // ===== 牧场：岛东侧的 6×6 围栏，思路和农田一样 =====
 // 买幼崽放进栏 → 等它长大 → 点一下收进背包（背包/黑市都能卖）；
 // 也可以不收，成年动物留在栏里每分钟产一笔挂机收益（离线照算）。
-// 数值规则：卖价 = 买价 × 2.4；挂机收益/分钟 = 卖价 ÷ 270
-//（也就是「不收的话，挂机约 4.5 小时 ≈ 卖掉那一笔」，急着用钱就卖，长线就养着）
+// 数值规则：卖价 = 买价 × 2.4；挂机收益/分钟 = 卖价 ÷ 540
+//（也就是「不收的话，挂机约 9 小时 ≈ 卖掉那一笔」，急着用钱就卖，长线就养着）
 //
-// 挂机收益在 2026-08-17 砍到原来的 1/3（原本是卖价 ÷ 90，即 90 分钟回本）。
-// 原因：满编 36 栏独角兽是 9216 万/小时且零点击，种田、钓鱼、料理、扎花束
-// 这些要动手的玩法在这个量级面前收益等于零，核心循环被挂机压死了。
-// 砍完满编是 3072 万/小时，仍然可观，但手动链有了追上来的余地。
+// 挂机收益砍过两轮，原因是同一个：零点击的收入不能把要动手的玩法盖过去。
+//   2026-08-17 砍到 1/3（原本卖价 ÷ 90，即 90 分钟回本）——满编 36 栏独角兽
+//     原本 9216 万/小时，种田、钓鱼、料理、扎花束在这个量级面前收益等于零。
+//   2026-08-18 再砍一半（÷270 → ÷540）——上一轮砍完满编仍有 3072 万/小时，
+//     再加上参观客，零点击收入合计还是压着手动链。现在满编 1536 万/小时。
+//     参观客门票同日一起砍半，两边一起降才不会按下葫芦浮起瓢。
 export const RANCH_GRID = 6;                       // 6×6 = 36 个栏位
 export const RANCH_TILE = 1.6;                     // 栏位比菜地格大，animal 站得下
 export const RANCH_POS = { x: 30, z: 0 };          // 岛东侧空地，避开所有建筑
 export const RANCH_IDLE_TICK = 60;                 // 每 60 秒结算一次挂机收益
 export const ANIMALS = [
-  { id: 'chick',   name: '小鸡',   emoji: '🐣', cost: 500,     grow: 300,  sell: 1200,    idle: 4 },
-  { id: 'rabbit',  name: '兔子',   emoji: '🐰', cost: 1300,    grow: 420,  sell: 3100,    idle: 11 },
-  { id: 'duck',    name: '鸭子',   emoji: '🦆', cost: 3200,    grow: 540,  sell: 7700,    idle: 28 },
-  { id: 'goat',    name: '山羊',   emoji: '🐐', cost: 7800,    grow: 720,  sell: 18700,   idle: 69 },
-  { id: 'sheep',   name: '绵羊',   emoji: '🐑', cost: 19000,   grow: 900,  sell: 45600,   idle: 169 },
-  { id: 'pig',     name: '猪',     emoji: '🐖', cost: 46000,   grow: 1140, sell: 110000,  idle: 407 },
-  { id: 'cow',     name: '奶牛',   emoji: '🐄', cost: 110000,  grow: 1440, sell: 264000,  idle: 978 },
-  { id: 'horse',   name: '马',     emoji: '🐎', cost: 270000,  grow: 1800, sell: 648000,  idle: 2400 },
-  { id: 'deer',    name: '梅花鹿', emoji: '🦌', cost: 650000,  grow: 2220, sell: 1560000, idle: 5778 },
-  { id: 'unicorn', name: '独角兽', emoji: '🦄', cost: 1600000, grow: 2700, sell: 3840000, idle: 14222 },
+  { id: 'chick',   name: '小鸡',   emoji: '🐣', cost: 500,     grow: 300,  sell: 1200,    idle: 2 },
+  { id: 'rabbit',  name: '兔子',   emoji: '🐰', cost: 1300,    grow: 420,  sell: 3100,    idle:  6 },
+  { id: 'duck',    name: '鸭子',   emoji: '🦆', cost: 3200,    grow: 540,  sell: 7700,    idle: 14 },
+  { id: 'goat',    name: '山羊',   emoji: '🐐', cost: 7800,    grow: 720,  sell: 18700,   idle: 35 },
+  { id: 'sheep',   name: '绵羊',   emoji: '🐑', cost: 19000,   grow: 900,  sell: 45600,   idle:  84 },
+  { id: 'pig',     name: '猪',     emoji: '🐖', cost: 46000,   grow: 1140, sell: 110000,  idle: 204 },
+  { id: 'cow',     name: '奶牛',   emoji: '🐄', cost: 110000,  grow: 1440, sell: 264000,  idle: 489 },
+  { id: 'horse',   name: '马',     emoji: '🐎', cost: 270000,  grow: 1800, sell: 648000,  idle: 1200 },
+  { id: 'deer',    name: '梅花鹿', emoji: '🦌', cost: 650000,  grow: 2220, sell: 1560000, idle: 2889 },
+  { id: 'unicorn', name: '独角兽', emoji: '🦄', cost: 1600000, grow: 2700, sell: 3840000, idle:  7111 },
 ];
 export const animalById = (id) => ANIMALS.find(a => a.id === id);
 export const animalName = (a) => (a ? tf(`animal.${a.id}`, a.name) : '');
@@ -1747,13 +1749,16 @@ export const trainerTimeAt = (lineKey, lv) => {
 // 拿投入当珍稀度的好处是它自动跟着内容走：以后加家具加鱼，分母自己会变。
 //
 // 两端由玩家定死：屋里只有那张免费的稻草床（床 1 级）时珍稀度 = 0，
-// 门票 1 块、每分钟 1% 概率来一个人。满装修另一端定在门票 700、
-// 每分钟约 30 人 ≈ 21,000/分，大约是满编牧场挂机的 4%——
-// 刚把牧场砍到 1/3 就是嫌挂机压死手动，这里特意留在「像样的补贴」而不是新的挂机大头。
+// 门票 1 块、每分钟 1% 概率来一个人。满装修另一端原本是门票 700、
+// 每分钟约 30 人 ≈ 21,000/分，2026-08-18 连同牧场挂机一起砍半 → 门票 350、
+// 约 10,500/分。
+//
+// 砍的是门票不是人流，这是有意的：人流决定岛上同时有几个小人在走动，
+// 砍人流会让岛变冷清，而这套系统本来就是为了让岛看着有人气，钱是顺带的。
 export const VISITOR = {
   tick: 60,           // 每 60 秒结算一次，和牧场同一个节奏
   ticketMin: 1,       // 空屋门票
-  ticketMax: 700,     // 满装修门票
+  ticketMax: 350,     // 满装修门票（2026-08-18 从 700 砍半）
   rateMin: 0.01,      // 空屋每分钟期望来客数（= 1% 概率来一个）
   rateMax: 30,        // 满装修每分钟期望来客数
   ticketCurve: 1.4,   // 曲线指数 >1：越往后涨得越猛，鼓励一路升满而不是浅尝辄止
