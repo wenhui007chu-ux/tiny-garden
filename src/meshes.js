@@ -5229,3 +5229,244 @@ export function createVisitor() {
   g.userData.walkPhase = Math.random() * Math.PI * 2;
   return g;
 }
+
+/* ================= 料理 / 大菜的展品模型 ================= */
+
+// 85 道菜（60 料理 + 25 大菜）在典藏馆里原本只有一块 emoji 立牌，跟旁边
+// 有真模型的作物、花、酒摆在一起特别寒碜。逐道写 85 个模型不现实，
+// 所以走和花（FLOWER_LOOK）、动物（ANIMAL_LOOK）一样的老路：
+// 十六种「造型」+ 一张 emoji → {造型, 配色} 的表。
+//
+// 拿 emoji 当索引是因为它本来就概括了这道菜长什么样（面、肉、蛋糕、饮品…），
+// 而且新菜只要沿用已有 emoji 就自动有模型，不用回来补表。
+// 整个展厅一次要摆 60 座柜子，所以每个造型控制在 12 个节点以内。
+
+// —— 通用器皿 ——
+const dishPlate = (c) => mesh(new THREE.CylinderGeometry(0.3, 0.26, 0.05, 12), mat(c), 0, 0.03, 0);
+const dishBowl = (c) => {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.CylinderGeometry(0.27, 0.16, 0.16, 12), mat(c), 0, 0.08, 0));
+  return g;
+};
+const dishPot = (c) => {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.CylinderGeometry(0.26, 0.22, 0.2, 12), mat(c), 0, 0.1, 0));
+  [-0.28, 0.28].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.07, 0.04, 0.1), mat(c), x, 0.16, 0)));
+  return g;
+};
+// 液面：汤、饮料共用，比容器口小一圈才像装在里面
+const dishLiquid = (c, r, y) => mesh(new THREE.CylinderGeometry(r, r, 0.03, 12),
+  mat(c, { roughness: 0.25 }), 0, y, 0);
+// 一堆碎块：炒菜、沙拉、果盘的通用填充
+const dishHeap = (g, c1, c2, n, r, y, s) => {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + i * 0.7;
+    const rr = r * (0.35 + (i % 3) * 0.28);
+    g.add(mesh(new THREE.BoxGeometry(s, s * 0.7, s), mat(i % 2 ? c1 : c2),
+      Math.cos(a) * rr, y + (i % 2) * s * 0.5, Math.sin(a) * rr));
+  }
+};
+
+const dishKinds = {
+  soup(c1, c2) {
+    const g = dishPot(c2);
+    g.add(dishLiquid(c1, 0.22, 0.21));
+    dishHeap(g, c1, c2, 4, 0.13, 0.23, 0.07);
+    return g;
+  },
+  roast(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(c2));
+    g.add(mesh(new THREE.BoxGeometry(0.3, 0.16, 0.2), mat(c1), 0, 0.13, 0));
+    const bone = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 8), mat(0xf2ead8), 0.2, 0.16, 0);
+    bone.rotation.z = Math.PI / 2.6;
+    g.add(bone);
+    g.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), mat(0xf2ead8), 0.28, 0.2, 0));
+    return g;
+  },
+  cake(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    g.add(mesh(new THREE.CylinderGeometry(0.22, 0.23, 0.16, 14), mat(c1), 0, 0.13, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.04, 14), mat(c2), 0, 0.22, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.055, 8, 7), mat(c2), 0, 0.27, 0));
+    return g;
+  },
+  platter(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    dishHeap(g, c1, c2, 7, 0.2, 0.1, 0.09);
+    return g;
+  },
+  salad(c1, c2) {
+    const g = dishBowl(0xf0e8dc);
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05;
+      const leaf = mesh(new THREE.BoxGeometry(0.11, 0.03, 0.08), mat(i % 2 ? c1 : c2),
+        Math.cos(a) * 0.11, 0.17 + (i % 2) * 0.03, Math.sin(a) * 0.11);
+      leaf.rotation.y = a;
+      g.add(leaf);
+    }
+    return g;
+  },
+  drink(c1, c2) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.34, 12),
+      mat(0xdfeef5, { transparent: true, opacity: 0.45 }), 0, 0.17, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.145, 0.12, 0.22, 12), mat(c1), 0, 0.13, 0));
+    const straw = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 6), mat(c2), 0.07, 0.32, 0);
+    straw.rotation.z = 0.22;
+    g.add(straw);
+    return g;
+  },
+  noodle(c1, c2) {
+    const g = dishBowl(0xe8dcc4);
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 12), mat(c1), 0, 0.17, 0));
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.25;
+      const coil = mesh(new THREE.TorusGeometry(0.07, 0.018, 5, 9), mat(c1),
+        Math.cos(a) * 0.08, 0.2, Math.sin(a) * 0.08);
+      coil.rotation.x = Math.PI / 2;
+      g.add(coil);
+    }
+    g.add(mesh(new THREE.BoxGeometry(0.11, 0.04, 0.09), mat(c2), 0.06, 0.23, 0.02));
+    return g;
+  },
+  rice(c1, c2) {
+    const g = dishPot(0x5a4a42);
+    g.add(mesh(new THREE.SphereGeometry(0.19, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(c1), 0, 0.2, 0));
+    dishHeap(g, c2, c2, 3, 0.1, 0.26, 0.07);
+    return g;
+  },
+  skewer(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    const stick = mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.46, 6), mat(0xdcc79a), 0, 0.22, 0);
+    stick.rotation.z = 0.3;
+    g.add(stick);
+    [0, 1, 2].forEach(i => g.add(mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat(i % 2 ? c1 : c2),
+      -0.035 * (i - 1) * 2, 0.13 + i * 0.11, 0)));
+    return g;
+  },
+  whole(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    const body = mesh(new THREE.SphereGeometry(0.2, 12, 9), mat(c1), 0, 0.19, 0);
+    body.scale.set(1, 0.72, 1.35);
+    g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.09, 9, 7), mat(c2), 0, 0.26, -0.22));
+    [-0.11, 0.11].forEach(x => {
+      const leg = mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.16, 7), mat(c2), x, 0.14, 0.22);
+      leg.rotation.x = -0.5;
+      g.add(leg);
+    });
+    return g;
+  },
+  stirfry(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    dishHeap(g, c1, c2, 8, 0.19, 0.09, 0.085);
+    return g;
+  },
+  pizza(c1, c2) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 14), mat(c1), 0, 0.03, 0));
+    const rim = mesh(new THREE.TorusGeometry(0.29, 0.035, 6, 16), mat(c1), 0, 0.05, 0);
+    rim.rotation.x = Math.PI / 2;
+    g.add(rim);
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05;
+      g.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8), mat(c2),
+        Math.cos(a) * 0.16, 0.07, Math.sin(a) * 0.16));
+    }
+    return g;
+  },
+  wrap(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xf0e8dc));
+    [-0.09, 0.09].forEach((x, i) => {
+      const roll = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.3, 12), mat(c1), x, 0.16, 0);
+      roll.rotation.z = Math.PI / 2 - 0.25 + i * 0.5;
+      g.add(roll);
+      const fill = mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.03, 10), mat(c2), x + (i ? 0.14 : -0.14), 0.19, 0);
+      fill.rotation.z = Math.PI / 2;
+      g.add(fill);
+    });
+    return g;
+  },
+  banquet(c1, c2) {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.32, 0.3, 0.05, 14), mat(0xf2c94c), 0, 0.03, 0));
+    [[0.24, 0.12, 0.1], [0.18, 0.1, 0.24], [0.11, 0.09, 0.36]].forEach(([r, h, y], i) => {
+      g.add(mesh(new THREE.CylinderGeometry(r, r + 0.02, h, 12), mat(i % 2 ? c2 : c1), 0, y, 0));
+    });
+    g.add(mesh(new THREE.SphereGeometry(0.06, 9, 8),
+      mat(0xf2c94c, { emissive: 0x8a6a1a, emissiveIntensity: 0.35 }), 0, 0.46, 0));
+    return g;
+  },
+  crystal(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xe8e0d0));
+    g.add(mesh(new THREE.OctahedronGeometry(0.19),
+      mat(c1, { transparent: true, opacity: 0.75, emissive: c1, emissiveIntensity: 0.4, roughness: 0.15 }),
+      0, 0.22, 0));
+    [-0.16, 0.16].forEach(x => g.add(mesh(new THREE.OctahedronGeometry(0.08),
+      mat(c2, { transparent: true, opacity: 0.7, emissive: c2, emissiveIntensity: 0.3 }), x, 0.1, 0.05)));
+    return g;
+  },
+  jelly(c1, c2) {
+    const g = new THREE.Group();
+    g.add(dishPlate(0xe8e0d0));
+    g.add(mesh(new THREE.BoxGeometry(0.26, 0.2, 0.26),
+      mat(c1, { transparent: true, opacity: 0.72, roughness: 0.2 }), 0, 0.14, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.05, 8, 7), mat(c2), 0, 0.27, 0));
+    return g;
+  },
+};
+
+// emoji → [造型, 主色, 辅色]。55 种 emoji 覆盖全部 85 道菜。
+// 有新菜时优先沿用这里已有的 emoji，就自动有模型；真要用新 emoji 就来这儿补一行。
+const DISH_LOOK = {
+  '\u{1F372}': ['soup', 0xc98b4a, 0xb5622e], '\u{1F963}': ['soup', 0xd9603f, 0xe8dcc4],
+  '\u{1F375}': ['soup', 0x7fb069, 0xe8f0d8], '\u{1F958}': ['soup', 0xb5622e, 0x8a5a3a],
+  '\u{1F383}': ['soup', 0xe08a2a, 0xc06a20],
+  '\u{1F356}': ['roast', 0x9a4a2a, 0xd9a860], '\u{1F357}': ['roast', 0xc0703a, 0xe8c890],
+  '\u{1F969}': ['roast', 0xa83c3c, 0xe8b0a0], '\u{1F525}': ['roast', 0x8a3a22, 0xffa040],
+  '\u{1F336}\u{FE0F}': ['roast', 0xc0392b, 0xe86a3a], '\u{1F33F}': ['roast', 0x8a5a3a, 0x6fa04a],
+  '\u{1F370}': ['cake', 0xf5e0d0, 0xe86a8a], '\u{1F382}': ['cake', 0xf5e8d8, 0xe86a5c],
+  '\u{1F31F}': ['cake', 0xf5e8b0, 0xf2c94c], '\u{1F352}': ['cake', 0xf0dcc0, 0xc0392b],
+  '\u{1F967}': ['cake', 0xd9a05a, 0xf0d8a8],
+  '\u{1F308}': ['platter', 0xe86a5c, 0x5c9ae8], '\u{1F349}': ['platter', 0xe8556a, 0x6fbf73],
+  '\u{1F347}': ['platter', 0x8a5ac0, 0x6fa04a], '\u{2B50}': ['platter', 0xf2c94c, 0xf5e0a0],
+  '\u{1F387}': ['platter', 0xe86ac0, 0xf2c94c], '\u{1F371}': ['platter', 0xc0703a, 0xe8d6b0],
+  '\u{1F957}': ['salad', 0x7fbf5a, 0xe8556a], '\u{1F951}': ['salad', 0x6a8a3a, 0xd8e0a0],
+  '\u{1F964}': ['drink', 0xe8899a, 0xf5d8e0], '\u{1F351}': ['drink', 0xf2a07a, 0xe86a8a],
+  '\u{1F35C}': ['noodle', 0xf0dca8, 0xc06a3a], '\u{1F35A}': ['rice', 0xf5f0e0, 0xc0703a],
+  '\u{1F362}': ['skewer', 0xc0703a, 0x8ac06a], '\u{1F962}': ['skewer', 0x8a5a3a, 0x6fa04a],
+  '\u{1F986}': ['whole', 0xb5622e, 0xe0a060],
+  '\u{1F954}': ['stirfry', 0xe0c078, 0xf0dca8], '\u{1F360}': ['stirfry', 0xc06a4a, 0xf0a870],
+  '\u{1F36F}': ['stirfry', 0xe0a030, 0xf5cf70], '\u{1F955}': ['stirfry', 0xe08030, 0x6fa04a],
+  '\u{1F35F}': ['stirfry', 0xf2c94c, 0xe0a030], '\u{1F96C}': ['stirfry', 0x9fc46a, 0xe8f0d0],
+  '\u{1F373}': ['stirfry', 0xf2c94c, 0xe8503a], '\u{1F33D}': ['stirfry', 0xf2d44c, 0xe8c070],
+  '\u{1FAD1}': ['stirfry', 0x4a9a4a, 0x8ac06a], '\u{1F966}': ['stirfry', 0x4a8a3a, 0x8ac06a],
+  '\u{1F346}': ['stirfry', 0x7a4a8a, 0xa87ac0], '\u{1F34D}': ['stirfry', 0xe0b040, 0xd0a030],
+  '\u{1F353}': ['jelly', 0xe8465c, 0xf5a0b0], '\u{1F9CA}': ['jelly', 0x9fd8ea, 0xe0f4fa],
+  '\u{1F36E}': ['jelly', 0xe8b84a, 0xf5dca0],
+  '\u{1F52E}': ['crystal', 0x9ad4e8, 0xd8f0f8], '\u{1F4A0}': ['crystal', 0x7fc0e0, 0xcfeaf5],
+  '\u{1F355}': ['pizza', 0xe0b070, 0xe8503a],
+  '\u{1F32F}': ['wrap', 0xe8d0a0, 0x9fc46a], '\u{1F35E}': ['wrap', 0xd9a860, 0x6a8a3a],
+  '\u{1F451}': ['banquet', 0xf2c94c, 0xc0392b], '\u{2728}': ['banquet', 0xf2c94c, 0xf5e8c0],
+  '\u{1F38A}': ['banquet', 0xe8556a, 0xf2c94c], '\u{1F984}': ['banquet', 0xe8a0e0, 0xf2c94c],
+};
+
+// 按 emoji 建一道菜的模型。表里没有的 emoji 返回 null，
+// 调用方会自动退回原来的 emoji 立牌，不会整座柜子消失
+export function createDishMesh(emoji, scale = 1) {
+  const look = DISH_LOOK[emoji];
+  if (!look) return null;
+  const build = dishKinds[look[0]];
+  if (!build) return null;
+  const g = build(look[1], look[2]);
+  g.scale.setScalar(scale);
+  return g;
+}

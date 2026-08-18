@@ -41,6 +41,7 @@ import {
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createTreasuryBuilding, createTreasuryInterior, createTreasuryCase, createProsperityPillar,
+  createDishMesh,
   createPedestalBase, createPlaque,
   createPestBug, createKitchen, createPondDecor, createHybridLab,
   createHybridInterior, createHybridCrop, HYBRID_STATIONS,
@@ -1142,9 +1143,22 @@ export class Game {
         m.scale.setScalar(0.62);
         return m;
       }
-      if (key.startsWith('k:') || key.startsWith('g:') || key.startsWith('s:')) {
+      // 海产：水族馆那套模型早就有了，之前一直没接上，白摆了 38 块立牌
+      if (key.startsWith('s:')) {
+        const m = createSeafoodMesh(key.slice(2), 0.85);
+        if (m) return m;
+      }
+      // 料理 / 大菜：按 emoji 归类的造型模型（meshes.js 的 DISH_LOOK）
+      if (key.startsWith('k:') || key.startsWith('g:')) {
         // 走 treasurySlotInfo 而不是 keyInfo：大菜展位是 g:<菜id>，
         // 真 key 尾巴上还挂着成交价，裸调 keyInfo 会抛
+        const info = treasurySlotInfo(key);
+        const m = createDishMesh(info.icon, 1.15);
+        if (m) return m;
+        // emoji 不在表里就退回立牌，总比整座柜子空着强
+        return createPlaque([info.icon, info.label], false);
+      }
+      if (key.startsWith('s:')) {
         const info = treasurySlotInfo(key);
         return createPlaque([info.icon, info.label], false);
       }
