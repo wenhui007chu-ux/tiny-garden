@@ -1304,8 +1304,17 @@ export const TOWER_TIERS = 6;   // 装修档数
 
 // 造价：1250 起，每级 +4.5%。500 级总价约 100 万亿，只占 JS 安全整数上限的 1.1%，
 // 精度绝对够（超过 9e15 金币加减会开始丢零头，存档就会出现「买了不扣钱」）
-export const TOWER_BASE_COST = 1250;
-export const TOWER_COST_RATE = 1.045;
+// 2026-08-18 大幅下调，因为满级 500 原本根本够不着（Lv34→500 要 100 万亿，
+// 按当时收入是 8961 年）。两处一起改，缺一不可：
+//
+//   底价 1250 → 312（砍到 1/4）
+//     底价是乘在整条曲线上的系数，所以这一刀是「1 到 500 每一级都除以 4」，
+//     不是只砍前几级。但它只把曲线整体平移，省下约 31 级的涨幅而已。
+//   涨幅 1.045 → 1.030
+//     这才是真正吃钱的地方：1.045^499 ≈ 34 亿倍，1.030^499 ≈ 232 万倍，
+//     差了 1400 多倍。光砍底价的话满级仍要 25 万亿（2237 年）。
+export const TOWER_BASE_COST = 312;
+export const TOWER_COST_RATE = 1.030;
 // 从 lv-1 级升到 lv 级要多少钱（lv 从 1 起）
 export const towerCost = (lv) =>
   Math.floor(TOWER_BASE_COST * Math.pow(TOWER_COST_RATE, Math.max(0, lv - 1)));
