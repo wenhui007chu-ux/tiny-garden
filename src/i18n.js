@@ -10,6 +10,13 @@ export const LANGS = [
 
 const DICT = {
   zh: {
+    'obs.missile': '发射气象导弹',
+    'obs.missileDone': '今天已经打过了',
+    'obs.missileDesc': '今天是坏天气。花 {cost}💰 打一发气象导弹，当场把今天强行转成风调雨顺，受灾的地也一并恢复。<br>只管今天，改不了预报里的未来。',
+    't.missileHit': '🚀 气象导弹命中！{w}散了，今天转为风调雨顺，顺带修好 {n} 块受灾的地',
+    't.missileDone': '今天已经打过一发了，一天只能打一次',
+    't.missileClear': '今天本来就是好天气，不用打',
+    't.missilePoor': '金币不够，气象导弹要 50,000💰',
     'panel.visitor': '🎫 参观客',
     'quick.visitor': '🎫 参观客 <small>看看你的装修值多少门票钱</small>',
     't.visitor': '🎫 来了 {n} 位参观客，门票 +{coin}💰',
@@ -699,6 +706,13 @@ const DICT = {
     'afk.desc': '作物、时钟、工坊全部冻结<br>休息一下眼睛吧', 'afk.resume': '☀️ 点击解冻',
   },
   en: {
+    'obs.missile': 'Launch weather missile',
+    'obs.missileDone': 'Already launched today',
+    'obs.missileDesc': 'Today has bad weather. Spend {cost}💰 on a weather missile to force today back to clear skies right now — damaged plots are restored too.<br>Today only; it cannot change the forecast ahead.',
+    't.missileHit': '🚀 Weather missile hit! The {w} is gone, clear skies for the rest of today, and {n} damaged plots were restored',
+    't.missileDone': 'Already launched one today — one per day',
+    't.missileClear': 'The weather is already fine today, no need',
+    't.missilePoor': 'Not enough coins — a weather missile costs 50,000💰',
     'panel.visitor': '🎫 Visitors',
     'quick.visitor': '🎫 Visitors <small>See what your decorating is worth in ticket sales</small>',
     't.visitor': '🎫 {n} visitors came through — tickets +{coin}💰',
@@ -1377,6 +1391,13 @@ const DICT = {
     'afk.desc': 'Crops, clock and workshop are all frozen<br>Give your eyes a rest', 'afk.resume': '☀️ Resume',
   },
   ru: {
+    'obs.missile': 'Запустить метеоракету',
+    'obs.missileDone': 'Сегодня уже запускали',
+    'obs.missileDesc': 'Сегодня плохая погода. Потратьте {cost}💰 на метеоракету, чтобы прямо сейчас вернуть ясное небо — пострадавшие грядки тоже восстановятся.<br>Только на сегодня; прогноз на будущее изменить нельзя.',
+    't.missileHit': '🚀 Метеоракета попала! {w} рассеялась, до конца дня ясно, а ещё восстановлено грядок: {n}',
+    't.missileDone': 'Сегодня уже был запуск — одна ракета в день',
+    't.missileClear': 'Погода сегодня и так хорошая, ракета не нужна',
+    't.missilePoor': 'Недостаточно монет — метеоракета стоит 50,000💰',
     'panel.visitor': '🎫 Посетители',
     'quick.visitor': '🎫 Посетители <small>Узнайте, сколько приносит ваш ремонт</small>',
     't.visitor': '🎫 Пришло посетителей: {n}, билеты +{coin}💰',

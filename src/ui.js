@@ -6,7 +6,7 @@ import { BUTCHER, CUTS, cutById, cutName, cutPrice } from './config.js';
 import { VISITOR, RARITY_MAX } from './config.js';
 import { SORTER_SLOTS, SORTER_TIME, SORTER_MULT, METAL, metalPrice, PESTICIDE } from './config.js';
 import { SEAFOOD, seafoodById, AQUARIUM_POS, AQUARIUM_SLOTS } from './config.js';
-import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE } from './config.js';
+import { BLACK_MARKET, OBSERVATORY, WEATHER_INFO, WAREHOUSE, WEATHER_MISSILE } from './config.js';
 import { BREWERY_POS, BREW, winePrice } from './config.js';
 import { SHOP_POS, GIFTBOX, giftboxPrice } from './config.js';
 import { music, sfx } from './music.js';
@@ -892,6 +892,23 @@ export class UI {
       btn.textContent = `📋 ${t('obs.collect')}`;
       btn.addEventListener('click', () => { g.collectForecast(); this.renderObservatory(); });
       body.appendChild(btn);
+    }
+
+    // 气象导弹：只在今天是坏天气时露面。天气好的时候摆个用不了的按钮在这儿
+    // 只会让人以为坏了，不如干脆不显示
+    if (g.badWeather()) {
+      const fired = !g.canFireMissile();
+      const poor = g.coins < WEATHER_MISSILE.cost;
+      body.insertAdjacentHTML('beforeend',
+        `<div id="obs-missile-note">${tp('obs.missileDesc', { cost: WEATHER_MISSILE.cost.toLocaleString() })}</div>`);
+      const mb = document.createElement('button');
+      mb.id = 'obs-missile';
+      mb.disabled = fired || poor;
+      mb.textContent = fired
+        ? `🚀 ${t('obs.missileDone')}`
+        : `🚀 ${t('obs.missile')} · ${WEATHER_MISSILE.cost.toLocaleString()}💰`;
+      mb.addEventListener('click', () => { g.fireMissile(); this.renderObservatory(); });
+      body.appendChild(mb);
     }
 
     // 20 个格子一直摆在这儿：没观测时是空的，观测完才填上天气。

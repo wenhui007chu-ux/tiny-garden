@@ -25,7 +25,7 @@ import {
   BUTCHER, CUTS, cutPrice, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
   VISITOR, rarityBreakdown, RARITY_MAX, visitorTicket, visitorRate, visitorIncome,
   BLACK_MARKET, blackMarketMood, blackMoodOf,
-  weatherOfDay, OBSERVATORY, WEATHER_INFO,
+  weatherOfDay, OBSERVATORY, WEATHER_INFO, WEATHER_MISSILE,
   WAREHOUSE, warehouseCap,
   BREWERY_POS, BREW, winePrice,
   SHOP_POS, GIFTBOX, giftboxPrice,
@@ -129,6 +129,7 @@ export class Game {
     this.harborPlaced = []; // 摆出来的，最多 HARBOR_MAX_PLACED 件，同一种可以出现多次
     this.harborDock = -1;   // 已记录的靠港批次，换船时清空 harborSold
     this.windTimer = 0;     // 风车发电计时器
+    this.weatherCleared = {};  // 被气象导弹打晴的天：{ 天数: true }
     this.drought = false;   // 大旱天：三个太阳，生长 ×1/3，收成生长不良
     this.rain = false;      // 暴雨天：持续降雨，生长 ×3，收成也生长不良
     this.items = {};        // 道具背包，和作物背包分开：itemId -> 数量
@@ -592,7 +593,35 @@ export class Game {
   }
 
   // 第 n 天是什么天气：只跟存档种子和天数有关，随时可以提前算出来
-  weatherAt(day) { return weatherOfDay(this.weatherSeed, day); }
+  weatherAt(day) {
+    // 导弹打过的那天永远是晴的。改在这里而不是只改 this.drought/rain，
+    // 是为了让观测台预报、当天判定、以后任何读天气的地方全都一致
+    if (this.weatherCleared[day]) return 'clear';
+    return weatherOfDay(this.weatherSeed, day);
+  }
+
+  // 今天能不能打导弹：得是坏天气，且今天还没打过
+  canFireMissile() { return this.badWeather() && !this.weatherCleared[this.dayCount]; }
+
+  fireMissile() {
+    if (!this.canFireMissile()) {
+      this.onToast(this.badWeather() ? t('t.missileDone') : t('t.missileClear'));
+      return false;
+    }
+    if (this.coins < WEATHER_MISSILE.cost) { this.onToast(t('t.missilePoor')); return false; }
+    const was = this.drought ? 'drought' : 'rain';
+    this.coins -= WEATHER_MISSILE.cost;
+    this.weatherCleared[this.dayCount] = true;
+    this.setWeather(false, false);
+    // 天气转好就该把受灾的地恢复——rollWeather 每天开头也是这么做的，
+    // 不然打完导弹天晴了、地还裂着，看着不对
+    const healed = this.healAllTiles();
+    this.onToast(tp('t.missileHit', { w: t(`weather.${was}`), n: healed }));
+    sfx.play('unlock');
+    this.onState();
+    this.save();
+    return true;
+  }
 
   rollWeather() {
     const healed = this.healAllTiles();
@@ -3997,6 +4026,7 @@ export class Game {
       ranchPens: this.ranchPens.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       dayCount: this.dayCount,
       weatherSeed: this.weatherSeed,
+      weatherCleared: this.weatherCleared,
       shelf: this.shelf.map(b => b ? { keys: b.keys, price: b.price, remain: Math.max(0, b.soldAt - this.time) } : null),
       brewery: this.brewery.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
       cellar: this.cellar.map(c => c ? { key: c.key, agedDays: Math.max(0, this.dayCount - c.sinceDay) } : null),
@@ -4083,6 +4113,7 @@ export class Game {
     // 天气种子要先于任何 weatherAt() 调用读出来。老存档没有就沿用本次随机的，
     // 下次保存时固化——已经过去的天气无从追溯，但往后是一致的
     this.weatherSeed = data.weatherSeed ?? this.weatherSeed;
+    this.weatherCleared = data.weatherCleared ?? {};   // 老存档没打过导弹，空的
     this.drought = data.drought ?? false;
     this.rain = data.rain ?? false;
     // 离线跨过了新的一天就重掷天气
