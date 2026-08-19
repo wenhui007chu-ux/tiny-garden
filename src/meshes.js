@@ -4836,12 +4836,8 @@ export function createHarbor() {
     g.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.85, 8), mat(0x6a4a2e), x, 0.75, R - 4.9));
     g.add(mesh(new THREE.SphereGeometry(0.19, 8, 6), mat(0x8a6540), x, 1.2, R - 4.9));
   });
-  // 岸边几块礁石
-  [[10.5, -7.5, 0.8], [-11.2, -4.6, 0.65], [-7.8, 9.4, 0.55], [8.2, 8.8, 0.7]].forEach(([x, z, r]) => {
-    const rock = mesh(new THREE.DodecahedronGeometry(r), mat(0x8f8880), x, 0.24, z);
-    rock.scale.y = 0.6;
-    g.add(rock);
-  });
+  // 岸边原本硬摆了四块礁石，去掉了：港湾装饰里第一件就是「礁石」，
+  // 玩家想要礁石自己买着摆就行，写死四块反而占掉了摆放位、也没法挪
   g.traverse(o => { if (o.isMesh) o.userData.harbor = true; });
   return g;
 }
