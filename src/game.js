@@ -383,6 +383,12 @@ export class Game {
     this.taskTier = null;          // 这一天选的档位
     this.tasks = [];               // [{ type, target, progress, claimed }]
     this.awaitingTaskPick = false; // 真时：面板必须选完，tick 冻结
+    // 每日日报：跨天时先给玩家看一眼「昨天赚了多少 / 今天第几天 / 什么天气」，
+    // 确认之后才进难度选择。null 表示没有待看的日报
+    this.dayReport = null;
+    // 昨天开始时的身家快照。用「金币 + 银行存款」而不是只用金币，
+    // 否则往银行存一笔钱会被算成当天亏损
+    this.dayStartWorth = 0;
     for (let j = 0; j < RANCH_GRID; j++) {
       for (let i = 0; i < RANCH_GRID; i++) {
         const pen = createRanchPen();
@@ -2823,6 +2829,17 @@ export class Game {
     this.onState();
   }
 
+  // 玩家点了日报上的「确认」→ 收起日报，露出难度面板。
+  // 这期间 awaitingTaskPick 一直是真，时间照旧冻结，不用另加一套冻结逻辑
+  ackDayReport() {
+    if (!this.dayReport) return false;
+    this.dayReport = null;
+    sfx.play('tap');
+    this.onState();
+    this.save();
+    return true;
+  }
+
   // 选档 → 刷出 10 个同档任务，时间恢复流动
   pickTaskTier(tierId) {
     const tier = taskTierById(tierId);
@@ -3842,6 +3859,16 @@ export class Game {
       // 每日任务：新的一天，旧任务作废，弹出难度面板并冻结时间。
       // 放在这一段最后：上面那些日结（天气/银行/商船）属于「昨天收尾」，
       // 该照常跑完，冻结的是接下来的时间流逝
+      // 日报要在 openTaskPick 之前算：净额 = 今天开盘身家 - 昨天开盘身家。
+      // 用差值而不是逐笔累加，是因为收入来源已经有十几处（牧场/参观客/招待厅/
+      // 员工/商船/银行日结/离线补偿…），逐处埋点迟早漏掉一个，差值永远是准的
+      const worth = this.coins + (this.bank ?? 0);
+      this.dayReport = {
+        day: this.dayCount,
+        net: this.dayStartWorth ? worth - this.dayStartWorth : null,  // 第一天没有昨天，显示 —
+        weather: this.weatherAt(this.dayCount),
+      };
+      this.dayStartWorth = worth;
       this.openTaskPick();
     }
 
@@ -4022,6 +4049,8 @@ export class Game {
       taskTier: this.taskTier,
       tasks: this.tasks,
       awaitingTaskPick: this.awaitingTaskPick,
+      dayReport: this.dayReport,
+      dayStartWorth: this.dayStartWorth,
       butcher: this.butcher.map(b => b ? { key: b.key, remain: Math.max(0, b.readyAt - this.time) } : null),
       ranchPens: this.ranchPens.map(p => p ? { id: p.id, remain: Math.max(0, p.readyAt - this.time) } : null),
       dayCount: this.dayCount,
@@ -4233,6 +4262,15 @@ export class Game {
     this.taskDay = data.taskDay ?? -1;
     this.taskTier = data.taskTier ?? null;
     this.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    // 日报这两项跟任务档期无关，必须无条件恢复。
+    // 之前放在下面的 else 里，结果只要任务过期（离开一会儿就会过期）身家快照就丢，
+    // 净额永远显示「—」——一个只在「离开过」的情况下才出现、平时测不出来的洞
+    this.dayReport = data.dayReport ?? null;            // 老存档没有，就是没有待看的日报
+    // 老存档没记过身家快照：用当前身家兜底，于是今天的净额显示「—」，明天起才准。
+    // 这里必须用 || 而不是 ??：?? 只在 null/undefined 时兜底，而存档里可能存着
+    // 一个实实在在的 0（构造函数初值先落了盘），?? 会把这个 0 当成有效快照，
+    // 于是净额永远按「身家 - 0」算，也就是永远显示成总身家
+    this.dayStartWorth = data.dayStartWorth || (this.coins + (this.bank ?? 0));
     if (this.taskDay !== this.dayCount || !this.taskTier || !this.tasks.length) {
       const lost = this.tasks.filter(q => q.progress >= q.target && !q.claimed).length;
       if (lost) this._notices.push(`⏰ 有 ${lost} 个做完的任务没领，已经过期了`);

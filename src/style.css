@@ -1197,6 +1197,24 @@ body {
   display: flex; align-items: center; justify-content: center; padding: 16px;
   animation: sleep-in 0.5s ease-out;
 }
+/* 每日日报：跨天时先看一眼昨天的成绩，确认后才是难度选择。
+   跟难度卡共用 #task-pick 那层遮罩，所以只管卡片本身的样子 */
+#day-report-card { background: #fffaf0; border: 4px solid #e2c9b0; border-radius: 18px;
+  padding: 26px 30px; text-align: center; max-width: 380px; box-shadow: 0 12px 36px rgba(0,0,0,.28); }
+#day-report-day { font-size: 30px; font-weight: 800; color: #6b4a3a; margin-bottom: 10px; }
+#day-report-weather { font-size: 15px; color: #8a6a44; margin-bottom: 18px; line-height: 1.6; }
+#day-report-weather .dr-ico { font-size: 22px; margin-right: 6px; vertical-align: -2px; }
+#day-report-net { margin-bottom: 22px; }
+#day-report-net .dr-net { display: block; font-size: 34px; font-weight: 800; letter-spacing: 1px; }
+#day-report-net .dr-net.up { color: #2f8f4e; }
+#day-report-net .dr-net.down { color: #c0392b; }
+#day-report-net .dr-net.none { color: #b0a08c; }
+#day-report-net small { display: block; margin-top: 6px; font-size: 12px; color: #a1834f; }
+#day-report-ok { min-width: 160px; min-height: 46px; border: none; border-radius: 12px;
+  background: linear-gradient(180deg, #7fbf5a, #4f9a3a); color: #fff;
+  font-size: 16px; font-weight: 800; letter-spacing: 2px; cursor: pointer; }
+#day-report-ok:hover { filter: brightness(1.08); }
+
 #task-pick-card {
   background: #fffaf0; border: 4px solid #e8c68f; border-radius: 22px;
   padding: 22px 20px; max-width: 560px; width: 100%;

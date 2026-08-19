@@ -80,6 +80,7 @@ export class UI {
     $('#ranch-close').addEventListener('click', () => this.exitRanch());
     $('#butcher-close').addEventListener('click', () => this.exitButcher());
     $('#visitor-close').addEventListener('click', () => $('#visitor').classList.add('hidden'));
+    $('#day-report-ok').addEventListener('click', () => { this.game.ackDayReport(); this.renderTaskPick(); });
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
@@ -1925,6 +1926,32 @@ export class UI {
     const wrap = $('#task-pick');
     if (!g.awaitingTaskPick) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
+
+    // 跨天先看日报，确认了才露出难度选择。两张卡共用这一层遮罩，
+    // 所以「时间冻结、不能关闭」这些规则一条都不用改
+    const report = $('#day-report-card'), card = $('#task-pick-card');
+    if (g.dayReport) {
+      report.classList.remove('hidden');
+      card.classList.add('hidden');
+      if (report.dataset.day !== String(g.dayReport.day)) {
+        report.dataset.day = String(g.dayReport.day);
+        const w = WEATHER_INFO[g.dayReport.weather] ?? WEATHER_INFO.clear;
+        const net = g.dayReport.net;
+        $('#day-report-day').innerHTML = tp('day.title', { n: g.dayReport.day });
+        $('#day-report-weather').innerHTML = `<span class="dr-ico">${w.icon}</span>`
+          + tp('day.weather', { w: t('weather.' + g.dayReport.weather), desc: tf('weatherDesc.' + g.dayReport.weather, w.desc) });
+        // 第一天（或老存档第一次）没有昨天可比，显示占位而不是假装赚了 0
+        $('#day-report-net').innerHTML = net === null
+          ? `<span class="dr-net none">${t('day.netNone')}</span>`
+          : `<span class="dr-net ${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : ''}${net.toLocaleString()}💰</span>`
+            + `<small>${t('day.netNote')}</small>`;
+        $('#day-report-ok').textContent = t('day.ok');
+      }
+      return;   // 日报没确认之前，不画难度按钮
+    }
+    report.classList.add('hidden');
+    card.classList.remove('hidden');
+
     const box = $('#task-tiers');
     if (box.dataset.day === String(g.dayCount)) return; // 已经画过这一天的，别每帧重建
     box.dataset.day = String(g.dayCount);

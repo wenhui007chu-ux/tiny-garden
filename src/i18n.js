@@ -10,6 +10,11 @@ export const LANGS = [
 
 const DICT = {
   zh: {
+    'day.title': '☀️ 第 {n} 天',
+    'day.weather': '今天{w} · {desc}',
+    'day.netNone': '—',
+    'day.netNote': '昨天的净收支（进账减去花销，含银行存款）',
+    'day.ok': '✔ 确认',
     'obs.missile': '发射气象导弹',
     'obs.missileDone': '今天已经打过了',
     'obs.missileDesc': '今天是坏天气。花 {cost}💰 打一发气象导弹，当场把今天强行转成风调雨顺，受灾的地也一并恢复。<br>只管今天，改不了预报里的未来。',
@@ -706,6 +711,11 @@ const DICT = {
     'afk.desc': '作物、时钟、工坊全部冻结<br>休息一下眼睛吧', 'afk.resume': '☀️ 点击解冻',
   },
   en: {
+    'day.title': '☀️ Day {n}',
+    'day.weather': 'Today: {w} · {desc}',
+    'day.netNone': '—',
+    'day.netNote': 'Yesterday net (income minus spending, bank included)',
+    'day.ok': '✔ Confirm',
     'obs.missile': 'Launch weather missile',
     'obs.missileDone': 'Already launched today',
     'obs.missileDesc': 'Today has bad weather. Spend {cost}💰 on a weather missile to force today back to clear skies right now — damaged plots are restored too.<br>Today only; it cannot change the forecast ahead.',
@@ -1391,6 +1401,11 @@ const DICT = {
     'afk.desc': 'Crops, clock and workshop are all frozen<br>Give your eyes a rest', 'afk.resume': '☀️ Resume',
   },
   ru: {
+    'day.title': '☀️ День {n}',
+    'day.weather': 'Сегодня: {w} · {desc}',
+    'day.netNone': '—',
+    'day.netNote': 'Чистый итог вчера (доход минус траты, с учётом банка)',
+    'day.ok': '✔ Подтвердить',
     'obs.missile': 'Запустить метеоракету',
     'obs.missileDone': 'Сегодня уже запускали',
     'obs.missileDesc': 'Сегодня плохая погода. Потратьте {cost}💰 на метеоракету, чтобы прямо сейчас вернуть ясное небо — пострадавшие грядки тоже восстановятся.<br>Только на сегодня; прогноз на будущее изменить нельзя.',

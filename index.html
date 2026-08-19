@@ -217,6 +217,12 @@
 
   <!-- 每天早上 6 点强制选难度。没有关闭按钮是有意的：选完才能走，期间时间冻结 -->
   <div id="task-pick" class="hidden">
+    <div id="day-report-card" class="hidden">
+      <div id="day-report-day"></div>
+      <div id="day-report-weather"></div>
+      <div id="day-report-net"></div>
+      <button id="day-report-ok" data-i18n="day.ok">✔ 确认</button>
+    </div>
     <div id="task-pick-card">
       <h2 data-i18n="task.pickTitle">📋 今天想挑多难的任务？</h2>
       <p data-i18n="task.pickNote">选完刷出 10 个任务。越难奖励越高，做完记得回来领——不领的话明早就作废了。</p>
