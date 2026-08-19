@@ -205,7 +205,7 @@ export const BREWERY_POS = { x: 0, y: -60, z: -60 }; // 酒窖藏在岛下
 export const BREW = {
   slots: 3,        // 酿造台数量
   time: 1200,      // 酿一批 20 分钟
-  mult: 2,         // 基础价 = 原果价 × 2
+  mult: 1.5,       // 基础价 = 原果价 × 1.5（原本 ×2，酿酒回报压一档）
   cellarSlots: 9,  // 酒窖格子
   agePerDay: 10,   // 每窖藏一个游戏日 +10💰
 };
@@ -227,8 +227,11 @@ export const GIFTBOX = {
 // 礼盒成交价：装盒那一刻就按当时的作物价算死，之后不随行情浮动
 export const giftboxPrice = (sum) => Math.max(1, Math.floor(sum * GIFTBOX.mult));
 // 一瓶酒此刻值多少：底价 + 窖藏天数 × 每日加成
+// 注意是向上取整，不是向下。倍率从 2 降到 1.5 之后，1💰 的红薯向下取整会算出
+// 1.5 → 1，跟生果一个价，等于酿了个寂寞；向上取整才是 2，最便宜的果子也还有得赚。
+// 窖藏加成放在取整之外，免得天数也被倍率的小数带偏
 export const winePrice = (basePrice, days) =>
-  Math.max(1, Math.floor(basePrice * BREW.mult + Math.max(0, days) * BREW.agePerDay));
+  Math.max(1, Math.ceil(basePrice * BREW.mult) + Math.max(0, days) * BREW.agePerDay);
 
 // 仓库：背包本身没有上限，仓库解决的是「囤着不想卖、又不想让背包一直挤着」。
 // 存进去的东西不参与一键售卖，也不会在背包列表里碍事，要用再取回来。
@@ -1948,27 +1951,30 @@ export const RECEPTION_TIERS = ['朴素', '精致', '豪华', '鎏金', '传说'
 const rtier = (name) => RECEPTION_TIERS.map(p => p + name);
 
 // cost 是买价，up 是四级升级费（1→2、2→3、3→4、4→5），一律翻倍。
-// 单件全满 = cost × 31；15 件全满约 5000 万，是给中后期的一个长线目标
+// 单件全满 = cost × 31；15 件全满约 33 万，跟小屋家具（26 件 27.6 万）一个量级
 const rdecor = (id, name, emoji, cost, kind, pos) =>
   ({ id, name, emoji, cost, up: [cost * 2, cost * 4, cost * 8, cost * 16],
      kind, pos, levelNames: rtier(name) });
 
+// 价格在 2026-08-19 整体除以 200：原本单件满级 186 万~930 万，是小屋同类家具的
+// 四百多倍，而两者性质完全一样（都是装修，都只喂参观客的珍稀度）。
+// 现在 15 件全满 33 万，小屋 26 件全满 27.6 万——只比小屋贵两成，够得着了。
 export const RECEPTION_DECORS = [
-  rdecor('desk',    '前台',     '🛎️', 180000, 'desk',    [0, -4.2]),
-  rdecor('bench',   '等候长椅', '🪑', 90000,  'bench',   [-3.6, -1.2]),
-  rdecor('bench2',  '双人沙发', '🛋️', 120000, 'sofa',    [3.6, -1.2]),
-  rdecor('rug',     '迎宾地毯', '🟥', 60000,  'rug',     [0, 0.6]),
-  rdecor('tea',     '茶水台',   '🍵', 110000, 'tea',     [-4.6, 1.8]),
-  rdecor('plant',   '迎客松',   '🪴', 70000,  'plant',   [4.6, 1.8]),
-  rdecor('lamp',    '落地灯',   '🏮', 80000,  'lamp',    [-5.2, -3.4]),
-  rdecor('chand',   '水晶吊灯', '💡', 260000, 'chand',   [0, -1.4]),
-  rdecor('art',     '壁画',     '🖼️', 140000, 'art',     [0, -5.6]),
-  rdecor('clock',   '立钟',     '🕰️', 100000, 'clock',   [5.2, -3.4]),
-  rdecor('shelf',   '纪念品架', '🎁', 150000, 'shelf',   [-5.2, 3.6]),
-  rdecor('tank',    '观赏鱼缸', '🐠', 200000, 'tank',    [5.2, 3.6]),
-  rdecor('screen',  '屏风',     '🎴', 130000, 'screen',  [-2.2, 4.6]),
-  rdecor('music',   '留声机',   '🎶', 160000, 'music',   [2.2, 4.6]),
-  rdecor('arch',    '迎宾拱门', '⛩️', 300000, 'arch',    [0, 6.4]),
+  rdecor('desk',    '前台',     '🛎️', 900, 'desk',    [0, -4.2]),
+  rdecor('bench',   '等候长椅', '🪑', 450,  'bench',   [-3.6, -1.2]),
+  rdecor('bench2',  '双人沙发', '🛋️', 600, 'sofa',    [3.6, -1.2]),
+  rdecor('rug',     '迎宾地毯', '🟥', 300,  'rug',     [0, 0.6]),
+  rdecor('tea',     '茶水台',   '🍵', 550, 'tea',     [-4.6, 1.8]),
+  rdecor('plant',   '迎客松',   '🪴', 350,  'plant',   [4.6, 1.8]),
+  rdecor('lamp',    '落地灯',   '🏮', 400,  'lamp',    [-5.2, -3.4]),
+  rdecor('chand',   '水晶吊灯', '💡', 1300, 'chand',   [0, -1.4]),
+  rdecor('art',     '壁画',     '🖼️', 700, 'art',     [0, -5.6]),
+  rdecor('clock',   '立钟',     '🕰️', 500, 'clock',   [5.2, -3.4]),
+  rdecor('shelf',   '纪念品架', '🎁', 750, 'shelf',   [-5.2, 3.6]),
+  rdecor('tank',    '观赏鱼缸', '🐠', 1000, 'tank',    [5.2, 3.6]),
+  rdecor('screen',  '屏风',     '🎴', 650, 'screen',  [-2.2, 4.6]),
+  rdecor('music',   '留声机',   '🎶', 800, 'music',   [2.2, 4.6]),
+  rdecor('arch',    '迎宾拱门', '⛩️', 1500, 'arch',    [0, 6.4]),
 ];
 export const receptionDecorById = (id) => RECEPTION_DECORS.find(d => d.id === id);
 export const receptionDecorName = (d) => (d ? tf(`rdecor.${d.id}`, d.name) : '');
