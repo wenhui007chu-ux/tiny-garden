@@ -8,7 +8,7 @@ import {
   TREASURY_POS, PEST, POISON,
   TASK_COUNT, TASK_TIERS, taskTierById, taskTypeById, dailyTasks,
   TRAINER_STAFF, trainerStaffById, staffName, cheapBouquetPrice,
-  RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorById,
+  RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorById, RECEPTION_LIMIT,
   receptionDecorName, receptionLevelName, receptionRatio, RECEPTION,
   TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
   DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
@@ -315,6 +315,7 @@ export class Game {
     this.receptionHall.position.set(RECEPTION_POS.x, RECEPTION_POS.y, RECEPTION_POS.z);
     this.group.add(this.receptionHall);
     this.receptionOwned = {};      // id -> 已解锁到几级
+    this.receptionPos = {};        // 玩家自己摆的位置：id -> { x, z, rotY }（跟小屋同一套）
     this.receptionStyle = {};      // id -> 当前展示第几级的外观
     this.receptionMeshMap = {};    // id -> 场上的那个 mesh
     this.lobby = [];               // 正在厅里候场的参观客
@@ -3097,10 +3098,47 @@ export class Game {
       if (!owned) return;
       const shown = Math.min(owned, this.receptionStyle[d.id] ?? owned);
       const m = createReceptionDecor(d, shown);
-      m.position.set(d.pos[0], 0, d.pos[1]);
+      // 玩家拖过就用他摆的位置，没拖过才用默认落点——跟小屋 refreshInterior 一个写法
+      const p = this.receptionPos[d.id];
+      m.position.set(p ? p.x : d.pos[0], 0, p ? p.z : d.pos[1]);
+      m.rotation.y = p ? p.rotY : 0;
+      m.traverse(o => { if (o.isMesh) o.userData.receptionId = d.id; });
       this.receptionHall.add(m);
       this.receptionMeshMap[d.id] = m;
     });
+  }
+
+  // 布置模式下可拖的那些 mesh（拾取用），跟小屋的 furnitureMeshes() 对应
+  receptionDecorMeshes() {
+    const out = [];
+    Object.values(this.receptionMeshMap).forEach(m => m.traverse(o => { if (o.isMesh) out.push(o); }));
+    return out;
+  }
+
+  // 拖动落点：限制在厅内，别让家具嵌进墙里
+  setReceptionPos(id, x, z) {
+    const m = this.receptionMeshMap[id];
+    if (!m) return;
+    const nx = Math.max(-RECEPTION_LIMIT.x, Math.min(RECEPTION_LIMIT.x, x));
+    const nz = Math.max(-RECEPTION_LIMIT.z, Math.min(RECEPTION_LIMIT.z, z));
+    m.position.x = nx;
+    m.position.z = nz;
+    this.receptionPos[id] = { x: nx, z: nz, rotY: m.rotation.y };
+  }
+
+  rotateReceptionDecor(id) {
+    const m = this.receptionMeshMap[id];
+    if (!m) return;
+    m.rotation.y = (m.rotation.y + Math.PI / 4) % (Math.PI * 2);
+    this.receptionPos[id] = { x: m.position.x, z: m.position.z, rotY: m.rotation.y };
+    this.save();
+  }
+
+  resetReceptionLayout() {
+    this.receptionPos = {};
+    this.refreshReception();
+    this.onToast(t('t.recLayoutReset'));
+    this.save();
   }
 
   // 招待厅给参观客的加成。跟典藏馆繁荣度一样是「乘在珍稀度算完之后」，
@@ -4044,6 +4082,7 @@ export class Game {
       staff: this.staff,
       staffTimer: this.staffTimer,
       receptionOwned: this.receptionOwned,
+      receptionPos: this.receptionPos,
       receptionStyle: this.receptionStyle,
       taskDay: this.taskDay,
       taskTier: this.taskTier,
@@ -4255,6 +4294,7 @@ export class Game {
     this.staffTimer = data.staffTimer ?? {};
     this.offlineStaff(elapsed);
     this.receptionOwned = data.receptionOwned ?? {};
+    this.receptionPos = data.receptionPos ?? {};   // 老存档没拖过，就用各自的默认落点
     this.receptionStyle = data.receptionStyle ?? {};
     // 每日任务。老存档没有这些字段，或者离线跨了天（dayCount 已经被
     // offlineDays 顶上去了），两种情况都归到「该重新选档」——

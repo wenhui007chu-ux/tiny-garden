@@ -59,6 +59,13 @@ function pickFurniture(e) {
   return hits.length ? hits[0].object.userData.furnitureId : null;
 }
 
+// 招待厅版的拾取，跟 pickFurniture 一个套路，只是换一组 mesh
+function pickReceptionDecor(e) {
+  setPointer(e);
+  const hits = raycaster.intersectObjects(game.receptionDecorMeshes(), false);
+  return hits.length ? hits[0].object.userData.receptionId : null;
+}
+
 function floorPoint(e) {
   setPointer(e);
   const out = new THREE.Vector3();
@@ -99,11 +106,16 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   // 布置模式：拖着家具在地板上滑
   if (dragging) {
     const p = floorPoint(e);
-    if (p) game.setFurniturePos(dragging.id, p.x - INTERIOR_POS.x + dragging.dx, p.z - INTERIOR_POS.z + dragging.dz);
+    if (p) {
+      // 两个厅共用同一套拖动，只是落点要减各自厅室的世界坐标
+      const org = dragging.room === 'reception' ? RECEPTION_POS : INTERIOR_POS;
+      const set = dragging.room === 'reception' ? 'setReceptionPos' : 'setFurniturePos';
+      game[set](dragging.id, p.x - org.x + dragging.dx, p.z - org.z + dragging.dz);
+    }
     return;
   }
-  if (ui.inHouse && ui.editMode) {
-    renderer.domElement.style.cursor = pickFurniture(e) ? 'grab' : 'default';
+  if ((ui.inHouse && ui.editMode) || (ui.inReception && ui.recEditMode)) {
+    renderer.domElement.style.cursor = (ui.inHouse ? pickFurniture(e) : pickReceptionDecor(e)) ? 'grab' : 'default';
     return;
   }
   const hit = pickTile(e);
@@ -121,7 +133,18 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     const p = id ? floorPoint(e) : null;
     if (id && p) {
       const m = game.interiorFurniture[id];
-      dragging = { id, dx: m.position.x - (p.x - INTERIOR_POS.x), dz: m.position.z - (p.z - INTERIOR_POS.z) };
+      dragging = { id, room: 'house', dx: m.position.x - (p.x - INTERIOR_POS.x), dz: m.position.z - (p.z - INTERIOR_POS.z) };
+      controls.enabled = false;
+      renderer.domElement.style.cursor = 'grabbing';
+      return;
+    }
+  }
+  if (ui.inReception && ui.recEditMode) {
+    const id = pickReceptionDecor(e);
+    const p = id ? floorPoint(e) : null;
+    if (id && p) {
+      const m = game.receptionMeshMap[id];
+      dragging = { id, room: 'reception', dx: m.position.x - (p.x - RECEPTION_POS.x), dz: m.position.z - (p.z - RECEPTION_POS.z) };
       controls.enabled = false;
       renderer.domElement.style.cursor = 'grabbing';
       return;

@@ -2056,6 +2056,7 @@ export class UI {
   }
 
   exitReception() {
+    this.recEditMode = false;
     $('#reception').classList.add('hidden');
     if (!this.inReception) return;
     this.inReception = false;
@@ -2084,6 +2085,26 @@ export class UI {
         })}</small>
         <div class="ach-bar"><i style="width:${Math.round(rc.ratio * 100)}%"></i></div>
       </div>`);
+
+    // 布置模式：跟小屋一样能在 3D 厅里直接拖装饰
+    const editBtn = document.createElement('button');
+    editBtn.id = 'house-edit';
+    editBtn.className = this.recEditMode ? 'on' : '';
+    editBtn.textContent = this.recEditMode ? t('rec.editDone') : t('rec.edit');
+    editBtn.addEventListener('click', () => {
+      this.recEditMode = !this.recEditMode;
+      this.toast(this.recEditMode ? t('rec.editTip') : t('rec.editOver'));
+      this.renderReception();
+    });
+    body.appendChild(editBtn);
+    if (this.recEditMode) {
+      body.insertAdjacentHTML('beforeend', `<p class="shop-note">${t('rec.editNote')}</p>`);
+      const reset = document.createElement('button');
+      reset.id = 'house-reset';
+      reset.textContent = t('rec.reset');
+      reset.addEventListener('click', () => { g.resetReceptionLayout(); this.renderReception(); });
+      body.appendChild(reset);
+    }
 
     RECEPTION_DECORS.forEach(d => {
       const lv = g.receptionOwned[d.id] ?? 0;
@@ -3127,6 +3148,7 @@ export class UI {
     if (!this.inHouse) return;
     this.inHouse = false;
     this.editMode = false;
+    this.recEditMode = false;   // 招待厅的布置模式，跟小屋各管各的
     if (this._camBackup) {
       this.camera.position.copy(this._camBackup.pos);
       this.controls.target.copy(this._camBackup.target);

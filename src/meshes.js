@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
-  RANCH_GRID, RANCH_TILE, TOWER_FINISHES } from './config.js';
+  RANCH_GRID, RANCH_TILE, TOWER_FINISHES, RECEPTION_HALL } from './config.js';
 
 const mat = (color, opts = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0, flatShading: true, ...opts });
@@ -5575,23 +5575,28 @@ export function createReceptionBuilding() {
 // 厅内：明亮的候客大厅，15 件装饰各有固定摆位
 export function createReceptionInterior() {
   const g = new THREE.Group();
-  const W = 14, D = 15;
+  // 尺寸从 config 来（24×26，原本 14×15，面积正好三倍）。厅里现在要装 30 件装饰
+  // 并且能自由拖动，老尺寸挤不下
+  const W = RECEPTION_HALL.w, D = RECEPTION_HALL.d;
   g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xe4d8c2), 0, -0.15, 0));
-  for (let k = -2; k <= 2; k++) {
+  // 地板分隔线按宽度铺满，别写死根数——不然扩厅之后中间一块是花的、两边是秃的
+  const lines = Math.floor(W / 2.8 / 2);
+  for (let k = -lines; k <= lines; k++) {
     g.add(mesh(new THREE.BoxGeometry(0.06, 0.02, D), mat(0xcbbb9e), k * 2.8, 0.01, 0));
   }
   const wallM = mat(0xf6efe0);
   g.add(mesh(new THREE.BoxGeometry(W, 5, 0.3), wallM, 0, 2.5, -D / 2 + 0.15));
   [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 5, D), wallM, s * (W / 2 - 0.15), 2.5, 0)));
-  // 后墙落地窗
-  [-4.2, 4.2].forEach(x =>
+  // 后墙落地窗：跟着变宽的墙多开几扇，位置按比例摊开
+  [-0.62, -0.21, 0.21, 0.62].forEach(f =>
     g.add(mesh(new THREE.BoxGeometry(2.6, 2.4, 0.1),
-      mat(0xd4ecf6, { emissive: 0x9fc8dc, emissiveIntensity: 0.35 }), x, 2.2, -D / 2 + 0.25)));
-  [[-4, -4], [4, -4], [-4, 3], [4, 3], [0, 0]].forEach(([x, z]) => {
-    const l = new THREE.PointLight(0xfff4e0, 0.5, 18, 1.8);
-    l.position.set(x, 4, z);
+      mat(0xd4ecf6, { emissive: 0x9fc8dc, emissiveIntensity: 0.35 }), f * W / 2, 2.2, -D / 2 + 0.25)));
+  // 顶灯：扩厅之后 5 盏照不匀，改成按格子铺 3×3
+  [-0.62, 0, 0.62].forEach(fx => [-0.62, 0, 0.62].forEach(fz => {
+    const l = new THREE.PointLight(0xfff4e0, 0.42, 22, 1.8);
+    l.position.set(fx * W / 2, 4, fz * D / 2);
     g.add(l);
-  });
+  }));
   return g;
 }
 
@@ -5736,6 +5741,222 @@ const receptionKinds = {
         g.add(mesh(new THREE.TorusGeometry(0.07, 0.02, 5, 10),
           mat(0xffe6b0, { emissive: 0xd8a63a, emissiveIntensity: 0.5 }), 0.45 + k * 0.16, 1.25 + k * 0.14, 0));
       }
+    }
+    return g;
+  },
+  // ——— 扩厅之后补的 15 件。都按 lv1~3 逐级长大／加细节；
+  //     lv4/5 由 createReceptionDecor 统一罩金，这里不用管 ———
+  ash(lv) { // 烟灰缸柱
+    const g = new THREE.Group(), h = 0.7 + lv * 0.08;
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.19, h, 10), mat(0x5a5f66), 0, h / 2, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.12, 10), mat(0x8a9099), 0, h + 0.06, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 10), mat(0xd8d2c4), 0, h + 0.1, 0));
+    if (lv >= 2) {
+      const ring = mesh(new THREE.TorusGeometry(0.2, 0.02, 5, 12), mat(0xc0a060), 0, h + 0.13, 0);
+      ring.rotation.x = Math.PI / 2;
+      g.add(ring);
+    }
+    if (lv >= 3) {
+      const cig = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 6), mat(0xf0ece0), 0.07, h + 0.16, 0);
+      cig.rotation.z = 0.5;
+      g.add(cig);
+    }
+    return g;
+  },
+  table(lv) { // 洽谈桌
+    const g = new THREE.Group(), r = 0.55 + lv * 0.12;
+    g.add(mesh(new THREE.CylinderGeometry(r, r, 0.09, 14), mat(0xa9784a), 0, 0.72, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.68, 10), mat(0x8a5a34), 0, 0.34, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.06, 12), mat(0x8a5a34), 0, 0.03, 0));
+    if (lv >= 2) [0, Math.PI].forEach(a => g.add(mesh(new THREE.BoxGeometry(0.36, 0.5, 0.36), mat(0x8a9aa8),
+      Math.cos(a) * (r + 0.32), 0.3, Math.sin(a) * (r + 0.32))));
+    if (lv >= 3) g.add(mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.2, 8), mat(0x6fa04a), 0, 0.86, 0));
+    return g;
+  },
+  rack(lv) { // 报刊架
+    const g = new THREE.Group(), n = 1 + lv;
+    g.add(mesh(new THREE.BoxGeometry(0.7, 0.06, 0.4), mat(0x8a5a34), 0, 0.06, 0));
+    [-0.3, 0.3].forEach(x => g.add(mesh(new THREE.BoxGeometry(0.07, 1.2, 0.07), mat(0x8a5a34), x, 0.6, 0)));
+    for (let k = 0; k < n; k++) {
+      const y = 0.32 + k * 0.34;
+      const shelf = mesh(new THREE.BoxGeometry(0.66, 0.04, 0.34), mat(0xb08a5a), 0, y, 0);
+      shelf.rotation.x = -0.35;
+      g.add(shelf);
+      const paper = mesh(new THREE.BoxGeometry(0.5, 0.03, 0.28), mat(k % 2 ? 0xf0ece0 : 0xe8d8b8), 0, y + 0.05, 0.02);
+      paper.rotation.x = -0.35;
+      g.add(paper);
+    }
+    return g;
+  },
+  umb(lv) { // 伞架
+    const g = new THREE.Group(), n = lv + 1;
+    g.add(mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.55, 12), mat(0x6a6f78), 0, 0.28, 0));
+    const rim = mesh(new THREE.TorusGeometry(0.24, 0.025, 5, 14), mat(0x9aa0a8), 0, 0.5, 0);
+    rim.rotation.x = Math.PI / 2;
+    g.add(rim);
+    const cols = [0xc25b5b, 0x5b7a96, 0x6fa04a, 0xe0b64a];
+    for (let k = 0; k < n; k++) {
+      const a = k * 1.7, r = 0.1;
+      const u = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 6), mat(cols[k % 4]),
+        Math.cos(a) * r, 0.62, Math.sin(a) * r);
+      u.rotation.z = Math.cos(a) * 0.14;
+      g.add(u);
+    }
+    return g;
+  },
+  cart(lv) { // 行李推车
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.0, 0.07, 0.6), mat(0xc0a060), 0, 0.3, 0));
+    [-0.42, 0.42].forEach(x => [-0.24, 0.24].forEach(z => {
+      const w = mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 8), mat(0x3a3a42), x, 0.09, z);
+      w.rotation.z = Math.PI / 2;
+      g.add(w);
+    }));
+    [-0.46, 0.46].forEach(x => g.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.9, 8), mat(0xc0a060), x, 0.75, -0.24)));
+    const bar = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.92, 8), mat(0xc0a060), 0, 1.2, -0.24);
+    bar.rotation.z = Math.PI / 2;
+    g.add(bar);
+    const bags = [[0x8a5a34, 0.34], [0x5b7a96, 0.26], [0xc25b5b, 0.2]];
+    for (let k = 0; k < lv && k < bags.length; k++) {
+      const [c, h] = bags[k];
+      g.add(mesh(new THREE.BoxGeometry(0.42, h, 0.3), mat(c), -0.18 + k * 0.2, 0.34 + h / 2 + k * 0.02, 0.02));
+    }
+    return g;
+  },
+  coffee(lv) { // 咖啡机
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(0.72, 0.66, 0.5), mat(0x8a5a34), 0, 0.33, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.62, 0.7, 0.44), mat(0x3a3a42), 0, 1.0, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.4, 0.24, 0.06), mat(0x2a2a30), 0, 1.12, 0.23));
+    if (lv >= 2) g.add(mesh(new THREE.BoxGeometry(0.34, 0.16, 0.06),
+      mat(0x8ac6e0, { emissive: 0x4a8aa8, emissiveIntensity: 0.4 }), 0, 1.28, 0.24));
+    for (let k = 0; k < lv; k++) {
+      g.add(mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.11, 9), mat(0xf0ece0), -0.2 + k * 0.2, 0.72, 0.16));
+    }
+    return g;
+  },
+  candle(lv) { // 烛台
+    const g = new THREE.Group(), n = 1 + lv * 2;
+    g.add(mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.08, 10), mat(0xc0a060), 0, 0.04, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.85, 8), mat(0xc0a060), 0, 0.46, 0));
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, r = n === 1 ? 0 : 0.24;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      g.add(mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.22, 7), mat(0xf5eeda), x, 1.0, z));
+      g.add(mesh(new THREE.SphereGeometry(0.05, 7, 6),
+        mat(0xffd98a, { emissive: 0xe8a02a, emissiveIntensity: 0.9 }), x, 1.15, z));
+    }
+    return g;
+  },
+  trophy(lv) { // 荣誉展柜
+    const g = new THREE.Group(), h = 1.5 + lv * 0.18;
+    g.add(mesh(new THREE.BoxGeometry(0.9, 0.12, 0.45), mat(0x8a5a34), 0, 0.06, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.86, h, 0.4),
+      mat(0xcfe4ee, { transparent: true, opacity: 0.2, roughness: 0.15 }), 0, 0.12 + h / 2, 0));
+    for (let k = 0; k < lv; k++) {
+      const y = 0.4 + k * (h / (lv + 0.4));
+      g.add(mesh(new THREE.BoxGeometry(0.8, 0.04, 0.36), mat(0xb08a5a), 0, y, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.09, 0.05, 0.16, 9),
+        mat(0xf2c94c, { roughness: 0.3, emissive: 0x8a6a1a, emissiveIntensity: 0.25 }), -0.2 + k * 0.2, y + 0.1, 0));
+    }
+    return g;
+  },
+  board(lv) { // 导览牌
+    const g = new THREE.Group(), w = 0.75 + lv * 0.1;
+    g.add(mesh(new THREE.BoxGeometry(0.36, 0.06, 0.3), mat(0x6a6f78), 0, 0.03, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.85, 8), mat(0x8a9099), 0, 0.45, 0));
+    const face = mesh(new THREE.BoxGeometry(w, 0.6, 0.05), mat(0xf0ece0), 0, 1.1, 0);
+    face.rotation.x = -0.22;
+    g.add(face);
+    const ink = mesh(new THREE.BoxGeometry(w - 0.1, 0.5, 0.02), mat(0x5b7a96), 0, 1.1, 0.03);
+    ink.rotation.x = -0.22;
+    g.add(ink);
+    if (lv >= 3) g.add(mesh(new THREE.BoxGeometry(w + 0.08, 0.06, 0.08), mat(0xc0a060), 0, 1.42, -0.02));
+    return g;
+  },
+  cage(lv) { // 鸟笼
+    const g = new THREE.Group(), r = 0.28 + lv * 0.04;
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 8), mat(0x6a6f78), 0, 0.55, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.06, 10), mat(0x6a6f78), 0, 0.06, 0));
+    g.add(mesh(new THREE.CylinderGeometry(r, r, 0.05, 12), mat(0xc0a060), 0, 1.1, 0));
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4;
+      g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 5), mat(0xc0a060),
+        Math.cos(a) * r, 1.42, Math.sin(a) * r));
+    }
+    g.add(mesh(new THREE.SphereGeometry(r, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xc0a060), 0, 1.73, 0));
+    if (lv >= 2) {
+      g.add(mesh(new THREE.SphereGeometry(0.1, 8, 7), mat(0xe8b84a), 0, 1.5, 0));
+      const beak = mesh(new THREE.ConeGeometry(0.04, 0.09, 6), mat(0xe07a2a), 0.1, 1.5, 0);
+      beak.rotation.z = -Math.PI / 2;
+      g.add(beak);
+    }
+    if (lv >= 3) g.add(mesh(new THREE.SphereGeometry(0.08, 8, 7), mat(0x5b9ae8), -0.02, 1.32, 0.12));
+    return g;
+  },
+  flag(lv) { // 迎宾旗
+    const g = new THREE.Group(), n = lv;
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.08, 10), mat(0x6a6f78), 0, 0.04, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), mat(0xc0a060), 0, 1.1, 0));
+    const cols = [0xc25b5b, 0x5b7a96, 0x6fa04a];
+    for (let k = 0; k < n; k++) {
+      g.add(mesh(new THREE.BoxGeometry(0.5, 0.7, 0.03), mat(cols[k % 3]), 0.27, 1.75 - k * 0.5, 0));
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.07, 8, 7), mat(0xf2c94c, { roughness: 0.3 }), 0, 2.24, 0));
+    return g;
+  },
+  fount(lv) { // 室内喷泉
+    const g = new THREE.Group(), r = 0.7 + lv * 0.12;
+    g.add(mesh(new THREE.CylinderGeometry(r, r + 0.06, 0.28, 16), mat(0xd8d2c4), 0, 0.14, 0));
+    g.add(mesh(new THREE.CylinderGeometry(r - 0.1, r - 0.1, 0.06, 16),
+      mat(0x5aa8d8, { roughness: 0.2, emissive: 0x2a6a96, emissiveIntensity: 0.25 }), 0, 0.27, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.5, 10), mat(0xe8e2d4), 0, 0.5, 0));
+    g.add(mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.45, 0.07, 14), mat(0xe8e2d4), 0, 0.78, 0));
+    for (let k = 0; k < lv * 3; k++) {
+      const a = (k / (lv * 3)) * Math.PI * 2;
+      g.add(mesh(new THREE.SphereGeometry(0.055, 7, 6),
+        mat(0x8fd0ee, { transparent: true, opacity: 0.75 }),
+        Math.cos(a) * r * 0.5, 0.95 - (k % 3) * 0.12, Math.sin(a) * r * 0.5));
+    }
+    if (lv >= 3) g.add(mesh(new THREE.SphereGeometry(0.11, 9, 8),
+      mat(0xbfe8f8, { emissive: 0x6ab0d8, emissiveIntensity: 0.5 }), 0, 1.02, 0));
+    return g;
+  },
+  water(lv) { // 饮水机
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(0.46, 0.95, 0.42), mat(0xe4e8ec), 0, 0.48, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.3, 0.14, 0.06), mat(0x5a5f66), 0, 0.7, 0.22));
+    g.add(mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.46, 12),
+      mat(0x8fd0ee, { transparent: true, opacity: 0.6 }), 0, 1.18, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 10), mat(0x5b9ae8), 0, 1.44, 0));
+    for (let k = 0; k < lv; k++) {
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.1, 8), mat(0xf0ece0), -0.14 + k * 0.14, 0.05, 0.26));
+    }
+    return g;
+  },
+  blind(lv) { // 百叶帘
+    const g = new THREE.Group(), w = 1.1 + lv * 0.15, n = 6 + lv * 2;
+    g.add(mesh(new THREE.BoxGeometry(w + 0.12, 0.1, 0.12), mat(0x8a5a34), 0, 2.0, 0));
+    for (let k = 0; k < n; k++) {
+      const sl = mesh(new THREE.BoxGeometry(w, 0.07, 0.1), mat(0xe8dcc0), 0, 1.9 - k * (1.5 / n), 0);
+      sl.rotation.x = 0.4;
+      g.add(sl);
+    }
+    [-w / 2, w / 2].forEach(x => g.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.6, 5), mat(0xc8bda8), x, 1.2, 0.04)));
+    if (lv >= 3) g.add(mesh(new THREE.BoxGeometry(w + 0.2, 0.16, 0.16), mat(0xc0a060), 0, 2.1, 0));
+    return g;
+  },
+  mask(lv) { // 面具墙饰
+    const g = new THREE.Group(), n = 1 + lv;
+    g.add(mesh(new THREE.BoxGeometry(0.9 + lv * 0.2, 1.0, 0.08), mat(0x6a4a2e), 0, 1.3, 0));
+    const cols = [0xe8dcc0, 0xc25b5b, 0x5b7a96, 0xe0b64a];
+    for (let k = 0; k < n; k++) {
+      const x = n === 1 ? 0 : -0.28 + k * (0.56 / (n - 1));
+      const face = mesh(new THREE.SphereGeometry(0.17, 10, 9, 0, Math.PI * 2, 0, Math.PI * 0.6), mat(cols[k % 4]), x, 1.42, 0.08);
+      face.rotation.x = -Math.PI / 2;
+      g.add(face);
+      g.add(mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(0x2a2a30), x - 0.06, 1.46, 0.2));
+      g.add(mesh(new THREE.SphereGeometry(0.03, 6, 5), mat(0x2a2a30), x + 0.06, 1.46, 0.2));
     }
     return g;
   },

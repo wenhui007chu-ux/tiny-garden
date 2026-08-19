@@ -1941,6 +1941,13 @@ export function dailyTasks(seed, day, tierId) {
  * 等于凭空砍收入（典藏馆繁荣度当初就是为这个才做成加成的）。
  */
 export const RECEPTION_POS = { x: -60, y: -60, z: -120 }; // 独立厅室，藏在岛下
+// 厅室尺寸。原本 14×15，装 15 件就挤了；扩到 24×26（面积正好三倍）之后
+// 装得下 30 件，密度跟小屋（26 件 / 24×24）差不多
+export const RECEPTION_HALL = { w: 24, d: 26 };
+// 自由摆放的边界：留出墙厚和一点余量，别让家具嵌进墙里
+// 留 0.9 而不是更多：靠墙的壁画/百叶帘/面具墙饰本来就该贴着墙，
+// 边界留太宽的话它们会被钳到半空，玩家想推回墙上也推不回去
+export const RECEPTION_LIMIT = { x: RECEPTION_HALL.w / 2 - 0.9, z: RECEPTION_HALL.d / 2 - 0.9 };
 export const RECEPTION_WAIT = 20;   // 参观客在厅里待多久（秒）
 export const RECEPTION_SLOTS = 15;  // 一共能摆几件
 
@@ -1968,13 +1975,32 @@ export const RECEPTION_DECORS = [
   rdecor('plant',   '迎客松',   '🪴', 350,  'plant',   [4.6, 1.8]),
   rdecor('lamp',    '落地灯',   '🏮', 400,  'lamp',    [-5.2, -3.4]),
   rdecor('chand',   '水晶吊灯', '💡', 1300, 'chand',   [0, -1.4]),
-  rdecor('art',     '壁画',     '🖼️', 700, 'art',     [0, -5.6]),
+  rdecor('art',     '壁画',     '🖼️', 700, 'art',     [-6.0, -12.0]),
   rdecor('clock',   '立钟',     '🕰️', 500, 'clock',   [5.2, -3.4]),
   rdecor('shelf',   '纪念品架', '🎁', 750, 'shelf',   [-5.2, 3.6]),
   rdecor('tank',    '观赏鱼缸', '🐠', 1000, 'tank',    [5.2, 3.6]),
   rdecor('screen',  '屏风',     '🎴', 650, 'screen',  [-2.2, 4.6]),
   rdecor('music',   '留声机',   '🎶', 800, 'music',   [2.2, 4.6]),
   rdecor('arch',    '迎宾拱门', '⛩️', 1500, 'arch',    [0, 6.4]),
+  // 靠墙的三件（壁画/百叶帘/面具墙饰）z 必须贴着后墙 -RECEPTION_HALL.d/2，
+  // 改厅室尺寸时要跟着改——扩厅那次就忘了，三件全悬在了屋子中间。
+  // 扩厅之后补的 15 件。摆位散在外圈，中间那圈留给原来的 15 件；
+  // 反正现在能自由拖动，这些只是「买下来时的落点」
+  rdecor('ash',     '烟灰缸柱', '🚬', 250,  'ash',      [-8.4, -6.0]),
+  rdecor('table',   '洽谈桌',   '🪑', 700,  'table',    [8.4, -6.0]),
+  rdecor('rack',    '报刊架',   '🗞️', 380,  'rack',     [-9.6, -2.0]),
+  rdecor('umb',     '伞架',     '☂️', 300,  'umb',      [9.6, -2.0]),
+  rdecor('cart',    '行李推车', '🧳', 520,  'cart',     [-9.6, 2.0]),
+  rdecor('coffee',  '咖啡机',   '☕', 900,  'coffee',   [9.6, 2.0]),
+  rdecor('candle',  '烛台',     '🕯️', 420,  'candle',   [-8.4, 6.0]),
+  rdecor('trophy',  '荣誉展柜', '🏆', 1100, 'trophy',   [8.4, 6.0]),
+  rdecor('board',   '导览牌',   '🗺️', 340,  'board',    [-4.0, 8.6]),
+  rdecor('cage',    '鸟笼',     '🐦', 800,  'cage',     [4.0, 8.6]),
+  rdecor('flag',    '迎宾旗',   '🎏', 460,  'flag',     [-7.2, 9.8]),
+  rdecor('fount',   '室内喷泉', '⛲', 1600, 'fount',    [7.2, 9.8]),
+  rdecor('water',   '饮水机',   '🧊', 480,  'water',    [-10.0, -9.0]),
+  rdecor('blind',   '百叶帘',   '🪟', 360,  'blind',    [0, -12.0]),
+  rdecor('mask',    '面具墙饰', '🎭', 950,  'mask',     [6.0, -12.0]),
 ];
 export const receptionDecorById = (id) => RECEPTION_DECORS.find(d => d.id === id);
 export const receptionDecorName = (d) => (d ? tf(`rdecor.${d.id}`, d.name) : '');
