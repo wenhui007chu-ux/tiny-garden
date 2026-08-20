@@ -375,13 +375,13 @@ body {
 .fur-row button.maxed { border-color: #b8b8b8; background: #f3f3f3; color: #888; cursor: default; }
 .fur-row button.sleep { border-color: #7a6fb0; background: #e7e3f7; color: #4b3f86; }
 .fur-row.locked { opacity: .55; }
-#house-edit, #house-reset {
+#house-edit, #house-reset, #reception-edit, #reception-reset {
   width: 100%; margin-bottom: 10px; cursor: pointer; font-weight: 700; font-size: 14px;
   border: 2px solid #d9b071; background: #fff8ec; color: #8a5a2b;
   border-radius: 12px; padding: 11px 0;
 }
-#house-edit.on { border-color: #6aae5e; background: #dff3d8; color: #3d7a33; }
-#house-reset { border-color: #c9a97e; background: #fff; color: #a1834f; font-size: 13px; padding: 8px 0; }
+#house-edit.on, #reception-edit.on { border-color: #6aae5e; background: #dff3d8; color: #3d7a33; }
+#house-reset, #reception-reset { border-color: #c9a97e; background: #fff; color: #a1834f; font-size: 13px; padding: 8px 0; }
 .style-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .style-chips button {
   border: 1.5px solid #d9b071 !important; background: #fff !important; color: #8a5a2b !important;

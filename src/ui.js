@@ -2072,6 +2072,26 @@ export class UI {
   renderReception() {
     const g = this.game;
     const body = $('#reception-body');
+
+    // 这个面板在 500ms 定时器里，但它有 110 来个按钮，而且几乎全是静态的
+    // （买了什么、升到几级，不会自己变）。无条件整块重建有两个后果：
+    // 滚动条被弹回顶上，以及——更要命的——在 mousedown 和 mouseup 之间
+    // 把按钮换成新元素，那一下点击就此消失。「布置模式点了没反应」就是这么来的。
+    // 酒庄那儿早就踩过同一个坑，注释还在。
+    //
+    // 所以先算一个签名：只有真的变了才重建。金币直接进签名会因为挂机收益
+    // 每秒都在变而失效，所以只记「每件买得起买不起」——这个很少变。
+    const sig = [
+      g.lobby.length, this.recEditMode ? 1 : 0,
+      ...RECEPTION_DECORS.map(d => {
+        const lv = g.receptionOwned[d.id] ?? 0;
+        const next = lv === 0 ? d.cost : (d.up[lv - 1] ?? Infinity);
+        return `${lv}.${g.receptionStyle[d.id] ?? 0}.${g.coins >= next ? 1 : 0}`;
+      }),
+    ].join('|');
+    if (body.dataset.sig === sig) return;
+    body.dataset.sig = sig;
+
     const scrolled = body.scrollTop;
     body.innerHTML = '';
     const owned = RECEPTION_DECORS.filter(d => g.receptionOwned[d.id]).length;
@@ -2088,7 +2108,9 @@ export class UI {
 
     // 布置模式：跟小屋一样能在 3D 厅里直接拖装饰
     const editBtn = document.createElement('button');
-    editBtn.id = 'house-edit';
+    // id 不能跟小屋那个重名：两个面板同时在 DOM 里，重复 id 是非法 HTML，
+    // 任何 querySelector('#house-edit') 都会拿到文档里靠前的那个（小屋的）
+    editBtn.id = 'reception-edit';
     editBtn.className = this.recEditMode ? 'on' : '';
     editBtn.textContent = this.recEditMode ? t('rec.editDone') : t('rec.edit');
     editBtn.addEventListener('click', () => {
@@ -2100,7 +2122,7 @@ export class UI {
     if (this.recEditMode) {
       body.insertAdjacentHTML('beforeend', `<p class="shop-note">${t('rec.editNote')}</p>`);
       const reset = document.createElement('button');
-      reset.id = 'house-reset';
+      reset.id = 'reception-reset';
       reset.textContent = t('rec.reset');
       reset.addEventListener('click', () => { g.resetReceptionLayout(); this.renderReception(); });
       body.appendChild(reset);

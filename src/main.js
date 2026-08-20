@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createScene } from './scene.js';
 import { Game, SAVE_KEY } from './game.js';
 import { UI } from './ui.js';
-import { INTERIOR_POS, SLEEP_SPEED } from './config.js';
+import { INTERIOR_POS, SLEEP_SPEED, RECEPTION_POS } from './config.js';
 import { music, sfx } from './music.js';
 import { applyStaticI18n } from './i18n.js';
 import { startWatchdog } from './watchdog.js';
@@ -585,7 +585,10 @@ function animate() {
 animate();
 
 setInterval(() => game.save(), 10000);
-window.__debug = { renderer, scene, camera, game, ui, music, sfx, perf };
+window.__debug = { renderer, scene, camera, game, ui, music, sfx, perf,
+  // 拾取相关的内部函数也挂出来：布置模式这类「点了没反应」的问题，
+  // 不能直接调这两个函数就只能靠猜
+  pickFurniture, pickReceptionDecor, floorPoint, isDragging: () => dragging };
 
 startWatchdog(game); // 服务器掉线时提示并自动重连
 window.addEventListener('beforeunload', () => game.save());
