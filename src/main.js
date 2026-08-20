@@ -581,7 +581,8 @@ function animate() {
     rainGeo.attributes.position.needsUpdate = true;
   }
 
-  perf.tick(dt, camera); // 统计帧率、按档位裁剪装饰光源
+  // 注视点一并传进去：判断「在不在厅里」要用它，不能用相机位置（缩放会把相机拉远）
+  perf.tick(dt, camera, controls.target);
   renderer.render(scene, camera);
 }
 animate();

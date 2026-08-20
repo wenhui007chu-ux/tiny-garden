@@ -154,21 +154,29 @@ class Perf {
     return this._interiors.length;
   }
 
-  cullInteriors(camera) {
+  // 用 orbit 的「注视点」判断在不在厅里，不能用相机位置。
+  //
+  // 第一版拿 camera.position 比距离，阈值 50 格，结果一缩小视角就穿帮：
+  // OrbitControls 的 maxDistance 是 150，往后拉一点相机就退到 50 格外，
+  // 厅当场整个消失。注视点不一样——它始终钉在厅心（实测 3 格），
+  // 缩放只动相机、动不了它，正好就是「玩家在看哪儿」这个语义。
+  cullInteriors(camera, target) {
     if (!this._interiors?.length) return;
-    const cam = camera.position;
-    const moved = !this._lastIntCam || this._lastIntCam.distanceToSquared(cam) > 25; // 挪 5 格才重算
+    const at = target ?? camera.position;
+    const moved = !this._lastIntAt || this._lastIntAt.distanceToSquared(at) > 25; // 挪 5 格才重算
     if (!this.interiorsDirty && !moved) return;
     this.interiorsDirty = false;
-    this._lastIntCam = cam.clone();
+    this._lastIntAt = at.clone();
 
-    // 最近的那个厅，且必须真的近（在岛上时最近的厅也有 70+ 格远，于是全灭）
+    // 最近的那个厅，且必须真的近。
+    // 在厅里注视点离厅心约 3 格；在岛上注视点是农田(0,1.6,-2.6)，
+    // 离最近的厅也有 60+ 格。30 格的门槛把两种情况分得干干净净
     let best = null, bestD = Infinity;
     for (const g of this._interiors) {
-      const d = g.position.distanceToSquared(cam);
+      const d = g.position.distanceToSquared(at);
       if (d < bestD) { bestD = d; best = g; }
     }
-    const inside = bestD < 50 * 50 ? best : null;
+    const inside = bestD < 30 * 30 ? best : null;
     for (const g of this._interiors) {
       const want = g === inside;
       if (g.visible !== want) g.visible = want;
@@ -189,7 +197,7 @@ class Perf {
   }
 
   // 每帧调用：统计帧率、必要时自动降档
-  tick(dt, camera) {
+  tick(dt, camera, target) {
     this.frames++;
     this.acc += dt;
     if (this.acc >= 0.5) {
@@ -204,7 +212,7 @@ class Perf {
       if (this.auto) this.autoAdjust();
     }
     this.cullLights(camera, dt);
-    this.cullInteriors(camera);
+    this.cullInteriors(camera, target);
     this.throttleShadow();
   }
 
