@@ -5475,7 +5475,7 @@ export function createDishMesh(emoji, scale = 1) {
 //
 // 空格也照样写（整块压暗），这才是图鉴该有的样子——玩家得能看出「还差哪些、
 // 值不值得专门去做一趟」，而不是收录了才告诉他这格原来是什么。
-export function createCaseLabel(name, price, filled) {
+export function createCaseLabel(name, sub, filled) {
   const W = 256, H = 148;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -5504,15 +5504,22 @@ export function createCaseLabel(name, price, filled) {
   }
   ctx.fillText(txt, W / 2, 62);
 
-  // 身价：数字 + 💰，语言无关，不用翻译
+  // 第二行：典藏柜传身价（数字 + 💰），奖杯台传达成条件。
+  // 传格式化好的字符串而不是数字——这两处要显示的东西性质完全不同，
+  // 让调用方各自格式化，这里只管排版
   ctx.fillStyle = filled ? '#c8871f' : '#9a948a';
-  const money = Number(price ?? 0).toLocaleString() + '\u{1F4B0}';
+  let line2 = String(sub ?? '');
   fs = 32;
   do {
     ctx.font = 'bold ' + fs + 'px "Microsoft YaHei", sans-serif';
     fs -= 2;
-  } while (fs > 14 && ctx.measureText(money).width > W - 28);
-  ctx.fillText(money, W / 2, 112);
+  } while (fs > 14 && ctx.measureText(line2).width > MAXW);
+  // 成就的达成条件比价格长得多（最长 16 字），缩到最小字号还超宽就截断
+  if (ctx.measureText(line2).width > MAXW) {
+    while (line2.length > 1 && ctx.measureText(line2 + '\u2026').width > MAXW) line2 = line2.slice(0, -1);
+    line2 += '\u2026';
+  }
+  ctx.fillText(line2, W / 2, 112);
 
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 4;

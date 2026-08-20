@@ -1202,7 +1202,7 @@ export class Game {
     // 铭牌：写清楚这一格是什么、值多少。空格也写（压暗），
     // 不然换成真模型之后，没做过那道菜的人根本认不出柜子里摆的是什么
     const info = treasurySlotInfo(key);
-    g.add(createCaseLabel(info.label, info.price, filled));
+    g.add(createCaseLabel(info.label, Number(info.price ?? 0).toLocaleString() + '\u{1F4B0}', filled));
     const { x, z } = this.treasurySlotPos(idx);
     g.position.set(x, 0, z);
     this.treasuryHall.add(g);
@@ -3491,6 +3491,20 @@ export class Game {
       if (cur && cur.userData.done === done) return; // 状态没变就不重建
       if (cur) this.achievementHall.remove(cur);
       const m = createTrophyMesh(a, done);
+      // 铭牌：31 座奖杯除了档次颜色几乎一模一样，没达成的更是只剩一个灰底座，
+      // 不写字根本认不出这座是什么成就、要做到什么才亮。没达成的也照写（压暗），
+      // 于是殿堂本身就是一张「还差哪些」的清单——跟典藏馆展柜同一个道理。
+      // 成就名和描述目前还没进 i18n，走 tf() 带中文兜底，将来补了自动生效
+      const label = createCaseLabel(
+        tf(`ach.${a.id}.name`, a.name),
+        tf(`ach.${a.id}.desc`, a.desc),
+        done);
+      // createCaseLabel 的默认位置是照典藏柜（柱子 0.56 宽）调的，
+      // 奖杯台柱有 0.66 宽、z 到 ±0.33，照搬过来牌子会整个埋进柱子里，
+      // 画面上只剩几条白边。挪到柱子正面外侧、底座上方
+      label.position.set(0, 0.46, 0.4);
+      label.rotation.x = -0.3;
+      m.add(label);
       m.position.set(spot.x, 0, spot.z);
       m.userData.done = done;
       this.achievementHall.add(m);
