@@ -1296,8 +1296,8 @@ export class UI {
       el.innerHTML = `
         <div class="ach-icon">${p.done ? a.emoji : '🔒'}</div>
         <div class="ach-info">
-          <b>${a.name}<span class="ach-tier">${tier.name}</span></b>
-          <div class="ach-desc">${a.desc}</div>
+          <b>${tf(`ach.${a.id}.name`, a.name)}<span class="ach-tier">${tier.name}</span></b>
+          <div class="ach-desc">${tf(`ach.${a.id}.desc`, a.desc)}</div>
           ${p.done
             ? '<div class="ach-got">✅ 已达成</div>'
             : `<div class="ach-hint">💡 ${a.hint}</div>
@@ -1323,8 +1323,8 @@ export class UI {
       <div class="ach-banner-icon">${a.emoji}</div>
       <div>
         <div class="ach-banner-top">${tp('ach.banner', { tier: tier.name })}</div>
-        <div class="ach-banner-name">${a.name}</div>
-        <div class="ach-banner-desc">${a.desc}</div>
+        <div class="ach-banner-name">${tf(`ach.${a.id}.name`, a.name)}</div>
+        <div class="ach-banner-desc">${tf(`ach.${a.id}.desc`, a.desc)}</div>
       </div>`;
     // 点横幅直接进成就殿堂看看
     el.addEventListener('click', () => { el.remove(); this.openAchievement(); });

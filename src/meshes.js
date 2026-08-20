@@ -5475,6 +5475,22 @@ export function createDishMesh(emoji, scale = 1) {
 //
 // 空格也照样写（整块压暗），这才是图鉴该有的样子——玩家得能看出「还差哪些、
 // 值不值得专门去做一趟」，而不是收录了才告诉他这格原来是什么。
+// 把一段文字折成最多两行：有空格就按词断（英俄），没空格就按字符断（中文）。
+// 只做两行——铭牌就那么高，三行会挤到看不清
+function wrapTwo(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return [text];
+  const parts = text.includes(' ') ? text.split(' ') : [...text];
+  const sep = text.includes(' ') ? ' ' : '';
+  let best = null;
+  for (let k = 1; k < parts.length; k++) {
+    const l1 = parts.slice(0, k).join(sep), l2 = parts.slice(k).join(sep);
+    const worst = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width);
+    // 取「较长那行最短」的切点，两行才均衡
+    if (!best || worst < best.worst) best = { worst, lines: [l1, l2] };
+  }
+  return best.lines;
+}
+
 export function createCaseLabel(name, sub, filled) {
   const W = 256, H = 148;
   const c = document.createElement('canvas');
@@ -5508,18 +5524,36 @@ export function createCaseLabel(name, sub, filled) {
   // 传格式化好的字符串而不是数字——这两处要显示的东西性质完全不同，
   // 让调用方各自格式化，这里只管排版
   ctx.fillStyle = filled ? '#c8871f' : '#9a948a';
-  let line2 = String(sub ?? '');
+  const line2 = String(sub ?? '');
+  // 先试一行。价格几乎总能一行放下，成就条件的英俄译文往往放不下
   fs = 32;
   do {
     ctx.font = 'bold ' + fs + 'px "Microsoft YaHei", sans-serif';
     fs -= 2;
-  } while (fs > 14 && ctx.measureText(line2).width > MAXW);
-  // 成就的达成条件比价格长得多（最长 16 字），缩到最小字号还超宽就截断
-  if (ctx.measureText(line2).width > MAXW) {
-    while (line2.length > 1 && ctx.measureText(line2 + '\u2026').width > MAXW) line2 = line2.slice(0, -1);
-    line2 += '\u2026';
+  } while (fs > 20 && ctx.measureText(line2).width > MAXW);
+
+  if (ctx.measureText(line2).width <= MAXW) {
+    ctx.fillText(line2, W / 2, 112);
+  } else {
+    // 一行放不下就折两行。之前是直接截断，但成就条件是指令性的
+    // （「解锁 10 块土地」这种），截成「All 36 ground-floor plots plan…」等于没写。
+    // 英俄按空格断，中文没有空格就按字符断
+    fs = 24;
+    let lines = [];
+    do {
+      ctx.font = 'bold ' + fs + 'px "Microsoft YaHei", sans-serif';
+      lines = wrapTwo(ctx, line2, MAXW);
+      fs -= 2;
+    } while (fs > 13 && lines.some(l => ctx.measureText(l).width > MAXW));
+    // 到最小字号还是塞不下（极端长的译名）才截，只截第二行
+    if (ctx.measureText(lines[1] ?? '').width > MAXW) {
+      let t = lines[1];
+      while (t.length > 1 && ctx.measureText(t + '\u2026').width > MAXW) t = t.slice(0, -1);
+      lines[1] = t + '\u2026';
+    }
+    ctx.fillText(lines[0], W / 2, 104);
+    if (lines[1]) ctx.fillText(lines[1], W / 2, 104 + fs + 6);
   }
-  ctx.fillText(line2, W / 2, 112);
 
   const tex = new THREE.CanvasTexture(c);
   tex.anisotropy = 4;
