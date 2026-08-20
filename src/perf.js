@@ -14,15 +14,15 @@ const KEY_FPS = 'farm-show-fps';
 // 所以哪怕最高档也必须限量：放 Infinity 等于给玩家一个 7 帧的废档。
 export const QUALITY = {
   high: {
-    name: '高画质', shadow: 2048, pixelRatio: 2,
+    name: '高画质', shadow: 2048, pixelRatio: 2, shadowEvery: 1,
     decorLights: 20, rain: 1200, softShadow: true,
   },
   medium: {
-    name: '中画质', shadow: 1024, pixelRatio: 1.5,
+    name: '中画质', shadow: 1024, pixelRatio: 1.5, shadowEvery: 2,
     decorLights: 10, rain: 600, softShadow: false,
   },
   low: {
-    name: '低画质', shadow: 0, pixelRatio: 1,     // 关阴影
+    name: '低画质', shadow: 0, pixelRatio: 1, shadowEvery: 1,     // 关阴影
     decorLights: 4, rain: 300, softShadow: false,
   },
   potato: {
@@ -134,6 +134,47 @@ class Perf {
     });
   }
 
+  // 岛下那些内景大厅（酒窖 / 典藏馆 / 招待厅 / 宠物间 / 花房 / 杂交室 /
+  // 成就殿堂 / 水族馆 / 我的家…）：它们全都摆在 y = -60 附近，
+  // 玩家在岛上时一个都看不见，却照样进渲染队列、照样往阴影图里画。
+  //
+  // 实测：岛下 2061 个 mesh，占了 2374 个 draw call 里的 1052 个（44%）。
+  // 一次只可能待在一个厅里，所以只留镜头所在的那一个，其余整组隐藏。
+  //
+  // 判据用「镜头离哪个厅最近」而不是 UI 的 inXxx 标志：标志会跟相机脱节
+  // （出过一次相机停在温室坐标、inGreenhouse 却是 false 的状况），
+  // 而位置是渲染真正依据的东西，不会说谎。
+  collectInteriors(root) {
+    this._interiors = [];
+    root.traverse(o => {
+      // 只认直接挂在世界里、整体沉在地下的那一层 Group，不往里递归
+      if (o.isGroup && o.position.y < -20) this._interiors.push(o);
+    });
+    this.interiorsDirty = true;
+    return this._interiors.length;
+  }
+
+  cullInteriors(camera) {
+    if (!this._interiors?.length) return;
+    const cam = camera.position;
+    const moved = !this._lastIntCam || this._lastIntCam.distanceToSquared(cam) > 25; // 挪 5 格才重算
+    if (!this.interiorsDirty && !moved) return;
+    this.interiorsDirty = false;
+    this._lastIntCam = cam.clone();
+
+    // 最近的那个厅，且必须真的近（在岛上时最近的厅也有 70+ 格远，于是全灭）
+    let best = null, bestD = Infinity;
+    for (const g of this._interiors) {
+      const d = g.position.distanceToSquared(cam);
+      if (d < bestD) { bestD = d; best = g; }
+    }
+    const inside = bestD < 50 * 50 ? best : null;
+    for (const g of this._interiors) {
+      const want = g === inside;
+      if (g.visible !== want) g.visible = want;
+    }
+  }
+
   // 场景里的装饰光源集合（太阳/环境光/补光不算）
   collectLights(root, THREE) {
     this._tmp = this._tmp ?? new THREE.Vector3();
@@ -163,6 +204,32 @@ class Perf {
       if (this.auto) this.autoAdjust();
     }
     this.cullLights(camera, dt);
+    this.cullInteriors(camera);
+    this.throttleShadow();
+  }
+
+  // 阴影图默认每帧重画一遍，实测占了一半的 draw call（3044 里的 1510）。
+  // 但这个场景绝大部分是静止的——房子、树、装饰一动不动，
+  // 会动的只有作物长大、动物和参观客走动、太阳随昼夜缓慢偏移。
+  // 所以隔帧更新完全够用：阴影最多晚一帧，肉眼看不出来，
+  // 代价却是把阴影 pass 的开销直接对半砍。
+  //
+  // 不能干脆冻住不更新：太阳位置跟着昼夜走（main.js 每帧 sun.position.set），
+  // 冻住的话影子会跟太阳对不上，那是看得见的错。
+  throttleShadow() {
+    const r = this.renderer;
+    if (!r) return;
+    const every = this.cfg.shadowEvery ?? 1;
+    if (every <= 1) {                      // 高画质：照旧每帧更新
+      if (!r.shadowMap.autoUpdate) { r.shadowMap.autoUpdate = true; }
+      return;
+    }
+    r.shadowMap.autoUpdate = false;
+    this._shadowTick = (this._shadowTick ?? 0) + 1;
+    if (this._shadowTick >= every) {
+      this._shadowTick = 0;
+      r.shadowMap.needsUpdate = true;
+    }
   }
 
   // 连续 3 秒不到 45 帧就降一档；连续 10 秒稳在 58 帧以上再试着升回去。

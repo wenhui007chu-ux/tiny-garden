@@ -437,6 +437,8 @@ function refreshAnimList(dt) {
   });
   // 光源清单也顺带跟着刷新，新盖的建筑带的灯才会纳入裁剪
   perf.collectLights(game.group, THREE);
+  // 岛下内景大厅的清单同理：以后再加厅室会自动纳入，不用改这里
+  perf.collectInteriors(game.group);
 }
 
 function animate() {
