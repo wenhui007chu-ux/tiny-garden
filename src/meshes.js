@@ -3677,6 +3677,322 @@ const builders = {
     g.add(gem, leafCrown(0.7, 0x7a6fb0));
     return g;
   },
+
+  /* —— 十种现实作物：把原有价位之间的空档填平 —— */
+
+  cucumber(stage) { // 黄瓜：细长圆柱斜挂着，皮上一排小疙瘩
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.8, GREEN)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.85, GREEN));
+    const skin = stage === 2 ? 0x8fbf5a : 0x3f7c3c;
+    const body = mesh(new THREE.CylinderGeometry(0.058 * s, 0.052 * s, 0.32 * s, 7), mat(skin), 0, 0.2 * s, 0);
+    body.rotation.z = 0.22;
+    g.add(body);
+    // 疙瘩沿着身子螺旋往上排，比均匀铺一圈更像真黄瓜
+    for (let k = 0; k < 6; k++) {
+      const a = k * 1.15;
+      g.add(mesh(new THREE.SphereGeometry(0.015 * s, 4, 3), mat(0x2f6e2a),
+        Math.cos(a) * 0.05 * s - k * 0.011 * s, 0.1 * s + k * 0.042 * s, Math.sin(a) * 0.05 * s));
+    }
+    return g;
+  },
+
+  onion(stage) { // 洋葱：紫红球茎，顶上支棱一撮枯叶尖，底下留须根
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.75);
+    if (stage === 1) { g.add(leafCrown(0.8, 0x7a9e5a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const skin = stage === 2 ? 0xc8a0b8 : 0x9e4a7a;
+    const bulb = mesh(new THREE.SphereGeometry(0.125 * s, 8, 6), mat(skin), 0, 0.13 * s, 0);
+    bulb.scale.y = 1.15;
+    g.add(bulb);
+    g.add(mesh(new THREE.ConeGeometry(0.028 * s, 0.11 * s, 5), mat(0xd8c8a0), 0, 0.3 * s, 0));
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      g.add(mesh(new THREE.ConeGeometry(0.011 * s, 0.06 * s, 4), mat(0xe8e0d0),
+        Math.cos(a) * 0.03 * s, 0.02 * s, Math.sin(a) * 0.03 * s));
+    }
+    return g;
+  },
+
+  garlic(stage) { // 大蒜：五瓣蒜围成一头，顶上收一根干茎
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.75);
+    if (stage === 1) { g.add(leafCrown(0.8, 0x8aae6a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const skin = stage === 2 ? 0xf0ece0 : 0xe4ddcb;
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      const clove = mesh(new THREE.SphereGeometry(0.058 * s, 5, 4), mat(skin),
+        Math.cos(a) * 0.042 * s, 0.11 * s, Math.sin(a) * 0.042 * s);
+      clove.scale.y = 1.5;
+      g.add(clove);
+    }
+    g.add(mesh(new THREE.ConeGeometry(0.022 * s, 0.12 * s, 4), mat(0xc8bc9a), 0, 0.26 * s, 0));
+    return g;
+  },
+
+  edamame(stage) { // 毛豆：一条荚，三颗豆把荚撑出三个鼓包
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.85, GREEN)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.9, GREEN));
+    const pod = stage === 2 ? 0x9ec86a : 0x6aae3a;
+    g.add(mesh(new THREE.CylinderGeometry(0.032 * s, 0.028 * s, 0.26 * s, 6), mat(pod), 0, 0.2 * s, 0));
+    for (let k = 0; k < 3; k++) {
+      const bump = mesh(new THREE.SphereGeometry(0.052 * s, 6, 5), mat(pod), 0, 0.12 * s + k * 0.075 * s, 0);
+      bump.scale.set(0.85, 1.1, 0.85);
+      g.add(bump);
+    }
+    return g;
+  },
+
+  peanut(stage) { // 花生：两个球被腰勒成葫芦形，土黄壳
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.85, 0x7aae4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.9, 0x7aae4a));
+    const shell = stage === 2 ? 0xd8c89a : 0xc8a86a;
+    [0.12, 0.25].forEach(y => {
+      const b = mesh(new THREE.SphereGeometry(0.072 * s, 6, 5), mat(shell, { roughness: 1 }), 0, y * s, 0);
+      b.scale.set(0.9, 1, 0.9);
+      g.add(b);
+    });
+    g.add(mesh(new THREE.CylinderGeometry(0.042 * s, 0.042 * s, 0.05 * s, 6), mat(shell, { roughness: 1 }), 0, 0.185 * s, 0));
+    return g;
+  },
+
+  lemon(stage) { // 柠檬：椭球两端各顶一个小乳突
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.85, 0x5c9b52)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.85, 0x5c9b52));
+    const skin = stage === 2 ? 0xe8e07a : 0xf2c94c;
+    const body = mesh(new THREE.SphereGeometry(0.115 * s, 8, 6), mat(skin), 0, 0.2 * s, 0);
+    body.scale.set(0.85, 1.25, 0.85);
+    g.add(body);
+    [0.055, 0.345].forEach(y => g.add(mesh(new THREE.ConeGeometry(0.028 * s, 0.05 * s, 5), mat(skin), 0, y * s, 0)));
+    return g;
+  },
+
+  blueberry(stage) { // 蓝莓：一簇深蓝小球，每颗顶上留个浅色小凹
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.8);
+    if (stage === 1) { g.add(leafCrown(0.85, 0x4a7a42)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.9, 0x4a7a42));
+    const skin = stage === 2 ? 0x7a8ac8 : 0x3a4a9e;
+    [[3, 0.072, 0.14], [2, 0.048, 0.24]].forEach(([n, r, y]) => {
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + y * 4;
+        const x = Math.cos(a) * r * s, z = Math.sin(a) * r * s;
+        g.add(mesh(new THREE.SphereGeometry(0.05 * s, 6, 5), mat(skin), x, y * s, z));
+        g.add(mesh(new THREE.CylinderGeometry(0.017 * s, 0.021 * s, 0.012 * s, 5), mat(0x2a3a7a), x, y * s + 0.048 * s, z));
+      }
+    });
+    return g;
+  },
+
+  kiwi(stage) { // 猕猴桃：棕色椭球，一圈短锥当绒毛
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.85);
+    if (stage === 1) { g.add(leafCrown(0.9, 0x6a8a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.9, 0x6a8a4a));
+    const skin = stage === 2 ? 0xb8a082 : 0x8a6a4a;
+    const body = mesh(new THREE.SphereGeometry(0.11 * s, 8, 6), mat(skin, { roughness: 1 }), 0, 0.19 * s, 0);
+    body.scale.set(1, 1.3, 1);
+    g.add(body);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const fuzz = mesh(new THREE.ConeGeometry(0.011 * s, 0.042 * s, 3), mat(0xa89070, { roughness: 1 }),
+        Math.cos(a) * 0.095 * s, 0.15 * s + (k % 2) * 0.08 * s, Math.sin(a) * 0.095 * s);
+      fuzz.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2);
+      g.add(fuzz);
+    }
+    return g;
+  },
+
+  melon(stage) { // 蜜瓜：浅绿圆球，几道细环交错成网纹（低模下比贴图更像）
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.9);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x6a9e4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    g.add(leafCrown(0.95, 0x6a9e4a));
+    const skin = stage === 2 ? 0xc8d8a0 : 0xa8c07a;
+    g.add(mesh(new THREE.SphereGeometry(0.155 * s, 9, 7), mat(skin), 0, 0.2 * s, 0));
+    for (let k = 0; k < 3; k++) {
+      const ring = mesh(new THREE.TorusGeometry(0.15 * s, 0.007 * s, 4, 14), mat(0xe8ecd8), 0, 0.2 * s, 0);
+      ring.rotation.set(Math.PI / 2, k * 0.95, 0);
+      g.add(ring);
+    }
+    g.add(mesh(new THREE.CylinderGeometry(0.016 * s, 0.022 * s, 0.06 * s, 5), mat(0x7a6a3a), 0, 0.38 * s, 0));
+    return g;
+  },
+
+  truffle(stage) { // 松露：土里刨出来的黑疙瘩，十二面体最接近那种不规则块状
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(0.7);
+    if (stage === 1) { g.add(leafCrown(0.75, 0x6a5a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const skin = stage === 2 ? 0x5a4a3a : 0x2f241c;
+    g.add(mesh(new THREE.CylinderGeometry(0.15 * s, 0.16 * s, 0.03 * s, 8), mat(0x6a5238), 0, 0.015, 0));
+    const body = mesh(new THREE.DodecahedronGeometry(0.125 * s), mat(skin, { roughness: 1 }), 0, 0.13 * s, 0);
+    body.rotation.set(0.4, 0.7, 0.2);
+    g.add(body);
+    // 表面再粘几粒小疙瘩，破掉正多面体那股规则劲
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + 0.5;
+      g.add(mesh(new THREE.DodecahedronGeometry(0.042 * s), mat(skin, { roughness: 1 }),
+        Math.cos(a) * 0.1 * s, 0.1 * s + (k % 2) * 0.07 * s, Math.sin(a) * 0.1 * s));
+    }
+    return g;
+  },
+
+  /* —— 六种宇宙作物：越过星云果的档位，一律自发光 —— */
+
+  aurora(stage) { // 极光果：三片弧形帘幕绕着核心飘，青绿→蓝→品红
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x4a8a7a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.7 : 0.25;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.IcosahedronGeometry(0.1 * s),
+      mat(0xd8fff0, { emissive: 0x6affd0, emissiveIntensity: glow, roughness: 0.2 })));
+    // 帘幕用压扁的部分圆环，三片角度错开才有飘动感
+    [[0x4affc0, 0.2], [0x8a9eff, 0.9], [0xff8ad8, 1.6]].forEach(([col, tilt], i) => {
+      const band = mesh(new THREE.TorusGeometry((0.2 + i * 0.04) * s, 0.012 * s, 4, 14, Math.PI * 1.1),
+        mat(col, { emissive: col, emissiveIntensity: glow, roughness: 0.25, transparent: true, opacity: 0.72 }));
+      band.rotation.set(1.2, tilt, tilt * 0.4);
+      band.scale.y = 0.5;
+      core.add(band);
+    });
+    core.position.y = 0.34 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.85, 0x4a8a7a));
+    return g;
+  },
+
+  meteor(stage) { // 陨星果：焦黑石核拖一条橙红尾焰，三段越拖越淡
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x7a5a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.85 : 0.3;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.DodecahedronGeometry(0.125 * s),
+      mat(0x3a2a24, { emissive: 0xd85a1a, emissiveIntensity: glow * 0.5, roughness: 0.85 })));
+    [[0.1, 0.18, 0xffb04a, 1], [0.072, 0.16, 0xff7a2a, 0.72], [0.045, 0.14, 0xff4a1a, 0.45]].forEach(([r, len, col, op], i) => {
+      const tail = mesh(new THREE.ConeGeometry(r * s, len * s, 5),
+        mat(col, { emissive: col, emissiveIntensity: glow, roughness: 0.3, transparent: true, opacity: op }));
+      tail.position.set(-(0.1 + i * 0.11) * s, -(0.05 + i * 0.04) * s, 0);
+      tail.rotation.z = Math.PI / 2 + 0.3;
+      core.add(tail);
+    });
+    core.position.y = 0.36 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.85, 0x7a5a4a));
+    return g;
+  },
+
+  ringstar(stage) { // 环星果：土星式球体 + 三重环，越外圈越薄越暗
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x8a7a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.7 : 0.25;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.SphereGeometry(0.13 * s, 9, 7),
+      mat(0xf0d89a, { emissive: 0xc89a4a, emissiveIntensity: glow * 0.6, roughness: 0.35 })));
+    [[0.22, 0.022, 0xffe8b0], [0.28, 0.014, 0xe8c88a], [0.33, 0.008, 0xd0a86a]].forEach(([r, t, col]) => {
+      const ring = mesh(new THREE.TorusGeometry(r * s, t * s, 4, 18),
+        mat(col, { emissive: col, emissiveIntensity: glow * 0.7, roughness: 0.3 }));
+      ring.rotation.set(1.32, 0, 0.28);
+      core.add(ring);
+    });
+    core.position.y = 0.35 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.85, 0x8a7a4a));
+    return g;
+  },
+
+  blackhole(stage) { // 黑洞果：几乎不反光的黑球，靠周围压扁的吸积盘把它衬出来
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x3a3a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.9 : 0.3;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.SphereGeometry(0.115 * s, 9, 7), mat(0x08060c, { roughness: 1 })));
+    [[0.19, 0xffd06a, 1], [0.25, 0xff8a3a, 0.78], [0.31, 0xc04a8a, 0.52]].forEach(([r, col, op]) => {
+      const disc = mesh(new THREE.TorusGeometry(r * s, 0.03 * s, 4, 20),
+        mat(col, { emissive: col, emissiveIntensity: glow, roughness: 0.25, transparent: true, opacity: op }));
+      disc.rotation.set(Math.PI / 2 - 0.25, 0, 0);
+      disc.scale.y = 0.25;
+      core.add(disc);
+    });
+    core.position.y = 0.34 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.85, 0x3a3a4a));
+    return g;
+  },
+
+  supernova(stage) { // 超新星果：过曝的白核 + 12 根长短交错的光刺
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.0);
+    if (stage === 1) { g.add(leafCrown(0.95, 0x9e6a4a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 1 : 0.35;
+    const core = new THREE.Group();
+    core.add(mesh(new THREE.IcosahedronGeometry(0.105 * s),
+      mat(0xfffbe8, { emissive: 0xfff0a0, emissiveIntensity: glow, roughness: 0.15 })));
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      const long = k % 2 === 0;
+      const len = (long ? 0.25 : 0.15) * s;
+      const spike = mesh(new THREE.ConeGeometry(0.021 * s, len, 4),
+        mat(long ? 0xffd85a : 0xff8a4a, { emissive: long ? 0xffc03a : 0xff6a2a, emissiveIntensity: glow, roughness: 0.25 }));
+      const d = 0.1 * s + len / 2;
+      spike.position.set(Math.cos(a) * d, (k % 3 - 1) * 0.06 * s, Math.sin(a) * d);
+      // 锥体默认朝 +Y：先绕 Z 转 -90° 让它横过来朝 +X，再绕 Y 转 -a 指向外
+      spike.rotation.set(0, -a, -Math.PI / 2);
+      core.add(spike);
+    }
+    core.position.y = 0.36 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.85, 0x9e6a4a));
+    return g;
+  },
+
+  eternal(stage) { // 永恒果：两个交扣的环写成立体的 ∞，中间悬一粒不灭的核
+    const g = new THREE.Group();
+    if (stage === 0) return sprout(1.05);
+    if (stage === 1) { g.add(leafCrown(1, 0x6a5a8a)); return g; }
+    const s = stage === 2 ? 0.6 : 1;
+    const glow = stage === 3 ? 0.95 : 0.3;
+    const core = new THREE.Group();
+    [-1, 1].forEach(dir => {
+      const loop = mesh(new THREE.TorusGeometry(0.112 * s, 0.025 * s, 6, 18),
+        mat(0xf0e0ff, { emissive: 0xb08aff, emissiveIntensity: glow, roughness: 0.2 }));
+      loop.position.x = dir * 0.098 * s;
+      loop.rotation.y = dir * 0.45;
+      core.add(loop);
+    });
+    core.add(mesh(new THREE.OctahedronGeometry(0.052 * s),
+      mat(0xfff8d0, { emissive: 0xffe07a, emissiveIntensity: glow, roughness: 0.15 })));
+    core.add(mesh(new THREE.IcosahedronGeometry(0.098 * s),
+      mat(0xc0a8ff, { emissive: 0x8a6ae0, emissiveIntensity: glow * 0.5, roughness: 0.2, transparent: true, opacity: 0.3 })));
+    core.position.y = 0.38 * s;
+    core.userData.spin = true;
+    g.add(core, leafCrown(0.9, 0x6a5a8a));
+    return g;
+  },
 };
 
 export function createPlantMesh(seedId, stage) {

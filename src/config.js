@@ -67,32 +67,49 @@ export const START_COINS = 20;
 // 且不许进 42 格图鉴、不参与收集成就。典藏馆上线后这个区分没有意义了——
 // 所有作物一律平等，全部可收录，所以标记连同 SPECIAL_SEEDS 一起删掉。
 export const SEEDS = [
-  { id: 'sweetpot',   name: '红薯',   emoji: '🍠', cost: 0,   sell: 1,    growTime: 50,   unlock: 0 },
-  { id: 'radish',     name: '萝卜',   emoji: '🥕', cost: 5,   sell: 12,   growTime: 100,  unlock: 0 },
-  { id: 'potato',     name: '土豆',   emoji: '🥔', cost: 8,   sell: 22,   growTime: 140,  unlock: 30 },
-  { id: 'cabbage',    name: '白菜',   emoji: '🥬', cost: 15,  sell: 40,   growTime: 200,  unlock: 60 },
-  { id: 'tomato',     name: '番茄',   emoji: '🍅', cost: 20,  sell: 55,   growTime: 225,  unlock: 100 },
-  { id: 'pepper',     name: '青椒',   emoji: '🫑', cost: 26,  sell: 75,   growTime: 260,  unlock: 150 },
-  { id: 'corn',       name: '玉米',   emoji: '🌽', cost: 35,  sell: 105,  growTime: 300,  unlock: 200 },
-  { id: 'strawberry', name: '草莓',   emoji: '🍓', cost: 55,  sell: 170,  growTime: 375,  unlock: 320 },
-  { id: 'broccoli',   name: '西兰花', emoji: '🥦', cost: 66,  sell: 200,  growTime: 410,  unlock: 360 },
-  { id: 'pumpkin',    name: '南瓜',   emoji: '🎃', cost: 80,  sell: 240,  growTime: 450,  unlock: 400 },
-  { id: 'eggplant',   name: '茄子',   emoji: '🍆', cost: 120, sell: 380,  growTime: 550,  unlock: 650 },
-  { id: 'grape',      name: '葡萄',   emoji: '🍇', cost: 145, sell: 460,  growTime: 600,  unlock: 770 },
-  { id: 'watermelon', name: '西瓜',   emoji: '🍉', cost: 170, sell: 560,  growTime: 650,  unlock: 900 },
-  { id: 'pineapple',  name: '菠萝',   emoji: '🍍', cost: 230, sell: 780,  growTime: 750,  unlock: 1200 },
-  { id: 'avocado',    name: '牛油果', emoji: '🥑', cost: 265, sell: 880,  growTime: 820,  unlock: 1340 },
-  { id: 'crystal',    name: '水晶果', emoji: '🔮', cost: 300, sell: 1000, growTime: 900,  unlock: 1500 },
-  { id: 'peach',      name: '水蜜桃', emoji: '🍑', cost: 370, sell: 1250, growTime: 1050, unlock: 1820 },
-  { id: 'starfruit',  name: '星星果', emoji: '⭐', cost: 450, sell: 1600, growTime: 1200, unlock: 2200 },
-  { id: 'cherry',     name: '樱桃',   emoji: '🍒', cost: 550, sell: 2000, growTime: 1350, unlock: 2580 },
-  { id: 'rainbow',    name: '彩虹果', emoji: '🌈', cost: 650, sell: 2500, growTime: 1500, unlock: 3000 },
-  // —— 两种「天价」作物：唯一越过彩虹果的档位，给后期玩家花钱的地方 ——
-  { id: 'moonfruit',  name: '月光果', emoji: '🌙', cost: 1500, sell: 6000,  growTime: 2200, unlock: 8000 },
-  { id: 'nebula',     name: '星云果', emoji: '🌌', cost: 4200, sell: 16000, growTime: 3400, unlock: 25000 },
+  { id: 'sweetpot',    name: '红薯',        emoji: '🍠',  cost:     0, sell:      1, growTime:   50, unlock:      0 },
+  { id: 'cucumber',    name: '黄瓜',        emoji: '🥒',  cost:     2, sell:      6, growTime:   75, unlock:     15 },
+  { id: 'radish',      name: '萝卜',        emoji: '🥕',  cost:     5, sell:     12, growTime:  100, unlock:      0 },
+  { id: 'potato',      name: '土豆',        emoji: '🥔',  cost:     8, sell:     22, growTime:  140, unlock:     30 },
+  { id: 'onion',       name: '洋葱',        emoji: '🧅',  cost:    11, sell:     30, growTime:  165, unlock:     45 },
+  { id: 'cabbage',     name: '白菜',        emoji: '🥬',  cost:    15, sell:     40, growTime:  200, unlock:     60 },
+  { id: 'tomato',      name: '番茄',        emoji: '🍅',  cost:    20, sell:     55, growTime:  225, unlock:    100 },
+  { id: 'garlic',      name: '大蒜',        emoji: '🧄',  cost:    23, sell:     65, growTime:  240, unlock:    130 },
+  { id: 'pepper',      name: '青椒',        emoji: '🫑',  cost:    26, sell:     75, growTime:  260, unlock:    150 },
+  { id: 'corn',        name: '玉米',        emoji: '🌽',  cost:    35, sell:    105, growTime:  300, unlock:    200 },
+  { id: 'edamame',     name: '毛豆',        emoji: '🫘',  cost:    45, sell:    135, growTime:  335, unlock:    250 },
+  { id: 'strawberry',  name: '草莓',        emoji: '🍓',  cost:    55, sell:    170, growTime:  375, unlock:    320 },
+  { id: 'broccoli',    name: '西兰花',       emoji: '🥦',  cost:    66, sell:    200, growTime:  410, unlock:    360 },
+  { id: 'pumpkin',     name: '南瓜',        emoji: '🎃',  cost:    80, sell:    240, growTime:  450, unlock:    400 },
+  { id: 'peanut',      name: '花生',        emoji: '🥜',  cost:   100, sell:    300, growTime:  495, unlock:    500 },
+  { id: 'eggplant',    name: '茄子',        emoji: '🍆',  cost:   120, sell:    380, growTime:  550, unlock:    650 },
+  { id: 'grape',       name: '葡萄',        emoji: '🍇',  cost:   145, sell:    460, growTime:  600, unlock:    770 },
+  { id: 'lemon',       name: '柠檬',        emoji: '🍋',  cost:   160, sell:    510, growTime:  625, unlock:    830 },
+  { id: 'watermelon',  name: '西瓜',        emoji: '🍉',  cost:   170, sell:    560, growTime:  650, unlock:    900 },
+  { id: 'pineapple',   name: '菠萝',        emoji: '🍍',  cost:   230, sell:    780, growTime:  750, unlock:   1200 },
+  { id: 'avocado',     name: '牛油果',       emoji: '🥑',  cost:   265, sell:    880, growTime:  820, unlock:   1340 },
+  { id: 'blueberry',   name: '蓝莓',        emoji: '🫐',  cost:   290, sell:    940, growTime:  860, unlock:   1400 },
+  { id: 'crystal',     name: '水晶果',       emoji: '🔮',  cost:   300, sell:   1000, growTime:  900, unlock:   1500 },
+  { id: 'peach',       name: '水蜜桃',       emoji: '🍑',  cost:   370, sell:   1250, growTime: 1050, unlock:   1820 },
+  { id: 'kiwi',        name: '猕猴桃',       emoji: '🥝',  cost:   420, sell:   1420, growTime: 1120, unlock:   2000 },
+  { id: 'starfruit',   name: '星星果',       emoji: '⭐',   cost:   450, sell:   1600, growTime: 1200, unlock:   2200 },
+  { id: 'cherry',      name: '樱桃',        emoji: '🍒',  cost:   550, sell:   2000, growTime: 1350, unlock:   2580 },
+  { id: 'rainbow',     name: '彩虹果',       emoji: '🌈',  cost:   650, sell:   2500, growTime: 1500, unlock:   3000 },
+  { id: 'melon',       name: '蜜瓜',        emoji: '🍈',  cost:  1000, sell:   3800, growTime: 1800, unlock:   5000 },
+  { id: 'moonfruit',   name: '月光果',       emoji: '🌙',  cost:  1500, sell:   6000, growTime: 2200, unlock:   8000 },
+  { id: 'truffle',     name: '松露',        emoji: '🍄',  cost:  2600, sell:   9800, growTime: 2750, unlock:  14000 },
+  { id: 'nebula',      name: '星云果',       emoji: '🌌',  cost:  4200, sell:  16000, growTime: 3400, unlock:  25000 },
+  // —— 六种「宇宙」作物：唯一越过星云果的档位。每档 sell ×1.6、growTime ×1.15，
+  //    价格涨得比生长时间快，所以越往上单位时间收益越高，种田才追得回来 ——
+  { id: 'aurora',      name: '极光果',       emoji: '✨',   cost:  6700, sell:  26000, growTime: 3900, unlock:  42000 },
+  { id: 'meteor',      name: '陨星果',       emoji: '☄️',  cost: 10700, sell:  41000, growTime: 4500, unlock:  68000 },
+  { id: 'ringstar',    name: '环星果',       emoji: '🪐',  cost: 17200, sell:  66000, growTime: 5200, unlock: 110000 },
+  { id: 'blackhole',   name: '黑洞果',       emoji: '🕳️', cost: 27500, sell: 105000, growTime: 5950, unlock: 175000 },
+  { id: 'supernova',   name: '超新星果',      emoji: '💥',  cost: 44000, sell: 168000, growTime: 6850, unlock: 280000 },
+  { id: 'eternal',     name: '永恒果',       emoji: '♾️',  cost: 70000, sell: 268000, growTime: 7900, unlock: 450000 },
 ];
 
-// 收集类成就一律认全部 22 种作物。原先只认 14 种「基础」作物、
+// 收集类成就一律认全部 38 种作物。原先只认 14 种「基础」作物、
 // 另外 8 种特殊种子被排除在外；典藏馆上线后不再区分。
 
 export const SOILS = [
@@ -1084,7 +1101,7 @@ export const ACHIEVEMENTS = [
   // 原先只认 14 种「基础」作物（特殊种子不算）；特殊种子概念删掉后改认全部 22 种。
   // 目标从 14 涨到 22，但老玩家早已解锁 22 种，revokeUnearned 不会误收（cur 够得着）
   { id: 'a06', name: '种子收藏家', emoji: '🌈', tier: 'gold', group: '作物',
-    desc: `解锁全部 ${SEEDS.length} 种作物`, hint: '星云果是最后一种，25000💰',
+    desc: `解锁全部 ${SEEDS.length} 种作物`, hint: '永恒果是最后一种，450000💰',
     cur: (g) => g.unlockedSeeds.length, max: SEEDS.length },
   // 图鉴大楼改成典藏大楼，收录范围从 42 格扩到 TREASURY_TOTAL 格。
   // 条件本身变了（不只是数字变大），所以三条都标 rev: 2 ——
