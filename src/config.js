@@ -136,10 +136,19 @@ export const MUTANT_CHANCE = 0.003;
 export const WORKSHOP = { slots: 3, time: 120, ingredients: 2, bonus: 1.5 };
 
 // 打药：给地里的作物单独打一次，赌一把卖价
-//   花 cost 打一格 → 收获物卖价 +bonus，但卖出时每个有 ruinChance 的概率变成 0💰
+//   花「售价 × costRate」打一格 → 收获物卖价 × mult，但卖出时每个有 ruinChance 的概率变成 0💰
 //   打过药的只能直接卖，不能做罐头/料理/杂交/收录，免得把风险洗掉
-//   期望收益：(base + bonus) × (1 - ruinChance) - cost，便宜作物划算，贵作物赌不起
-export const PESTICIDE = { cost: 3, bonus: 10, ruinChance: 0.15 };
+//
+// 2026-08-21 从「+10 固定加成、固定 3💰」改成按售价抽成。固定值撑不住后期：
+//   期望 = -ruinChance × 售价 + (bonus × (1-ruinChance) - cost)
+// 售价一过 36.7 就翻负，22 种作物里 19 种打药亏本，星云果打一次期望 -2394💰。
+// 剩下 3 种便宜作物倒是正期望，可净赚只有 2~4💰——贵的亏、便宜的赚不到，两头堵死。
+// 改成倍率后 期望 = 售价 × (mult × (1-ruinChance) - costRate - 1)，
+// 恒为正且随作物价格线性放大，贵作物才终于值得赌。
+export const PESTICIDE = { costRate: 0.05, mult: 1.4, ruinChance: 0.15 };
+// 打一格要多少钱：按这株作物此刻的售价（含品质倍率）抽 costRate
+export const pesticideCost = (seedId, quality) =>
+  Math.max(1, Math.round(seedById(seedId).sell * (QUALITIES[quality]?.mult ?? 1) * PESTICIDE.costRate));
 
 // 分拣台：把稀有品质作物拆成「普通作物 + 贵金属条」
 // 规则：品质那部分增值单独抽出来，按 10 倍熔成金条/银条，作物本体原样退回。
@@ -554,8 +563,14 @@ export const POISON = { chance: 0.05, timeout: 60, reviveTime: 90 };
 // 抓鱼水滩：最多同时摆 5 张网，是亏是赚全看脸
 export const FISHING = { slots: 5, time: 1200, rewardMin: 50, rewardMax: 150 };
 
-// 黑房子银行：每天结束结算存款，85% 赚 1~3，15% 亏 1~3
-export const BANK = { gainChance: 0.85, magMin: 1, magMax: 3 };
+// 黑房子银行：每天结束按本金结算，85% 赚、15% 亏，幅度是本金的 rateMin~rateMax
+//
+// 2026-08-21 从「±1~3 金币」改成百分比。原来的 magMin/magMax 是常数，
+// 跟 this.bank 没有任何关系——存 1 块和存 1 亿，每天都是期望 +1.4💰。
+// 存款金额对收益毫无影响，这不是数值低，是机制本身不成立。
+// 改成按本金抽成后，期望 = 本金 × (0.85-0.15) × 0.5% = 本金的 0.35%/游戏日。
+// 保留 85/15 的赌性和随机幅度，手感照旧：每天照样弹一条赚了/亏了的提示。
+export const BANK = { gainChance: 0.85, rateMin: 0.003, rateMax: 0.007 };
 
 // 典藏大楼（原图鉴大楼原址）：3D 展厅藏在岛下，进馆时镜头切过去
 // 分类与展位数在文件末尾的 TREASURY 段定义——那里要用到料理/大菜/杂交/花的表
@@ -1272,7 +1287,7 @@ export function keyInfo(key) {
   }
   const processed = key.startsWith('p:');
   const stunted = key.startsWith('x:');
-  const sprayed = key.startsWith('y:'); // y: = 打过药，卖价 +bonus 但有概率颗粒无收
+  const sprayed = key.startsWith('y:'); // y: = 打过药，卖价 ×mult 但有概率颗粒无收
   const raw = processed || stunted || sprayed ? key.slice(2) : key;
   const [id, quality] = raw.split(':');
   const seed = seedById(id);
@@ -1281,7 +1296,7 @@ export function keyInfo(key) {
   const base = seed.sell * (q?.mult ?? 1);
   const price = Math.max(1, Math.floor(
     (processed ? base * WORKSHOP.ingredients * WORKSHOP.bonus : base) * (stunted ? DROUGHT.sellMult : 1)
-    + (sprayed ? PESTICIDE.bonus : 0)));
+    * (sprayed ? PESTICIDE.mult : 1)));
   return {
     seed, quality, processed, stunted, sprayed, price,
     // 各段分开翻译再拼：中文不留空格，英俄要留（Gold Tomato 而不是 GoldTomato）

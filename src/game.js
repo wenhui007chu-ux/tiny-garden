@@ -19,7 +19,7 @@ import {
   HOUSE_SKINS, HOUSE_SKIN_COST, DEFAULT_HOUSE_SKIN,
   FLOWERS, flowerById, flowerName, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT,
   ACHIEVEMENTS, ACHIEVEMENT_POS,
-  SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE,
+  SORTER_SLOTS, SORTER_TIME, METAL, metalPrice, PESTICIDE, pesticideCost,
   SEAFOOD, seafoodById, seafoodName, rollSeafood,
   ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS, RANCH_IDLE_TICK,
   BUTCHER, CUTS, cutPrice, AQUARIUM_POS, AQUARIUM_SLOTS, EGG_HATCH,
@@ -847,12 +847,13 @@ export class Game {
     if (t.locked) { this.onToast('这块地还没解锁'); return; }
     if (!t.plant) { this.onToast('这块地上没有作物，打药没用'); sfx.play('deny'); return; }
     if (t.plant.sprayed) { this.onToast('这株已经打过药了'); sfx.play('deny'); return; }
-    if (!this.spend(PESTICIDE.cost)) return;
+    const cost = pesticideCost(t.plant.seedId, t.plant.quality);
+    if (!this.spend(cost)) return;
     t.plant.sprayed = true;
     // updatePlantMesh 只在生长阶段变化时才重建，这里得自己把标记挂上去
     if (t.plant.mesh) t.plant.mesh.add(createSprayMark());
     const seed = seedById(t.plant.seedId);
-    this.onToast(`🧪 给${seed.emoji}${seed.name}打了药，卖价 +${PESTICIDE.bonus}💰（${Math.round(PESTICIDE.ruinChance * 100)}% 概率报废）`);
+    this.onToast(`🧪 给${seed.emoji}${seed.name}打了药 -${cost}💰，卖价 ×${PESTICIDE.mult}（${Math.round(PESTICIDE.ruinChance * 100)}% 概率报废）`);
     sfx.play('water');
     this.onState();
     this.save();
@@ -931,6 +932,31 @@ export class Game {
       ? `💦 全场洒水找恐龙虾卵！-${QUICK_WATER_COST}💰`
       : `💦 一键浇水！全场湿润 -${QUICK_WATER_COST}💰`);
     this.rollEggs(wetTiles.length);
+    this.save();
+  }
+
+  // 一键打药：把地里所有还没打过药的作物一次性打完。
+  // 打药改成按售价抽成之后期望恒为正，等于「每格都该打」，
+  // 72 块地一格一格点纯属体力活，所以照一键浇水的样子给个总价确认。
+  sprayAll() {
+    const targets = this.tiles.filter(t => !t.locked && t.plant && !t.plant.sprayed);
+    if (!targets.length) { this.onToast("地里没有需要打药的作物"); sfx.play("deny"); return; }
+    // 逐株算价（品质不同价不同），先合计再一次性扣，免得扣到一半钱没了
+    const costs = targets.map(t => pesticideCost(t.plant.seedId, t.plant.quality));
+    const total = costs.reduce((a, b) => a + b, 0);
+    if (this.coins < total) {
+      this.onToast(`💰 不够：给 ${targets.length} 株打药要 ${total}💰`);
+      sfx.play("deny");
+      return;
+    }
+    if (!this.spend(total)) return;
+    targets.forEach(t => {
+      t.plant.sprayed = true;
+      if (t.plant.mesh) t.plant.mesh.add(createSprayMark());
+    });
+    this.onToast(`🧪 一键打药！${targets.length} 株 -${total}💰，卖价 ×${PESTICIDE.mult}（每个 ${Math.round(PESTICIDE.ruinChance * 100)}% 概率报废）`);
+    sfx.play("water");
+    this.onState();
     this.save();
   }
 
@@ -2021,9 +2047,11 @@ export class Game {
     this.save();
   }
 
-  // 每天结束结算：85% 赚 1~3，15% 亏 1~3
+  // 每天结束结算：85% 赚、15% 亏，幅度是本金的 0.3%~0.7%
+  // 至少动 1💰，免得存个几百块时永远四舍五入成 0、看着像坏了
   bankDelta() {
-    const mag = BANK.magMin + Math.floor(Math.random() * (BANK.magMax - BANK.magMin + 1));
+    const rate = BANK.rateMin + Math.random() * (BANK.rateMax - BANK.rateMin);
+    const mag = Math.max(1, Math.round(this.bank * rate));
     return Math.random() < BANK.gainChance ? mag : -mag;
   }
 

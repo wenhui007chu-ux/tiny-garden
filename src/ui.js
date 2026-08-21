@@ -218,7 +218,7 @@ export class UI {
       soil: tp('hint.soil', { name: tf(`soil.name.${this.selectedSoil}`, SOILS[this.selectedSoil].name), cost: SOILS[this.selectedSoil].cost }),
       decor: t('hint.decor'),
       water: this.game.waterLevel === 2 ? t('hint.autoWater') : t('hint.water'),
-      spray: tp('hint.spray', { cost: PESTICIDE.cost, bonus: PESTICIDE.bonus, pct: Math.round(PESTICIDE.ruinChance * 100) }),
+      spray: tp('hint.spray', { rate: Math.round(PESTICIDE.costRate * 100), mult: PESTICIDE.mult, pct: Math.round(PESTICIDE.ruinChance * 100) }),
       shovel: t('hint.shovel'),
     };
     if (tips[tool]) this.toast(tips[tool]);
@@ -3668,6 +3668,10 @@ export class UI {
         g.waterAll();
         menu.classList.add('hidden');
       });
+      addBtn(tp('quick.spray', { mult: PESTICIDE.mult }), () => {
+        g.sprayAll();
+        menu.classList.add('hidden');
+      });
       addBtn(t('quick.visitor'), () => {
         this.openVisitor();
       });
@@ -3816,7 +3820,8 @@ export class UI {
         rarities: Object.keys(POND_RARITY).map(r => tf(`rarity.${r}`, POND_RARITY[r].name)).join('/'),
       } },
       { icon: '🏦', k: 'bank', v: {
-        gain: pct(BANK.gainChance), lose: pct(1 - BANK.gainChance), min: BANK.magMin, max: BANK.magMax,
+        gain: pct(BANK.gainChance), lose: pct(1 - BANK.gainChance),
+        rMin: (BANK.rateMin * 100).toFixed(1), rMax: (BANK.rateMax * 100).toFixed(1),
       } },
       { icon: '🏛️', k: 'treasury', v: {
         total: TREASURY_TOTAL,
