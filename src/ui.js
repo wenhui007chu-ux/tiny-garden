@@ -180,6 +180,9 @@ export class UI {
       $('#music-menu').classList.add('hidden');
       $('#settings-menu').classList.add('hidden');
     });
+    // 工具栏高度随视口变（gap 用了 clamp，窄屏按钮文字还会折行），
+    // 所以尺寸一变就得重新把选择器顶到它上面去
+    window.addEventListener('resize', () => this.syncSeedPickerBottom());
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return; // 正在输入金额时快捷键不抢戏
       if (e.repeat || this.game.paused) return; // 挂机中快捷键也冻结
@@ -232,10 +235,26 @@ export class UI {
       const s = seedById(id);
       const chip = document.createElement('div');
       chip.className = 'seed-chip' + (this.selectedSeed === id ? ' selected' : '');
-      chip.innerHTML = `<b>${s.emoji}</b>${seedName(s)}<br><small>${s.cost}💰 · ${s.sell}</small>`;
+      // 只放名字：emoji 和买卖价都拿掉了，38 种作物才排得进两行。
+      // 价格想看去商场，那边本来就有完整的一栏
+      chip.textContent = seedName(s);
       chip.addEventListener('click', () => { this.selectedSeed = id; this.renderSeedPicker(); sfx.play('tap'); });
       wrap.appendChild(chip);
     });
+    this.syncSeedPickerBottom();
+  }
+
+  // 种子选择器要停在工具栏正上方。工具栏是两排按钮、gap 用的 clamp()，
+  // 高度随视口变（窄屏按钮文字折行还会更高），所以 bottom 写死一定会在某个宽度下被压住——
+  // 原来的 96px 就把第二行整整压进按钮里 65px，那几种作物根本点不到。
+  // 每次重画按实测高度对齐，比猜一个固定值可靠。
+  syncSeedPickerBottom() {
+    const wrap = $('#seed-picker');
+    const bar = $('#toolbar');
+    if (!wrap || !bar) return;
+    const top = bar.getBoundingClientRect().top;
+    if (!top) return;                       // 布局还没算出来，等下次
+    wrap.style.bottom = `${Math.round(window.innerHeight - top + 10)}px`;
   }
 
   /* ---------- 背包 ---------- */
