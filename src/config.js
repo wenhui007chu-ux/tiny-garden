@@ -5,12 +5,16 @@ import { tf, nameSep } from './i18n.js';
 export const seedName = (s) => (s ? tf(`seed.${s.id}`, s.name) : '');
 
 export const GRID = 6;          // 每层菜地 6x6 格
-export const LEVELS = 2;        // 两层梯田
+export const LEVELS = 3;        // 三层梯田
 export const UPPER_Y = 4.2;     // 二层农田高度
 export const UPPER_Z = -7.1;    // 二层农田往后错开的距离
 export const TILE = 1;          // 每格世界坐标尺寸
 export const LAWN_R = 54;       // 草地半径：岛被建筑塞满后扩了约 3 倍面积，东边空地留给牧场
-export const UNLOCK_COST = 1000; // 二层每块地的解锁价
+// 每层每块地的解锁价，按 level 取。一层生来就开着，所以第 0 项是 0。
+// 越高的层越贵：二层 1000、三层 1500
+export const UNLOCK_COST = [0, 1000, 1500];
+// 某一层每块地要多少钱。越界回落到最后一档，以后再加层不至于取到 undefined
+export const unlockCost = (level) => UNLOCK_COST[Math.min(level, UNLOCK_COST.length - 1)] ?? 0;
 
 // ===== 牧场：岛东侧的 6×6 围栏，思路和农田一样 =====
 // 买幼崽放进栏 → 等它长大 → 点一下收进背包（背包/黑市都能卖）；
@@ -1089,7 +1093,8 @@ export const ACHIEVEMENTS = [
     max: GRID * GRID, rev: 2 },
   { id: 'a03', name: '双层农场', emoji: '🏔️', tier: 'gold', group: '土地',
     desc: '两层共 72 块地全部解锁', hint: '二层每块也要 1000💰，慢慢来',
-    cur: unlockedTiles, max: GRID * GRID * LEVELS },
+    // 写死两层：三层是后加的，不该把已经拿到手的这条又夺回去。三层全解锁另算 a32
+    cur: unlockedTiles, max: GRID * GRID * 2 },
   { id: 'a04', name: '黑土帝国', emoji: '⛏️', tier: 'gold', group: '土地',
     desc: '把 36 块地升级成黑金土', hint: '商场「土壤」页买黑金土，再用升级模式点地',
     cur: blackSoil, max: 36 },
@@ -1186,6 +1191,10 @@ export const ACHIEVEMENTS = [
     desc: '收集 10 种水塘装饰', hint: '商场「水塘」页买，同时最多摆 3 个',
     cur: (g) => Object.keys(g.pondOwned).length, max: 10 },
 
+  { id: 'a32', name: '三层农场', emoji: '🗻', tier: 'legend', group: '土地',
+    desc: `三层共 ${GRID * GRID * LEVELS} 块地全部解锁`,
+    hint: `三层每块 ${unlockCost(2)}💰，比二层再贵一半`,
+    cur: unlockedTiles, max: GRID * GRID * LEVELS },
   // —— 终极 ——
   // —— 变异猎人（单独站在成就殿堂金星正下方的荣誉位）——
   // 这个位子原来是「特殊种子收藏家」。特殊种子概念随典藏馆一起删了，
@@ -1212,7 +1221,7 @@ export const ACHIEVEMENTS = [
 // 其余的是瞬时状态——金币会花掉、槽位会空、装饰能铲掉、展台能收回——
 // 那属于正常波动，玩家当时确实做到过，绝不能因此把成就撤掉。
 const MONOTONIC_ACHIEVEMENTS = new Set([
-  'a01', 'a03', 'a04',               // 土地解锁 / 黑土升级（a02 改成同时种满，收了就掉，是瞬时的）
+  'a01', 'a03', 'a04', 'a32',        // 土地解锁 / 黑土升级（a02 改成同时种满，收了就掉，是瞬时的）
   'a05', 'a06', 'a07', 'a08', 'a09', // 作物解锁 / 典藏收录（只增不减：交进去就不退）
   'a19',                             // 水利等级
   'a23', 'a24', 'a25',               // 家具持有 / 满级数

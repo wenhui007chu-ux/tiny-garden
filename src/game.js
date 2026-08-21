@@ -4,7 +4,7 @@ import {
   SEEDS, SOILS, WATER_LEVELS, seedById, seedName, decorById,
   QUALITIES, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, WORKSHOP, keyInfo,
   DAY_CYCLE, NIGHT_SLOW, QUICK_WATER_COST, EGG, DROUGHT, RAIN, itemById, furnitureById,
-  UNLOCK_COST, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
+  unlockCost, FURNITURE, INTERIOR_POS, FISHING, DAMAGE, BANK,
   TREASURY_POS, PEST, POISON,
   TASK_COUNT, TASK_TIERS, taskTierById, taskTypeById, dailyTasks,
   TRAINER_STAFF, trainerStaffById, staffName, cheapBouquetPrice,
@@ -41,7 +41,7 @@ import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
   createDecorSlotMesh, decorSlotPos, DECOR_SLOTS, applyPlating, createWorkshop,
   createGalleryPedestal, galleryPedestalPos, DISPLAY_SLOTS, createMall,
-  createUpperDeck, createLadder, createHouse, createLockEdge,
+  createUpperDeck, createLift, createLadder, createHouse, createLockEdge,
   createInteriorRoom, createFurnitureMesh, createPond, createNetMesh, NET_SPOTS,
   createCrackMesh, createWetLayer, createBank,
   createReceptionBuilding, createReceptionInterior, createReceptionDecor,
@@ -148,8 +148,10 @@ export class Game {
     this.group = new THREE.Group();
     scene.add(this.group);
 
-    scene.add(createUpperDeck());
+    // 二层往上每层一个平台。二层靠右侧木梯，三层靠左侧升降台
+    for (let lv = 1; lv < LEVELS; lv++) scene.add(createUpperDeck(lv));
     scene.add(createLadder());
+    scene.add(createLift());
 
     this.tiles = [];
     for (let level = 0; level < LEVELS; level++) {
@@ -162,7 +164,7 @@ export class Game {
         this.group.add(mesh);
         this.tiles.push({
           i, j, level, mesh,
-          locked: level === 1, // 二层的地要花钱解锁
+          locked: level >= 1, // 一层生来就开着，二层以上都要花钱解锁
           soil: 0,
           wetUntil: 0,       // 游戏时钟秒
           plant: null,        // { seedId, progress, stage, mesh }
@@ -829,7 +831,7 @@ export class Game {
     const tile = this.tiles[idx];
     const seed = seedById(seedId);
     if (!seed || !this.unlockedSeeds.includes(seedId)) return;
-    if (tile.locked) { this.onToast(tp('plant.locked', { cost: UNLOCK_COST })); return; }
+    if (tile.locked) { this.onToast(tp('plant.locked', { cost: unlockCost(tile.level) })); return; }
     if (tile.damaged) { this.onToast(t(tile.damaged === 'cracked' ? 'plant.cracked' : 'plant.waterlogged')); return; }
     if (tile.plant) { this.onToast(t('plant.occupied')); return; }
     if (!this.spend(seed.cost)) return;
@@ -3775,7 +3777,7 @@ export class Game {
   unlockTile(idx) {
     const t = this.tiles[idx];
     if (!t.locked) return;
-    if (!this.spend(UNLOCK_COST)) return;
+    if (!this.spend(unlockCost(t.level))) return;
     t.locked = false;
     t._lastColor = null;
     this.refreshLockEdge(t);
@@ -3795,7 +3797,7 @@ export class Game {
     const t = this.tiles[idx];
     const target = SOILS[level];
     if (!target) return;
-    if (t.locked) { this.onToast(`先花 ${UNLOCK_COST}💰 解锁这块地`); return; }
+    if (t.locked) { this.onToast(`先花 ${unlockCost(t.level)}💰 解锁这块地`); return; }
     if (t.soil >= level) { this.onToast(`这块地已经是${SOILS[t.soil].name}了`); return; }
     if (!this.spend(target.cost)) return;
     t.soil = level;
@@ -4279,8 +4281,8 @@ export class Game {
       if (!t || !s) return;
       t.soil = s.soil ?? 0;
       t.lucky = s.lucky ?? false;
-      // 老存档没有 locked 字段：二层默认上锁，但已经种着东西的地放行
-      t.locked = s.locked ?? (t.level === 1 && !s.plant);
+      // 老存档没有 locked 字段：二层以上默认上锁，但已经种着东西的地放行
+      t.locked = s.locked ?? (t.level >= 1 && !s.plant);
       t.damaged = s.damaged ?? null;
       const wetRemain = s.wetRemain ?? 0;
       // 离线生长：自动灌溉全程生效，否则只按剩余湿润时间生长

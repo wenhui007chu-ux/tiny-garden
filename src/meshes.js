@@ -68,7 +68,8 @@ const LADDER_H = 5.3;         // 梯长：够到台面之后还高出一截，�
 const LADDER_BASE_X = 4.87;   // 底端落点，正好让梯身贴着平台外沿而不是插进去
 const LADDER_BASE_Y = -0.51;  // 草地高度
 
-export function createUpperDeck() {
+// level=1 是二层（右侧留豁口给木梯），level=2 是三层（左侧留豁口给升降台）
+export function createUpperDeck(level = 1) {
   const g = new THREE.Group();
   const size = GRID + 1.2, wallH = 0.55, wallT = 0.35;
   const out = size / 2 - wallT / 2;
@@ -81,18 +82,63 @@ export function createUpperDeck() {
   const gz = new THREE.BoxGeometry(wallT, wallH, size);
   g.add(mesh(gx, woodMat, 0, wallH / 2, -out));
   g.add(mesh(gx, woodMat, 0, wallH / 2, out));
-  g.add(mesh(gz, woodMat, -out, wallH / 2, 0));
-  // 右侧矮墙拆成两段，中间留个豁口给梯子——原来四面封死，梯子顶端只能从墙里穿出来
-  const gapC = LADDER_Z - UPPER_Z;                       // 豁口中心（本地 z）
-  [[-size / 2, gapC - LADDER_GAP / 2], [gapC + LADDER_GAP / 2, size / 2]].forEach(([z0, z1]) => {
+  // 上下口子的那一侧拆成两段留豁口，另一侧整条封死。
+  // 二层走右边的木梯，三层走左边的升降台——原来四面封死，梯子顶端只能从墙里穿出来
+  const viaLift = level >= 2;
+  const gapC = viaLift ? LIFT_Z - level * UPPER_Z : LADDER_Z - UPPER_Z;   // 豁口中心（本地 z）
+  const gapW = viaLift ? LIFT_GAP : LADDER_GAP;
+  const gapX = viaLift ? -out : out;
+  g.add(mesh(gz, woodMat, -gapX, wallH / 2, 0));                          // 没开口的那面整条封死
+  [[-size / 2, gapC - gapW / 2], [gapC + gapW / 2, size / 2]].forEach(([z0, z1]) => {
     if (z1 - z0 <= 0.01) return;
-    g.add(mesh(new THREE.BoxGeometry(wallT, wallH, z1 - z0), woodMat, out, wallH / 2, (z0 + z1) / 2));
+    g.add(mesh(new THREE.BoxGeometry(wallT, wallH, z1 - z0), woodMat, gapX, wallH / 2, (z0 + z1) / 2));
   });
-  // 后方两根支柱撑住悬空的一边
+  // 后方两根支柱撑住悬空的一边。必须一路落到地面而不是只撑一层——
+  // 三层的柱脚在 z≈-17.4，那里早出了二层平台（z 只到 -10.7），撑一层就是悬空的
+  const pillarH = level * UPPER_Y;
   [-2.6, 2.6].forEach(x => g.add(mesh(
-    new THREE.BoxGeometry(0.5, UPPER_Y, 0.5), mat(0x9a6a4a), x, -UPPER_Y / 2 - 0.3, -size / 2 + 0.4)));
+    new THREE.BoxGeometry(0.5, pillarH, 0.5), mat(0x9a6a4a), x, -pillarH / 2 - 0.3, -size / 2 + 0.4)));
 
-  g.position.set(0, UPPER_Y, UPPER_Z);
+  g.position.set(0, level * UPPER_Y, level * UPPER_Z);
+  return g;
+}
+
+/* ================= 二层→三层的升降台 ================= */
+
+// 三层台面在 8.4 高，再倚一架木梯上去太吓人，换成导轨升降台：
+// 两根立柱从二层竖到三层，中间夹一只吊笼，顶上横梁挂滑轮，另一头坠配重。
+// 摆在左侧，正好和右侧的木梯分列两边
+const LIFT_X = -4.15;         // 贴着三层平台左边缘外侧
+const LIFT_Z = -12.2;         // 三层平台前半段
+const LIFT_GAP = 1.6;         // 左侧矮墙给吊笼留的豁口宽度
+const LIFT_CAGE_Y = 6.5;      // 吊笼停在两层之间
+
+export function createLift() {
+  const g = new THREE.Group();
+  const bottom = UPPER_Y, top = UPPER_Y * 2;   // 二层台面 → 三层台面
+  const railTop = top + 0.75;                  // 导轨探出三层一截好挂横梁
+  const steel = mat(0x8a7a6a), woodMat = mat(0xc79a66);
+
+  // 两根导轨，从二层一直立到横梁
+  [-0.62, 0.62].forEach(dz => g.add(mesh(
+    new THREE.BoxGeometry(0.16, railTop - bottom, 0.16), steel, 0, (bottom + railTop) / 2, dz)));
+  // 顶部横梁 + 滑轮
+  g.add(mesh(new THREE.BoxGeometry(0.22, 0.16, 1.6), steel, 0, railTop, 0));
+  const wheel = mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.1, 10), mat(0xd9b071), 0, railTop - 0.2, 0);
+  wheel.rotation.x = Math.PI / 2;
+  g.add(wheel);
+  // 吊索：从滑轮垂到笼顶
+  g.add(mesh(new THREE.CylinderGeometry(0.028, 0.028, railTop - 0.2 - LIFT_CAGE_Y, 5), steel,
+    0, (railTop - 0.2 + LIFT_CAGE_Y) / 2, 0));
+  // 吊笼：底板 + 三面矮栏，朝平台那面敞开
+  g.add(mesh(new THREE.BoxGeometry(1.05, 0.12, 1.35), woodMat, 0, LIFT_CAGE_Y, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.08, 0.52, 1.35), woodMat, -0.48, LIFT_CAGE_Y + 0.32, 0));
+  [-0.63, 0.63].forEach(dz => g.add(mesh(
+    new THREE.BoxGeometry(1.05, 0.52, 0.08), woodMat, 0, LIFT_CAGE_Y + 0.32, dz)));
+  // 另一头的配重块，卷扬机的样子才立得住
+  g.add(mesh(new THREE.BoxGeometry(0.28, 0.55, 0.28), mat(0x9a6a4a), 0, bottom + 1.1, -0.62));
+
+  g.position.set(LIFT_X, 0, LIFT_Z);
   return g;
 }
 
@@ -217,12 +263,14 @@ export function createLockEdge() {
   return line;
 }
 
+// 每上一层就抬高 UPPER_Y、往后退 UPPER_Z。原来写死 level === 1 只认两层，
+// 加第三层时它会把 level 2 的地块摆回一层的位置上
 export function tilePos(i, j, level = 0) {
   const half = (GRID - 1) / 2;
   return {
     x: (i - half) * TILE,
-    y: level === 1 ? UPPER_Y + 0.11 : 0.11,
-    z: (j - half) * TILE + (level === 1 ? UPPER_Z : 0),
+    y: level * UPPER_Y + 0.11,
+    z: (j - half) * TILE + level * UPPER_Z,
   };
 }
 
@@ -4158,10 +4206,14 @@ export function createAchievementBuilding() {
 }
 
 // 展厅里 30 座台子的站位：6 列 × 5 排，中间留一条走道
-export const ACHIEVEMENT_SPOTS = Array.from({ length: 30 }, (_, k) => {
+// 6 列 × 6 行 = 36 个展位。原来是 6×5=30，正好被 30 条无 spot 的成就占满，
+// 再加一条就会取到 undefined、奖杯直接摆到原点上。多留一排给以后。
+// 行距 3.2→2.9 是为了让六排塞进原来的纵深：z 走到 ±7.25，
+// 离 a31 的专属位（z=-8.6）还有 1.35，比台座宽度 1.0 富余
+export const ACHIEVEMENT_SPOTS = Array.from({ length: 36 }, (_, k) => {
   const col = k % 6, row = Math.floor(k / 6);
   const x = (col - 2.5) * 2.4 + (col >= 3 ? 1.2 : -1.2); // 中间掰开当走道
-  return { x, z: (row - 2) * 3.2 };
+  return { x, z: (row - 2.5) * 2.9 };
 });
 
 // 展厅内部（藏在岛下，进馆时镜头切过去）
