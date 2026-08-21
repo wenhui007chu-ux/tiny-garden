@@ -11,7 +11,7 @@ import {
   RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorById, RECEPTION_LIMIT,
   receptionDecorName, receptionLevelName, receptionRatio, RECEPTION,
   TREASURY, TREASURY_CATS, treasuryKeys, treasurySlotOf, treasurySlotInfo, TREASURY_TOTAL, treasuryRatio,
-  DISHES, dishById, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
+  DISHES, dishById, dishName, ingredientKey, ROD, CASTNET, COOK_TIME, COOK_SLOTS,
   pondDecorById, pondName, POND_MAX_PLACED, HYBRIDS, hybridById,
   HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS,
   PETS, petById, PET_DECORS, petDecorById, PET_POS,
@@ -29,7 +29,7 @@ import {
   WAREHOUSE, warehouseCap,
   BREWERY_POS, BREW, winePrice,
   SHOP_POS, GIFTBOX, giftboxPrice,
-  advDishById, advDishPrice, advIngKey,
+  advDishById, advDishName, advDishPrice, advIngKey,
   ADV_COOK_POS, ADV_COOK_SLOTS, ADV_COOK_TIME, ADV_DISH_MULT,
   TOWER_POS, TOWER_MAX_LEVEL, towerCost, towerPlan,
   HARBOR, HARBOR_POS, harborManifest, harborKey, harborIsPrefix,
@@ -1388,7 +1388,7 @@ export class Game {
       if (this.inventory[key] <= 0) delete this.inventory[key];
     });
     this.cookSlots[slot] = { id: dishId, readyAt: this.time + COOK_TIME * this.trainerRatio('cook', slot) };
-    this.onToast(`🍳 ${dish.emoji}${dish.name}下锅了，${COOK_TIME / 60} 分钟后出锅`);
+    this.onToast(tp('t.cookStart', { name: `${dish.emoji}${dishName(dish)}`, n: COOK_TIME / 60 }));
     this.onState();
     this.save();
     return true;
@@ -1403,7 +1403,8 @@ export class Game {
     this.cookSlots[slot] = null;
     const cb = this.payTrainerBonus('cook', slot);
     this.bumpTask('cook', 1);
-    this.onToast(`🍽️ ${dish.emoji}${dish.name}出锅！放入背包` + (cb ? ` （熟练工 +${cb}💰）` : ''));
+    this.onToast(tp('t.cookDone', { name: `${dish.emoji}${dishName(dish)}` })
+      + (cb ? tp('t.cookBonus', { n: cb }) : ''));
     sfx.play('done');
     this.onState();
     this.save();
@@ -1467,7 +1468,7 @@ export class Game {
 
     const price = Math.max(1, Math.floor(sum * ADV_DISH_MULT));
     this.advCookSlots[slot] = { id: dishId, price, readyAt: this.time + ADV_COOK_TIME * this.trainerRatio('adv', slot) };
-    this.onToast(tp('t.advCooking', { name: `${dish.emoji}${dish.name}`, n: Math.round(ADV_COOK_TIME / 60) }));
+    this.onToast(tp('t.advCooking', { name: `${dish.emoji}${advDishName(dish)}`, n: Math.round(ADV_COOK_TIME / 60) }));
     sfx.play('done');
     this.onState();
     this.save();
@@ -1484,7 +1485,7 @@ export class Game {
     const ab = this.payTrainerBonus('adv', slot);
     if (ab) this.onToast(tp('t.trainerBonus', { n: ab }));
     this.bumpTask('gourmet', 1);
-    this.onToast(tp('t.advDone', { name: `${dish.emoji}${dish.name}`, n: s.price.toLocaleString() }));
+    this.onToast(tp('t.advDone', { name: `${dish.emoji}${advDishName(dish)}`, n: s.price.toLocaleString() }));
     sfx.play('done');
     this.onState();
     this.save();

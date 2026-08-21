@@ -684,6 +684,8 @@ export const DISHES = [
   { id: 'd60', name: '缤纷果盛宴',   emoji: '🎇', recipe: [['cherry', 1, 2], ['peach', 1, 1], ['grape', 1, 1]] },
 ];
 export const dishById = (id) => DISHES.find(d => d.id === id);
+// 菜名走翻译，查不到就回落到表里的中文名（跟 seedName/flowerName 一个路子）
+export const dishName = (d) => (d ? tf(`dish.${d.id}`, d.name) : '');
 // 配方原料对应的背包 key
 export const ingredientKey = (seedId, q) => q === 0 ? seedId : `${seedId}:${q === 1 ? 'silver' : 'gold'}`;
 export function dishPrice(dish) {
@@ -744,6 +746,7 @@ export const ADV_DISHES = [
   { id: 'g25', name: '独角兽神宴', emoji: '🦄', recipe: [['cut', 'unicorn:meat', 1], ['sea', 'tuna', 1], ['dish', 'd50', 1], ['hyb', 'h20', 1], ['crop', 'nebula:gold', 1], ['wine', 'nebula', 1]] },
 ];
 export const advDishById = (id) => ADV_DISHES.find(d => d.id === id);
+export const advDishName = (d) => (d ? tf(`adv.${d.id}`, d.name) : '');
 
 // 配方某一项对应的背包 key。酒返回的是「前缀」（w:<原果>:），
 // 因为真正的 key 尾巴上还挂着窖藏天数，得去背包里搜。
@@ -1233,7 +1236,7 @@ export function keyInfo(key) {
   }
   if (key.startsWith('k:')) {
     const dish = dishById(key.slice(2));
-    return { seed: null, quality: undefined, processed: false, stunted: false, dish: true, price: dishPrice(dish), label: dish.name, icon: dish.emoji };
+    return { seed: null, quality: undefined, processed: false, stunted: false, dish: true, price: dishPrice(dish), label: dishName(dish), icon: dish.emoji };
   }
   // 高级料理：g:<菜id>:<成交价>。价格在下锅那一刻按真正用掉的原料算死，
   // 所以写进 key 里——同一道菜用陈年酒做出来就是比用新酒值钱，不能事后重算。
@@ -1243,7 +1246,7 @@ export function keyInfo(key) {
     const dish = advDishById(parts.join(':'));
     return {
       seed: null, quality: undefined, processed: false, stunted: false,
-      advDish: true, price, label: dish.name, icon: dish.emoji,
+      advDish: true, price, label: advDishName(dish), icon: dish.emoji,
     };
   }
   if (key.startsWith('h:')) {

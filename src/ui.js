@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, dishName, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, UNLOCK_COST, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishName, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -1555,31 +1555,30 @@ export class UI {
     body.innerHTML = '';
     const cookable = ADV_DISHES.filter(d => g.canAdvCook(d.id)).length;
     body.insertAdjacentHTML('beforeend',
-      `<div id="kitchen-progress">👨‍🍳 共 ${ADV_DISHES.length} 道大菜 · 现在能做 ${cookable} 道</div>
-       <div id="gourmet-src">每道菜要同时用到 🍖屠宰部位 · 🐟水产 · 🍳料理 · 🧬杂交果 · 🌱作物，后 10 道再加一瓶 🍷酒。<br>
-       酒不挑年份，下锅时自动用最便宜的那瓶，陈年好酒给你留着。</div>`);
+      `<div id="kitchen-progress">${tp('gm.progress', { n: ADV_DISHES.length, m: cookable })}</div>
+       <div id="gourmet-src">${t('gm.src')}</div>`);
 
     // 两口大灶
     g.advCookSlots.forEach((s, k) => {
       const el = document.createElement('div');
       el.className = 'ws-slot';
       if (!s) {
-        el.innerHTML = `<div class="icon">🔥</div><div class="info"><b>${k + 1} 号大灶</b><p>空着</p></div>`;
+        el.innerHTML = `<div class="icon">🔥</div><div class="info"><b>${tp('gm.stove', { n: k + 1 })}</b><p>${t('kit.empty')}</p></div>`;
       } else {
         const dish = advDishById(s.id);
         const remain = Math.max(0, s.readyAt - g.time);
         if (remain > 0) {
           const pct = Math.round((1 - remain / ADV_COOK_TIME) * 100);
           el.innerHTML = `<div class="icon">${dish.emoji}</div>
-            <div class="info"><b>${dish.name} 烹饪中</b><p>还剩 ${Math.ceil(remain)} 秒</p>
+            <div class="info"><b>${tp('kit.cooking', { name: advDishName(dish) })}</b><p>${tp('kit.remain', { n: Math.ceil(remain) })}</p>
             <div class="bar"><i style="width:${pct}%"></i></div></div>`;
         } else {
           el.classList.add('done');
           el.innerHTML = `<div class="icon">${dish.emoji}</div>
-            <div class="info"><b>${dish.name} 出锅啦！</b><p>可卖 ${s.price.toLocaleString()}💰</p></div>`;
+            <div class="info"><b>${tp('kit.done', { name: advDishName(dish) })}</b><p>${tp('gm.sellFor', { n: s.price.toLocaleString() })}</p></div>`;
           const btn = document.createElement('button');
           btn.className = 'collect';
-          btn.textContent = '端走';
+          btn.textContent = t('kit.collect');
           btn.addEventListener('click', () => { g.collectAdvDish(k); this.renderGourmet(); });
           el.appendChild(btn);
         }
@@ -1590,14 +1589,14 @@ export class UI {
     const filterBtn = document.createElement('button');
     filterBtn.id = 'kitchen-filter';
     filterBtn.className = this.gourmetReadyOnly ? 'on' : '';
-    filterBtn.textContent = this.gourmetReadyOnly ? '✓ 只显示现在能做的' : `🔍 只看现在能做的（${cookable}）`;
+    filterBtn.textContent = this.gourmetReadyOnly ? t('kit.filterOn') : tp('kit.filterOff', { n: cookable });
     filterBtn.addEventListener('click', () => { this.gourmetReadyOnly = !this.gourmetReadyOnly; this.renderGourmet(); });
     body.appendChild(filterBtn);
 
     const list = this.gourmetReadyOnly ? ADV_DISHES.filter(d => g.canAdvCook(d.id)) : ADV_DISHES;
     if (!list.length) {
       body.insertAdjacentHTML('beforeend',
-        '<div class="bag-empty">一道也凑不齐<br>先看看缺的是哪一路：肉？鱼？菜？果？酒？ 🍳</div>');
+        `<div class="bag-empty">${t('gm.none')}</div>`);
       return;
     }
     // 每样原料标出「有几个 / 要几个」，缺哪一路一眼看得出来
@@ -1615,11 +1614,11 @@ export class UI {
         return `<span class="ing ${have >= n ? 'ok' : 'no'}">${SRC_ICON[src]}${label} ${have}/${n}</span>`;
       }).join('');
       el.innerHTML = `<div class="icon">${dish.emoji}</div>
-        <div class="info"><b>${dish.name}</b> <span class="price">约 ${advDishPrice(dish).toLocaleString()}💰</span>
+        <div class="info"><b>${advDishName(dish)}</b> <span class="price">${tp('gm.sellApprox', { n: advDishPrice(dish).toLocaleString() })}</span>
         <div class="recipe">${ings}</div></div>`;
       const slotFree = g.advCookSlots.some(s => !s);
       const btn = document.createElement('button');
-      btn.textContent = slotFree ? '下锅' : '灶满';
+      btn.textContent = slotFree ? t('kit.cook') : t('kit.full');
       btn.disabled = !ready || !slotFree;
       if (ready && slotFree) btn.addEventListener('click', () => { g.advCook(dish.id); this.renderGourmet(); });
       el.appendChild(btn);
@@ -2869,29 +2868,29 @@ export class UI {
     const madeCount = DISHES.filter(d => g.inventory['k:' + d.id]).length;
     const cookableCount = DISHES.filter(d => g.canCook(d.id)).length;
     body.insertAdjacentHTML('beforeend',
-      `<div id="kitchen-progress">🍳 共 ${DISHES.length} 道料理 · 现在能做 ${cookableCount} 道</div>`);
+      `<div id="kitchen-progress">${tp('kit.progress', { n: DISHES.length, m: cookableCount })}</div>`);
 
     // 灶位状态
     g.cookSlots.forEach((s, k) => {
       const el = document.createElement('div');
       el.className = 'ws-slot';
       if (!s) {
-        el.innerHTML = `<div class="icon">🍳</div><div class="info"><b>${k + 1} 号灶</b><p>空着</p></div>`;
+        el.innerHTML = `<div class="icon">🍳</div><div class="info"><b>${tp('kit.stove', { n: k + 1 })}</b><p>${t('kit.empty')}</p></div>`;
       } else {
         const dish = dishById(s.id);
         const remain = Math.max(0, s.readyAt - g.time);
         if (remain > 0) {
           const pct = Math.round((1 - remain / COOK_TIME) * 100);
           el.innerHTML = `<div class="icon">${dish.emoji}</div>
-            <div class="info"><b>${dish.name} 烹饪中</b><p>还剩 ${Math.ceil(remain)} 秒</p>
+            <div class="info"><b>${tp('kit.cooking', { name: dishName(dish) })}</b><p>${tp('kit.remain', { n: Math.ceil(remain) })}</p>
             <div class="bar"><i style="width:${pct}%"></i></div></div>`;
         } else {
           el.classList.add('done');
           el.innerHTML = `<div class="icon">${dish.emoji}</div>
-            <div class="info"><b>${dish.name} 出锅啦！</b><p>可卖 ${dishPrice(dish)}💰</p></div>`;
+            <div class="info"><b>${tp('kit.done', { name: dishName(dish) })}</b><p>${tp('kit.sellFor', { n: dishPrice(dish) })}</p></div>`;
           const btn = document.createElement('button');
           btn.className = 'collect';
-          btn.textContent = '端走';
+          btn.textContent = t('kit.collect');
           btn.addEventListener('click', () => { g.collectDish(k); this.renderKitchen(); });
           el.appendChild(btn);
         }
@@ -2903,13 +2902,13 @@ export class UI {
     const filterBtn = document.createElement('button');
     filterBtn.id = 'kitchen-filter';
     filterBtn.className = this.kitchenReadyOnly ? 'on' : '';
-    filterBtn.textContent = this.kitchenReadyOnly ? '✓ 只显示现在能做的' : `🔍 只看现在能做的（${cookableCount}）`;
+    filterBtn.textContent = this.kitchenReadyOnly ? t('kit.filterOn') : tp('kit.filterOff', { n: cookableCount });
     filterBtn.addEventListener('click', () => { this.kitchenReadyOnly = !this.kitchenReadyOnly; this.renderKitchen(); });
     body.appendChild(filterBtn);
 
     const list = this.kitchenReadyOnly ? DISHES.filter(d => g.canCook(d.id)) : DISHES;
     if (!list.length) {
-      body.insertAdjacentHTML('beforeend', '<div class="bag-empty">现在还凑不齐任何一道料理<br>多种点作物、攒攒品质吧 🌱</div>');
+      body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('kit.none')}</div>`);
       return;
     }
     list.forEach(dish => {
@@ -2923,11 +2922,11 @@ export class UI {
         return `<span class="ing ${have >= n ? 'ok' : 'no'}">${info.icon}${info.label} ${have}/${n}</span>`;
       }).join('');
       el.innerHTML = `<div class="icon">${dish.emoji}</div>
-        <div class="info"><b>${dish.name}</b> <span class="price">卖 ${dishPrice(dish)}💰</span>
+        <div class="info"><b>${dishName(dish)}</b> <span class="price">${tp('kit.sellFor', { n: dishPrice(dish) })}</span>
         <div class="recipe">${ings}</div></div>`;
       const stoveFree = g.cookSlots.some(s => !s);
       const btn = document.createElement('button');
-      btn.textContent = stoveFree ? '下锅' : '灶满';
+      btn.textContent = stoveFree ? t('kit.cook') : t('kit.full');
       btn.disabled = !ready || !stoveFree;
       if (ready && stoveFree) btn.addEventListener('click', () => { g.cookDish(dish.id); this.renderKitchen(); });
       el.appendChild(btn);
