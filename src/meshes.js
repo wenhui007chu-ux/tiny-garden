@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GRID, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
+import { GRID, LEVELS, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
   RANCH_GRID, RANCH_TILE, TOWER_FINISHES, RECEPTION_HALL } from './config.js';
 
 const mat = (color, opts = {}) =>
@@ -93,6 +93,20 @@ export function createUpperDeck(level = 1) {
     if (z1 - z0 <= 0.01) return;
     g.add(mesh(new THREE.BoxGeometry(wallT, wallH, z1 - z0), woodMat, gapX, wallH / 2, (z0 + z1) / 2));
   });
+  // 上面还有一层的话，后边缘立一道承重墙把它撑起来。
+  // 一层→二层那道在 createFarmBox 里，二层→三层这道就在这儿——
+  // 少了它，三层看着就是凭空浮在二层后上方
+  if (level + 1 < LEVELS) {
+    const bx = -size / 2 + 0.3;
+    g.add(mesh(new THREE.BoxGeometry(size, UPPER_Y, 0.6), mat(0xb2854f), 0, UPPER_Y / 2, bx));
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 5; c++) {
+        g.add(mesh(new THREE.BoxGeometry(1.1, 0.5, 0.08), mat(r % 2 ? 0xc79a66 : 0xbe8f5c),
+          (c - 2) * 1.25 + (r % 2 ? 0.3 : 0), 0.85 + r * 0.85, bx - 0.34));
+      }
+    }
+  }
+
   // 后方两根支柱撑住悬空的一边。必须一路落到地面而不是只撑一层——
   // 三层的柱脚在 z≈-17.4，那里早出了二层平台（z 只到 -10.7），撑一层就是悬空的
   const pillarH = level * UPPER_Y;
@@ -342,18 +356,21 @@ export function createTreasuryBuilding() {
 // 后区仍是红毯贵宾厅，摆 10 台个人展台。
 export function createTreasuryInterior() {
   const g = new THREE.Group();
-  const W = 21, D = 40;
+  // 作物展厅从 88 格涨到 152 格（38 作物 × 4 品质），老尺寸放不下：
+  // 后几排会越过 z=10.4 的拱门压进红毯，再后面直接掉出地板。
+  // 加宽到 26、加深到 54，配合 12 列的新排布把 152 格收在拱门以内
+  const W = 26, D = 54;
   const wallMat = mat(0xf0ead9);
   // 大理石地面 + 纵向分隔线
   g.add(mesh(new THREE.BoxGeometry(W, 0.3, D), mat(0xdcd3c2), 0, -0.15, 0));
-  for (let k = -4; k <= 4; k++) {
-    g.add(mesh(new THREE.BoxGeometry(0.05, 0.02, D), mat(0xc4b9a4), k * 2.4, 0.01, 0));
+  for (let k = -6; k <= 6; k++) {
+    g.add(mesh(new THREE.BoxGeometry(0.05, 0.02, D), mat(0xc4b9a4), k * 2.1, 0.01, 0));
   }
   // 后墙 + 两侧墙
   g.add(mesh(new THREE.BoxGeometry(W, 6, 0.3), wallMat, 0, 3, -D / 2 + 0.15));
   [-1, 1].forEach(s => g.add(mesh(new THREE.BoxGeometry(0.3, 6, D), wallMat, s * (W / 2 - 0.15), 3, 0)));
   // 后墙高窗
-  [-6.5, 0, 6.5].forEach(x =>
+  [-9.75, -3.25, 3.25, 9.75].forEach(x =>
     g.add(mesh(new THREE.BoxGeometry(2.2, 1.8, 0.1),
       mat(0xbfe3f0, { emissive: 0x89b8d4, emissiveIntensity: 0.4 }), x, 4.1, -D / 2 + 0.25)));
   // 贵宾区：红毯 + 金柱拱门分界
@@ -366,7 +383,8 @@ export function createTreasuryInterior() {
   });
   g.add(mesh(new THREE.BoxGeometry(15.8, 0.28, 0.5), gold, 0, 4.15, 10.4));
   // 顶灯
-  [[-5, -14], [5, -14], [-5, -7], [5, -7], [-5, 0], [5, 0], [0, 6], [-5, 15], [5, 15]].forEach(([x, z]) => {
+  [[-6, -22], [6, -22], [-6, -15], [6, -15], [-6, -8], [6, -8], [-6, -1], [6, -1],
+   [0, 5], [-5, 15], [5, 15]].forEach(([x, z]) => {
     const l = new THREE.PointLight(0xfff2d8, 0.45, 22, 1.8);
     l.position.set(x, 5, z);
     g.add(l);
