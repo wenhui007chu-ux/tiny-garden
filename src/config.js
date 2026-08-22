@@ -360,8 +360,13 @@ export const WEATHER_INFO = {
 // 商场道具：存在独立的道具背包里，和作物背包分开
 export const ITEMS = [
   {
-    id: 'fertilizer', name: '肥料', emoji: '💊', cost: 150,
+    // id 保持 fertilizer 不变：玩家背包里存着的那些还得认得出来
+    id: 'fertilizer', name: '植物用肥料', emoji: '💊', cost: 100,
     desc: '随机挑 2 块地里的作物，让它们立刻成熟',
+  },
+  {
+    id: 'herbFert', name: '药物用肥料', emoji: '💉', cost: 150,
+    desc: '随机挑 2 畦药圃里的药材，让它们立刻长成',
   },
   {
     id: 'luck', name: '幸运药剂', emoji: '🧪', cost: 220,

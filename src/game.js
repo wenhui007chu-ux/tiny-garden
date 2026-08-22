@@ -1201,6 +1201,7 @@ export class Game {
     // 升变要先挑目标作物，由 UI 接管，这里不直接消耗
     if (itemById(id)?.pick) return;
     const ok = id === 'fertilizer' ? this.useFertilizer()
+      : id === 'herbFert' ? this.useHerbFertilizer()
       : id === 'restorer' ? this.useRestorer()
       : id === 'pesticide' ? this.usePesticide()
       : id === 'antidote' ? this.useAntidote()
@@ -1232,6 +1233,29 @@ export class Game {
       return seed.emoji + seed.name;
     });
     this.onToast(`💊 肥料生效！${names.join('、')} 立刻成熟`);
+    return true;
+  }
+
+  // 药物用肥料：只认药圃。药材的 stage 是 tickHerbs 按 progress 算出来的，
+  // 这里把 progress 顶满还得顺手把 stage 也置成 3，否则要等下一帧才变样
+  useHerbFertilizer() {
+    const pool = this.herbPlots
+      .map((pl, i) => (pl && pl.stage < 3 ? i : -1))
+      .filter(i => i >= 0);
+    if (!pool.length) { this.onToast('药圃里没有还在长的药材'); return false; }
+    const picked = [];
+    while (picked.length < 2 && pool.length) {
+      picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    }
+    const names = picked.map(i => {
+      const pl = this.herbPlots[i];
+      const h = herbById(pl.id);
+      pl.progress = h.growTime;
+      pl.stage = 3;
+      this.refreshHerbMesh(i);
+      return h.emoji + herbName(h);
+    });
+    this.onToast(`💉 药肥生效！${names.join('、')} 立刻长成`);
     return true;
   }
 
