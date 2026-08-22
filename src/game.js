@@ -37,7 +37,7 @@ import {
   REVIEW_DIMS, REVIEW_TIPS, gradeOf,
   TRAINER, TRAINER_POS, TRAINER_LINES, trainerLineBy, trainerRatio, trainerTimeAt,
   HERBS, herbById, herbName, HERB_POS, HERB_GRID, HERB_UNLOCK, HERB_YIELD,
-  MORTAR, HERB_ORDER, herbOrderPrice,
+  MORTAR, HERB_ORDER, SYMPTOMS, symptomById, herbCureSettle,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -4007,24 +4007,15 @@ export class Game {
   }
 
   // 开张：随机来一位客人，报几味药和分量。不开张就没人来，不占挂机时间
+  // 开张：来一位病人，只说症状不点药。对症的哪几味由面板去标绿边
   openHerbShop() {
-    if (this.herbOrder) { this.onToast('柜台上还有一张方子没抓完'); sfx.play('deny'); return; }
-    const pool = [...HERBS];
-    const kinds = HERB_ORDER.minKinds
-      + Math.floor(Math.random() * (HERB_ORDER.maxKinds - HERB_ORDER.minKinds + 1));
-    const items = [];
-    for (let n = 0; n < kinds && pool.length; n++) {
-      const h = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      const qty = HERB_ORDER.minQty
-        + Math.floor(Math.random() * (HERB_ORDER.maxQty - HERB_ORDER.minQty + 1));
-      items.push({ id: h.id, qty });
-    }
-    this.herbOrder = { items, reward: herbOrderPrice(items), picked: {} };
-    this.onToast(`🧧 来客人了：${items.length} 味药，抓对了给 ${this.herbOrder.reward.toLocaleString()}💰`);
+    if (this.herbOrder) { this.onToast('柜台前还站着一位病人呢'); sfx.play('deny'); return; }
+    const sym = SYMPTOMS[Math.floor(Math.random() * SYMPTOMS.length)];
+    this.herbOrder = { sym: sym.id, picked: {} };
+    this.onToast(`🧧 来了位病人：「${sym.desc}」`);
     sfx.play('unlock');
     this.onState(); this.save();
   }
-
   // 往柜台上放/撤一味药粉。放的时候就从药粉袋里扣，撤回来再还
   pickHerb(herbId, delta = 1) {
     const o = this.herbOrder;
@@ -4046,29 +4037,30 @@ export class Game {
     this.onState(); this.save();
   }
 
-  // 交方子。多一份少一份都算错，整单作废、药材照扣——
-  // 这是游戏里唯一一处真会亏东西的操作，所以结算前把对错算清楚再动手
+  // 交方子。漏了不罚——少拿那几味的钱而已；混进不对症的才倒扣。
+  // 药粉在放上柜台时就已经扣掉了，所以这里只结钱，不再动库存
   submitHerbOrder() {
     const o = this.herbOrder;
     if (!o) return;
-    const want = new Map(o.items.map(it => [it.id, it.qty]));
-    const got = new Map(Object.entries(o.picked).filter(([, n]) => n > 0));
-    let ok = want.size === got.size;
-    if (ok) for (const [id, qty] of want) if ((got.get(id) ?? 0) !== qty) { ok = false; break; }
-    if (ok) {
-      this.coins += o.reward;
-      this.onToast(`🧧 抓对了！+${o.reward.toLocaleString()}💰`);
+    const picked = Object.entries(o.picked ?? {}).filter(([, n]) => n > 0);
+    if (!picked.length) { this.onToast('柜台上还空着，先抓几味药'); sfx.play('deny'); return; }
+    const r = herbCureSettle(o.sym, o.picked);
+    if (r.net >= 0) this.gain(r.net); else this.coins = Math.max(0, this.coins - (-r.net));
+    const sym = symptomById(o.sym);
+    if (r.wrong && r.cure) {
+      this.onToast(`🧧 药抓对了大半，+${r.gain.toLocaleString()}💰，但混了不对症的，倒扣 ${r.fine.toLocaleString()}💰`);
+      sfx.play('coin');
+    } else if (r.wrong) {
+      this.onToast(`❌ 一味都没对上「${sym?.desc ?? ''}」，倒扣 ${r.fine.toLocaleString()}💰`);
+      sfx.play('deny');
+    } else {
+      this.onToast(`🧧 药到病除！+${r.gain.toLocaleString()}💰`);
       sfx.play('coin');
       this.bumpTask('herb', 1);
-    } else {
-      // 作废：柜台上那些药粉不退了
-      this.onToast(`❌ 方子抓错了，整单作废，搭进去的药材也回不来了`);
-      sfx.play('deny');
     }
     this.herbOrder = null;
     this.onState(); this.save();
   }
-
   refreshHerbMesh(idx) {
     const plot = this.herbMeshes[idx];
     if (!plot) return;
@@ -4613,6 +4605,20 @@ export class Game {
     this.powder = { ...(data.powder ?? {}) };
     this.selectedHerb = herbById(data.selectedHerb) ? data.selectedHerb : HERBS[0].id;
     this.herbOrder = data.herbOrder ?? null;
+    // 抓药从「照单抓药」改成「看症状开方」之后，旧订单的结构（items/reward）
+    // 新代码读不懂。直接丢会把柜台上那几份药粉一起吞掉——那些在放上去时就已经
+    // 从药粉袋里扣过了，所以先原样退回，再把这张废方子清掉
+    if (this.herbOrder && !this.herbOrder.sym) {
+      const back = this.herbOrder.picked ?? {};
+      let n = 0;
+      for (const [id, cnt] of Object.entries(back)) {
+        if (!herbById(id) || !cnt) continue;
+        this.powder[id] = (this.powder[id] ?? 0) + cnt;
+        n += cnt;
+      }
+      this.herbOrder = null;
+      if (n) this._herbRefund = n;   // 读档结束后提示一句，别让玩家以为药粉丢了
+    }
     (data.herbPlots ?? []).forEach((pl, idx) => {
       if (!pl || idx >= this.herbPlots.length) return;
       const h = herbById(pl.id);
@@ -4831,6 +4837,11 @@ export class Game {
       reason === 'rev' ? `🔒 「${a.name}」的达成条件改了——现在要${a.desc}，先收回，做到后会自动再亮`
         : reason === 'chain' ? `🔒 「${a.name}」因其中一项成就被收回而暂时不满足，凑齐后会自动再亮`
           : `🔒 「${a.name}」的目标提高到 ${a.max} 了，先收回，达到后会自动再亮`));
+    // 抓药模式换代时退回的药粉，在这儿说一声
+    if (this._herbRefund) {
+      this._notices.push(`⚗️ 抓药改成了看症状开方，柜台上那张旧方子作废，${this._herbRefund} 份药粉已退回`);
+      this._herbRefund = 0;
+    }
     this.refreshTrophies();
   }
 }

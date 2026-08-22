@@ -168,14 +168,48 @@ export const herbName = (h) => (h ? tf(`herb.${h.id}`, h.name) : '');
 export const MORTAR = { slots: 10, time: 180 };
 
 // 客人的方子：开张才生成。kinds 味药，每味 qty 份
+// 病人一次只说一种症状。mult 是对症药材的结算倍率，penalty 是错药的倒扣比例
 export const HERB_ORDER = {
-  minKinds: 2, maxKinds: 5,   // 一张方子几味药
-  minQty: 1, maxQty: 5,       // 每味几份
-  mult: 2.5,                  // 报酬 = 各味药粉现价 × 份数，求和后 ×2.5
+  mult: 2.5,       // 报酬 = 对症药材现价 × 份数，求和后 ×2.5
+  penalty: 0.5,    // 混进不对症的：按它的现价 × 份数，倒扣一半
 };
-// 一张方子值多少：照单价乘份数求和再乘倍率
-export const herbOrderPrice = (items) =>
-  Math.max(1, Math.floor(items.reduce((a, it) => a + (herbById(it.id)?.sell ?? 0) * it.qty, 0) * HERB_ORDER.mult));
+// 病人只说症状，不点名要哪味药。对症的在面板里亮绿边，其余转灰。
+// 每味药都至少对应一个症状——不然又会冒出「谁都用不上」的药材。
+// 一味药可以治好几种症状（甘草最杂，四个方子里都有它），这也符合它百搭的名声
+export const SYMPTOMS = [
+  { id: 's1',   desc: '怕冷、鼻塞，一直打喷嚏',                 cures: ['mint', 'bupleurum', 'licorice', 'platycodon'] },
+  { id: 's2',   desc: '嗓子又干又痛，还有点上火',                cures: ['honeysuck', 'chrysanth', 'mint', 'licorice'] },
+  { id: 's3',   desc: '咳个不停，痰还多',                    cures: ['platycodon', 'tangerine', 'licorice', 'dendrobium'] },
+  { id: 's4',   desc: '吃撑了，肚子胀得难受',                  cures: ['hawthorn', 'tangerine', 'poria', 'licorice'] },
+  { id: 's5',   desc: '面色发白、浑身没力气',                  cures: ['angelica', 'astragalus', 'jujube', 'ginseng'] },
+  { id: 's6',   desc: '整宿睡不着，心里发慌',                  cures: ['salvia', 'poria', 'ganoderma', 'jujube'] },
+  { id: 's7',   desc: '头晕、太阳穴一跳一跳地疼',                cures: ['chuanxiong', 'gastrodia', 'peony', 'chrysanth'] },
+  { id: 's8',   desc: '腰酸腿软，蹲下去起不来',                 cures: ['eucommia', 'fleeceflow', 'ginseng', 'wolfberry'] },
+  { id: 's9',   desc: '摔了一跤，淤青消不下去',                 cures: ['notoginseng', 'salvia', 'chuanxiong', 'peony'] },
+  { id: 's10',  desc: '大病刚好，想好好补一补',                 cures: ['ginseng', 'ganoderma', 'cordyceps', 'saffron', 'astragalus'] },
+];
+export const symptomById = (id) => SYMPTOMS.find(x => x.id === id);
+
+// 一张方子结多少钱：
+//   对症的药按「单价 × 份数」计，乘 mult；给多少份都行，给得越多赚得越多，
+//   代价是药材实打实消耗——「抓多少」成了划不划算的权衡
+//   不对症的药按 penalty 倒扣，漏掉的不罚（少拿那份钱而已）
+export const herbCureSettle = (symId, picked) => {
+  const sym = symptomById(symId);
+  let cure = 0, wrong = 0;
+  if (sym) {
+    for (const [id, n] of Object.entries(picked ?? {})) {
+      if (!n) continue;
+      const price = herbById(id)?.sell ?? 0;
+      if (sym.cures.includes(id)) cure += price * n;
+      else wrong += price * n;
+    }
+  }
+  const gain = Math.floor(cure * HERB_ORDER.mult);
+  const fine = Math.floor(wrong * HERB_ORDER.penalty);
+  return { gain, fine, net: gain - fine, cure, wrong };
+};
+
 
 export const SOILS = [
   { name: '普通土', speed: 1,    yield: 1, cost: 0,   color: 0x9a7355 },

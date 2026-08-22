@@ -1276,3 +1276,9 @@ body {
   padding: 6px 12px; cursor: pointer; font-size: 14px; color: #5a7a3a; font-weight: 600;
 }
 .herb-tab.active { background: #e2f0cc; border-color: #7aa84a; }
+
+/* 抓药：对症的绿边，不对症的灰边 */
+.dish-row.herb-pick.cure { border-color: #6aae5e; background: linear-gradient(135deg, #fff, #eef8ea); }
+.dish-row.herb-pick.cure .price { color: #4a8a3a; font-weight: 700; }
+.dish-row.herb-pick.wrong { border-color: #d5d5d5; background: #fafafa; opacity: .7; }
+.dish-row.herb-pick.wrong .price { color: #a0a0a0; }

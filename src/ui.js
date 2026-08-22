@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, dishName, ingredientKey, HERBS, herbById, herbName, HERB_UNLOCK, MORTAR, HERB_GRID, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, unlockCost, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishName, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, dishName, ingredientKey, HERBS, herbById, herbName, HERB_UNLOCK, MORTAR, HERB_GRID, symptomById, herbCureSettle, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, unlockCost, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishName, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -1274,7 +1274,7 @@ export class UI {
     });
   }
 
-  // 抓药页：开张 → 照方子加减药粉 → 交方子
+  // 抓药页：病人报症状 → 对症的药亮绿边、其余转灰 → 想给几份给几份 → 交方子
   renderHerbOrder(body, g) {
     const o = g.herbOrder;
     if (!o) {
@@ -1286,45 +1286,45 @@ export class UI {
       body.appendChild(b);
       return;
     }
+    const sym = symptomById(o.sym);
+    const r = herbCureSettle(o.sym, o.picked);
     body.insertAdjacentHTML('beforeend',
-      `<div id="kitchen-progress">${tp('herb.orderHead', { n: o.items.length, reward: o.reward.toLocaleString() })}</div>`);
+      `<div id="kitchen-progress">${tp('herb.symptom', { desc: t('sym.' + o.sym) })}
+       <small>${tp('herb.settleNow', { gain: r.gain.toLocaleString(), fine: r.fine.toLocaleString() })}</small></div>`);
 
-    let allRight = true;
-    o.items.forEach(it => {
-      const h = herbById(it.id);
-      const got = o.picked[it.id] ?? 0;
-      const okNow = got === it.qty;
-      if (!okNow) allRight = false;
+    // 只列手上有药粉的，没有的味道摆出来也点不了
+    const have = HERBS.filter(h => (g.powder[h.id] ?? 0) > 0 || (o.picked[h.id] ?? 0) > 0);
+    if (!have.length) {
+      body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('herb.noPowder')}</div>`);
+    }
+    have.forEach(h => {
+      const good = sym?.cures.includes(h.id);
+      const got = o.picked[h.id] ?? 0;
       const el = document.createElement('div');
-      el.className = 'dish-row' + (okNow ? ' ready' : '');
+      el.className = 'dish-row herb-pick' + (good ? ' cure' : ' wrong');
       el.innerHTML = `<div class="icon">${h.emoji}</div>
-        <div class="info"><b>${tp('herb.want', { name: herbName(h), qty: it.qty })}</b>
-        <div class="recipe"><span class="ing ${okNow ? 'ok' : 'no'}">${tp('herb.onCounter', { got, qty: it.qty })}</span>
-        <span class="ing ok">${tp('herb.powder', { n: g.powder[it.id] ?? 0 })}</span></div></div>`;
+        <div class="info"><b>${herbName(h)}</b>
+        <span class="price">${good ? t('herb.cures') : t('herb.notFor')}</span>
+        <div class="recipe"><span class="ing ${got ? 'ok' : 'no'}">${tp('herb.onCounter2', { n: got })}</span>
+        <span class="ing ok">${tp('herb.powder', { n: g.powder[h.id] ?? 0 })}</span></div></div>`;
       const minus = document.createElement('button');
       minus.textContent = '−';
       minus.disabled = got <= 0;
-      minus.addEventListener('click', () => { g.pickHerb(it.id, -1); this.renderHerb(); });
+      minus.addEventListener('click', () => { g.pickHerb(h.id, -1); this.renderHerb(); });
       const plus = document.createElement('button');
       plus.textContent = '+';
-      plus.disabled = (g.powder[it.id] ?? 0) <= 0;
-      plus.addEventListener('click', () => { g.pickHerb(it.id, 1); this.renderHerb(); });
+      plus.disabled = (g.powder[h.id] ?? 0) <= 0;
+      plus.addEventListener('click', () => { g.pickHerb(h.id, 1); this.renderHerb(); });
       el.appendChild(minus); el.appendChild(plus);
       body.appendChild(el);
     });
 
-    // 客人没点名的药也能放上去——放了就是抓错，这是这个玩法的坑
-    const extras = Object.keys(o.picked).filter(id => !o.items.some(it => it.id === id) && o.picked[id] > 0);
-    if (extras.length) {
-      allRight = false;
-      body.insertAdjacentHTML('beforeend',
-        `<div class="bag-empty">${tp('herb.extra', { list: extras.map(id => herbName(herbById(id))).join('、') })}</div>`);
-    }
-
     const sub = document.createElement('button');
     sub.id = 'kitchen-filter';
-    sub.className = allRight ? 'on' : '';
-    sub.textContent = allRight ? t('herb.submitOk') : t('herb.submit');
+    const any = Object.values(o.picked ?? {}).some(n => n > 0);
+    sub.className = any && !r.wrong ? 'on' : '';
+    sub.textContent = tp('herb.submitNet', { n: r.net.toLocaleString() });
+    sub.disabled = !any;
     sub.addEventListener('click', () => { g.submitHerbOrder(); this.renderHerb(); });
     body.appendChild(sub);
   }
