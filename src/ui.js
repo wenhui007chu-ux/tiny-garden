@@ -2221,7 +2221,7 @@ export class UI {
       const el = document.createElement('div');
       el.className = 'task-row' + (ok ? ' done' : '') + (q.claimed ? ' claimed' : '');
       el.innerHTML = `<div class="icon">${type.emoji}</div>
-        <div class="info"><b>${tp('task.name.' + type.id, { n: q.target.toLocaleString() })}</b>
+        <div class="info"><b>${tp('task.name.' + type.id, { n: q.target.toLocaleString(), crop: q.seedId ? seedName(seedById(q.seedId)) : '' })}</b>
         <p>${q.progress.toLocaleString()} / ${q.target.toLocaleString()}</p>
         <div class="ach-bar"><i style="width:${Math.round(Math.min(1, q.progress / q.target) * 100)}%"></i></div></div>`;
       const btn = document.createElement('button');

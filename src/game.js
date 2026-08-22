@@ -949,6 +949,8 @@ export class Game {
     });
     this.gain(total);
     this.bumpTask('sell', total);
+    // 上交任务按「个数」算，且只认点名的那种作物
+    if (info.seed) this.bumpTask('deliver', n - ruined, info.seed.id);
     this.onToast(`💰 卖掉 ${count} 件，收入 ${total}💰${ruined ? `（${ruined} 个打过药的报废了）` : ''}`);
     sfx.play('coin');
     this.onState();
@@ -3037,17 +3039,21 @@ export class Game {
 
   // 各处产出时调这个记数。kind 对应 TASK_TYPES 里的 kind。
   // 只推进「没做完的」，做完了就停住等领取——否则进度条会一直涨，看着像还没完成
-  bumpTask(kind, n = 1) {
+  // id 只有点名类任务用得上（目前是 deliver）：交的品种对不上就不算数
+  bumpTask(kind, n = 1, id = null) {
     if (!n || !this.tasks.length || this.awaitingTaskPick) return;
     let done = false;
     for (const q of this.tasks) {
       if (q.progress >= q.target) continue;
       if (taskTypeById(q.type)?.kind !== kind) continue;
+      if (q.seedId && q.seedId !== id) continue;
       q.progress = Math.min(q.target, q.progress + n);
       if (q.progress >= q.target) {
         done = true;
         const type = taskTypeById(q.type);
-        this.onToast(`✅ 任务完成：${type.emoji}${type.name.replace('{n}', q.target)} —— 记得去领奖`);
+        const label = type.name.replace('{n}', q.target)
+          .replace('{crop}', q.seedId ? seedName(seedById(q.seedId)) : '');
+        this.onToast(`✅ 任务完成：${type.emoji}${label} —— 记得去领奖`);
       }
     }
     if (done) { sfx.play('done'); this.onState(); this.save(); }

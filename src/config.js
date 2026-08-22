@@ -586,6 +586,17 @@ export const HYBRIDS = [
   { id: 'h23', name: '金油瓜',   emoji: '🥑', a: ['avocado', 0],  b: ['pumpkin', 0],    sell: 4600 },
   { id: 'h24', name: '桃樱蜜',   emoji: '🍑', a: ['peach', 0],    b: ['cherry', 0],     sell: 14000 },
   { id: 'h25', name: '绯樱晶',   emoji: '💗', a: ['cherry', 2],   b: ['peach', 2],      sell: 42000 },
+  // —— 中段与宇宙段的配对：蜜瓜/松露/极光/陨星/环星/黑洞 ——
+  { id: 'h26',  name: '瓜蒜青',       emoji: '🥬',  a: ['cucumber', 0], b: ['garlic', 0], sell: 220 },
+  { id: 'h27',  name: '葱豆结',       emoji: '🪢',  a: ['onion', 0], b: ['edamame', 0], sell: 560 },
+  { id: 'h28',  name: '花生柠',       emoji: '🥠',  a: ['peanut', 0], b: ['lemon', 0], sell: 2100 },
+  { id: 'h29',  name: '莓猕果',       emoji: '🟣',  a: ['blueberry', 0], b: ['kiwi', 0], sell: 5600 },
+  { id: 'h30',  name: '蜜瓜露',       emoji: '🍈',  a: ['melon', 0], b: ['kiwi', 1], sell: 14000 },
+  { id: 'h31',  name: '松露菌王',      emoji: '🍄',  a: ['truffle', 0], b: ['melon', 0], sell: 38000 },
+  { id: 'h32',  name: '极光菌',       emoji: '✨',   a: ['truffle', 1], b: ['aurora', 0], sell: 98000 },
+  { id: 'h33',  name: '陨星芯',       emoji: '☄️',  a: ['meteor', 0], b: ['aurora', 0], sell: 180000 },
+  { id: 'h34',  name: '环星晶',       emoji: '🪐',  a: ['ringstar', 0], b: ['meteor', 1], sell: 420000 },
+  { id: 'h35',  name: '黑洞核',       emoji: '🕳️', a: ['blackhole', 0], b: ['ringstar', 1], sell: 900000 },
 ];
 export const hybridById = (id) => HYBRIDS.find(h => h.id === id);
 // 宠物间：买断制，同时只能展示一只；房间装饰另计
@@ -769,6 +780,23 @@ export const DISHES = [
   { id: 'd58', name: '蜜桃冰沙',     emoji: '🍑', recipe: [['peach', 0, 2]] },
   { id: 'd59', name: '樱桃塔',       emoji: '🍒', recipe: [['cherry', 0, 2]] },
   { id: 'd60', name: '缤纷果盛宴',   emoji: '🎇', recipe: [['cherry', 1, 2], ['peach', 1, 1], ['grape', 1, 1]] },
+  // —— 补给原来没人要的作物：黄瓜/洋葱/大蒜/毛豆/花生/柠檬/蓝莓/猕猴桃 ——
+  //    这几味加进来之前，料理表只认最早那 20 种作物
+  { id: 'd61',  name: '拍黄瓜',           emoji: '🥒',  recipe: [['cucumber', 0, 3]] },
+  { id: 'd62',  name: '糖醋蒜',           emoji: '🧄',  recipe: [['garlic', 0, 3]] },
+  { id: 'd63',  name: '洋葱圈',           emoji: '🧅',  recipe: [['onion', 0, 3]] },
+  { id: 'd64',  name: '盐水毛豆',          emoji: '🫘',  recipe: [['edamame', 0, 3]] },
+  { id: 'd65',  name: '五香花生',          emoji: '🥜',  recipe: [['peanut', 0, 2], ['garlic', 0, 1]] },
+  { id: 'd66',  name: '黄瓜洋葱沙拉',        emoji: '🥗',  recipe: [['cucumber', 0, 2], ['onion', 0, 2]] },
+  { id: 'd67',  name: '蒜香毛豆',          emoji: '🍢',  recipe: [['edamame', 0, 2], ['garlic', 0, 2]] },
+  { id: 'd68',  name: '柠檬蜜饮',          emoji: '🍋',  recipe: [['lemon', 0, 2]] },
+  { id: 'd69',  name: '蓝莓果酱',          emoji: '🫐',  recipe: [['blueberry', 0, 3]] },
+  { id: 'd70',  name: '猕猴桃奶昔',         emoji: '🥝',  recipe: [['kiwi', 0, 2]] },
+  { id: 'd71',  name: '柠檬蓝莓塔',         emoji: '🥧',  recipe: [['lemon', 0, 2], ['blueberry', 0, 2]] },
+  { id: 'd72',  name: '猕猴桃果盘',         emoji: '🍹',  recipe: [['kiwi', 0, 2], ['blueberry', 0, 1]] },
+  { id: 'd73',  name: '花生酥',           emoji: '🍪',  recipe: [['peanut', 1, 2]] },
+  { id: 'd74',  name: '白银柠香烤',         emoji: '🍽️', recipe: [['lemon', 1, 2], ['onion', 1, 1]] },
+  { id: 'd75',  name: '黄金莓果冻',         emoji: '🍮',  recipe: [['blueberry', 2, 2], ['kiwi', 1, 1]] },
 ];
 export const dishById = (id) => DISHES.find(d => d.id === id);
 // 菜名走翻译，查不到就回落到表里的中文名（跟 seedName/flowerName 一个路子）
@@ -831,6 +859,12 @@ export const ADV_DISHES = [
   { id: 'g23', name: '和牛盛宴',   emoji: '🥩', recipe: [['cut', 'cow:meat', 1], ['sea', 'grouper', 1], ['dish', 'd43', 1], ['hyb', 'h19', 1], ['crop', 'nebula', 1], ['wine', 'rainbow', 1]] },
   { id: 'g24', name: '御膳双烤',   emoji: '👑', recipe: [['cut', 'horse:meat', 1], ['sea', 'lobster', 1], ['dish', 'd47', 1], ['hyb', 'h25', 1], ['crop', 'moonfruit:gold', 1], ['wine', 'moonfruit', 1]] },
   { id: 'g25', name: '独角兽神宴', emoji: '🦄', recipe: [['cut', 'unicorn:meat', 1], ['sea', 'tuna', 1], ['dish', 'd50', 1], ['hyb', 'h20', 1], ['crop', 'nebula:gold', 1], ['wine', 'nebula', 1]] },
+  // —— 顶级段：五道用宇宙作物的大菜，给极光~永恒找个去处 ——
+  { id: 'g26',  name: '极光凝露宴',       emoji: '✨',   recipe: [['crop', 'aurora', 2], ['hyb', 'h32', 1], ['sea', 'salmon', 1], ['dish', 'd75', 1]] },
+  { id: 'g27',  name: '陨石烧',         emoji: '☄️',  recipe: [['crop', 'meteor', 2], ['cut', 'deer:rib', 1], ['hyb', 'h33', 1], ['dish', 'd73', 1]] },
+  { id: 'g28',  name: '环星双拼',        emoji: '🪐',  recipe: [['crop', 'ringstar', 2], ['cut', 'horse:meat', 1], ['hyb', 'h34', 1], ['wine', 'melon', 1]] },
+  { id: 'g29',  name: '黑洞秘酿',        emoji: '🕳️', recipe: [['crop', 'blackhole', 2], ['hyb', 'h35', 1], ['wine', 'truffle', 1], ['dish', 'd74', 1]] },
+  { id: 'g30',  name: '永恒盛筵',        emoji: '♾️',  recipe: [['crop', 'eternal', 1], ['crop', 'supernova', 1], ['hyb', 'h35', 1], ['cut', 'unicorn:rib', 1], ['wine', 'aurora', 1]] },
 ];
 export const advDishById = (id) => ADV_DISHES.find(d => d.id === id);
 export const advDishName = (d) => (d ? tf(`adv.${d.id}`, d.name) : '');
@@ -2018,6 +2052,9 @@ export const TASK_TYPES = [
   { id: 'animal',  kind: 'animal',  emoji: '🐄', name: '收 {n} 只成年动物',      base: 3 },
   { id: 'butcher', kind: 'butcher', emoji: '🔪', name: '屠宰 {n} 只动物',        base: 2 },
   { id: 'treasury',kind: 'treasury',emoji: '🏛️', name: '典藏入藏 {n} 格',        base: 2 },
+  // 点名一种作物，卖够数量就算交差。pickSeed 让 dailyTasks 额外抽一种作物存进任务里，
+  // 这是唯一一个「指定品种」的任务——别的都只看总量，种什么都行
+  { id: 'deliver', kind: 'deliver', emoji: '📦', name: '上交 {n} 个{crop}',      base: 12, pickSeed: true },
 ];
 export const taskTypeById = (id) => TASK_TYPES.find(t => t.id === id);
 
@@ -2032,12 +2069,30 @@ export function dailyTasks(seed, day, tierId) {
   const tierIdx = TASK_TIERS.indexOf(tier);
   const pool = [...TASK_TYPES];
   const out = [];
-  for (let i = 0; i < TASK_COUNT && pool.length; i++) {
+  // 「上交指定作物」每天必有一个，不参与抽签——它是唯一逼你把 38 种都备着的任务，
+  // 丢进池子里靠运气的话，一半的日子会没有，也就起不到作用了
+  const fixed = pool.findIndex(t => t.pickSeed);
+  if (fixed >= 0) {
+    const d = pool.splice(fixed, 1)[0];
+    const y = Math.sin(seed * 7.13 + day * 45.91 + tierIdx * 21.7) * 43758.5453;
+    out.push({
+      type: d.id,
+      target: taskTarget(d, tier),
+      seedId: SEEDS[Math.floor((y - Math.floor(y)) * SEEDS.length)].id,
+    });
+  }
+  for (let i = out.length; i < TASK_COUNT && pool.length; i++) {
     // 同一串正弦伪随机，(seed, day, tier, i) 定死一个结果
     const x = Math.sin(seed * 3.71 + day * 91.7 + tierIdx * 13.3 + i * 57.13) * 43758.5453;
     const r = x - Math.floor(x);
     const pick = pool.splice(Math.floor(r * pool.length), 1)[0];
-    out.push({ type: pick.id, target: taskTarget(pick, tier) });
+    const item = { type: pick.id, target: taskTarget(pick, tier) };
+    if (pick.pickSeed) {
+      // 换一组系数再摇一次，免得和上面挑类型那次同涨同落
+      const y = Math.sin(seed * 7.13 + day * 45.91 + tierIdx * 21.7 + i * 88.31) * 43758.5453;
+      item.seedId = SEEDS[Math.floor((y - Math.floor(y)) * SEEDS.length)].id;
+    }
+    out.push(item);
   }
   return out;
 }
