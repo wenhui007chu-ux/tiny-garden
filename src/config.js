@@ -165,7 +165,7 @@ export const herbById = (id) => HERBS.find(h => h.id === id);
 export const herbName = (h) => (h ? tf(`herb.${h.id}`, h.name) : '');
 
 // 药庐：碾药的石碾子。生药 1 株 → 药粉 1 份
-export const MORTAR = { slots: 5, time: 180 };
+export const MORTAR = { slots: 10, time: 180 };
 
 // 客人的方子：开张才生成。kinds 味药，每味 qty 份
 export const HERB_ORDER = {

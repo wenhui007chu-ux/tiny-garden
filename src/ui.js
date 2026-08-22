@@ -120,6 +120,9 @@ export class UI {
       if (!$('#butcher').classList.contains('hidden') && this.butcherPicking === null) this.renderButcher();
       if (!$('#visitor').classList.contains('hidden')) this.renderVisitor();
       if (!$('#sorter').classList.contains('hidden')) this.renderSorter();
+      // 药庐：药圃页要跳药材的剩余时间、碾药页要跳碾槽的。
+      // 抓药页不刷——那页有 +/− 按钮又没有倒计时，定时重绘只会吞掉点击
+      if (!$('#herb').classList.contains('hidden') && this.herbTab !== 'order') this.renderHerb();
       // 酒庄/食品店的「挑东西」那一屏整屏都是静态的（背包里的作物不会自己变），
       // 定时重绘除了把滚动条弹回顶上，还可能正好在两次点击之间把按钮换掉、吞掉一下点击。
       // 只在总览屏刷新，倒计时该跳还是跳。同钓鱼面板收杆时的处理。
@@ -1175,6 +1178,23 @@ export class UI {
     btn.addEventListener('click', () => { g.harvestAllHerbs(); this.renderHerb(); });
     body.appendChild(btn);
 
+    // 正在长的畦：按剩余时间排，快熟的排前面
+    const growing = g.herbPlots
+      .map((pl, idx) => (pl ? { pl, idx, h: herbById(pl.id) } : null))
+      .filter(x => x && x.h)
+      .map(x => ({ ...x, left: Math.max(0, x.h.growTime - x.pl.progress) }))
+      .sort((a, b) => a.left - b.left);
+    growing.forEach(({ pl, h, left }) => {
+      const el = document.createElement('div');
+      const ripe = pl.stage === 3;
+      el.className = 'ws-slot' + (ripe ? ' done' : '');
+      const pct = Math.round((pl.progress / h.growTime) * 100);
+      el.innerHTML = `<div class="icon">${h.emoji}</div>
+        <div class="info"><b>${herbName(h)}</b><p>${ripe ? t('herb.ripe') : tp('herb.left', { n: this.fmtHerbLeft(left) })}</p>
+        <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+      body.appendChild(el);
+    });
+
     HERBS.forEach(h => {
       const el = document.createElement('div');
       el.className = 'dish-row' + (g.selectedHerb === h.id ? ' ready' : '');
@@ -1190,6 +1210,17 @@ export class UI {
       el.appendChild(pick);
       body.appendChild(el);
     });
+  }
+
+  // growTime 是「有效生长秒」，夜里只按半速走，所以直接报秒数会偏乐观。
+  // 这里按当下是白天还是夜里折算成真实还要等多久
+  fmtHerbLeft(left) {
+    const speed = this.game.isNight?.() ? NIGHT_SLOW : 1;
+    const real = Math.ceil(left / speed);
+    // 单位走 i18n：英俄是 m/s、м/с，写死中文会在别的语言里漏出来
+    if (real < 60) return `${real}${t('unit.sec')}`;
+    const m = Math.floor(real / 60), sec = real % 60;
+    return sec ? `${m}${t('unit.min')}${sec}${t('unit.sec')}` : `${m}${t('unit.min')}`;
   }
 
   // 碾药页：生药下碾槽，碾好了收成药粉
