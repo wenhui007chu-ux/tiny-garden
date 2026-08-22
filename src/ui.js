@@ -1292,19 +1292,20 @@ export class UI {
       `<div id="kitchen-progress">${tp('herb.symptom', { desc: t('sym.' + o.sym) })}
        <small>${tp('herb.settleNow', { gain: r.gain.toLocaleString(), fine: r.fine.toLocaleString() })}</small></div>`);
 
-    // 只列手上有药粉的，没有的味道摆出来也点不了
-    const have = HERBS.filter(h => (g.powder[h.id] ?? 0) > 0 || (o.picked[h.id] ?? 0) > 0);
-    if (!have.length) {
+    // 25 味全列出来。缺货的也摆着——黄边正好告诉你这味对症但没货，该去种了
+    if (!Object.keys(g.powder).length && !Object.keys(o.picked ?? {}).length) {
       body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('herb.noPowder')}</div>`);
     }
-    have.forEach(h => {
+    HERBS.forEach(h => {
       const good = sym?.cures.includes(h.id);
       const got = o.picked[h.id] ?? 0;
+      const stock = (g.powder[h.id] ?? 0) + got;   // 已经放上柜台的也算「有」
+      const cls = good ? (stock > 0 ? ' cure' : ' lack') : ' wrong';
       const el = document.createElement('div');
-      el.className = 'dish-row herb-pick' + (good ? ' cure' : ' wrong');
+      el.className = 'dish-row herb-pick' + cls;
       el.innerHTML = `<div class="icon">${h.emoji}</div>
         <div class="info"><b>${herbName(h)}</b>
-        <span class="price">${good ? t('herb.cures') : t('herb.notFor')}</span>
+        <span class="price">${good ? (stock > 0 ? t('herb.cures') : t('herb.lack')) : t('herb.notFor')}</span>
         <div class="recipe"><span class="ing ${got ? 'ok' : 'no'}">${tp('herb.onCounter2', { n: got })}</span>
         <span class="ing ok">${tp('herb.powder', { n: g.powder[h.id] ?? 0 })}</span></div></div>`;
       const minus = document.createElement('button');
