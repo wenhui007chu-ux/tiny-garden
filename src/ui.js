@@ -1629,6 +1629,31 @@ export class UI {
     body.scrollTop = scrolled; // 定时重绘别把滚动位置弹回顶部
   }
 
+  // 把镜头挪到第 idx 座展柜跟前。
+  // 展柜的坐标是相对展厅的，加上 TREASURY_POS 才是世界坐标。
+  // 不瞬移而是补间 0.45 秒——383 格里连点几个的话，硬切会晕
+  focusTreasurySlot(idx) {
+    if (!this.inCodex || !this.camera || !this.controls) return;
+    const { x, z } = this.game.treasurySlotPos(idx);
+    const wx = TREASURY_POS.x + x, wz = TREASURY_POS.z + z;
+    const fromT = this.controls.target.clone();
+    const fromP = this.camera.position.clone();
+    // 对准柜面（台座 1.1 高），镜头退到斜前上方，别正对着挡住铭牌
+    const toT = fromT.clone().set(wx, TREASURY_POS.y + 1.1, wz);
+    const toP = fromP.clone().set(wx + 2.6, TREASURY_POS.y + 4.2, wz + 5.4);
+    const t0 = performance.now(), dur = 450;
+    cancelAnimationFrame(this._focusRaf);
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / dur);
+      const e = k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);   // easeInOutQuad
+      this.controls.target.lerpVectors(fromT, toT, e);
+      this.camera.position.lerpVectors(fromP, toP, e);
+      this.controls.update();
+      if (k < 1) this._focusRaf = requestAnimationFrame(step);
+    };
+    step();
+  }
+
   // 一个典藏展厅：先列背包里能交的，再铺一张全格总览
   renderTreasuryCat(body, catId) {
     const g = this.game;
@@ -1665,7 +1690,7 @@ export class UI {
       })}</div>`);
     const grid = document.createElement('div');
     grid.id = 'tr-grid';
-    keys.forEach(slot => {
+    keys.forEach((slot, idx) => {
       const got = !!g.treasury[slot];
       // 必须走 treasurySlotInfo：展位是「切掉尾巴」的短 key，
       // 裸调 keyInfo 的话大菜（g:<id>，真 key 还带成交价）会直接抛
@@ -1677,6 +1702,14 @@ export class UI {
         ? `<b>${info?.icon ?? '❔'}</b><span>${info?.label ?? slot}</span>`
         : `<b>🔒</b><span>${info?.label ?? slot}</span>`;
       cell.title = got ? `${info?.label} · ${info?.price?.toLocaleString()}💰` : t('tr.locked');
+      // 点一下把镜头挪到这座展柜跟前。没收录的也能点——
+      // 空底座照样立在那儿，正好看清楚这一格是哪个位置
+      cell.classList.add('pickable');
+      cell.addEventListener('click', () => {
+        this.focusTreasurySlot(idx);
+        grid.querySelectorAll('.tr-cell.focused').forEach(c => c.classList.remove('focused'));
+        cell.classList.add('focused');
+      });
       grid.appendChild(cell);
     });
     body.appendChild(grid);

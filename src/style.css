@@ -1173,6 +1173,10 @@ body {
 /* 收录了才亮起来、镶金边 */
 .tr-cell.got { border-color: #e0b64a; background: linear-gradient(135deg, #fffdf5, #fdf3d1); opacity: 1; }
 .tr-cell.got span { color: #6b4a24; font-weight: 700; }
+/* 点一下把镜头挪到那座展柜跟前 */
+.tr-cell.pickable { cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.tr-cell.pickable:hover { transform: translateY(-2px); box-shadow: 0 3px 8px #0002; }
+.tr-cell.focused { outline: 3px solid #6aae5e; outline-offset: 1px; }
 /* 品质边框沿用背包那套配色，变异单独给虹彩 */
 .tr-cell.got.quality-silver { border-color: #b8c4d0; background: linear-gradient(135deg, #fff, #eef3f8); }
 .tr-cell.got.quality-gold { border-color: #e0b64a; background: linear-gradient(135deg, #fff, #fdf3d1); }
