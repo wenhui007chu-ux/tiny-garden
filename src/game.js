@@ -613,9 +613,16 @@ export class Game {
   // 注意挂在 group 而不是建筑上：换肤会整个重建 houseMesh，
   // 挂建筑上的话名牌会跟着旧对象一起被丢掉。
   addSign(building, emoji, key) {
-    const box = new THREE.Box3().setFromObject(building);
+    const box = new THREE.Box3().setFromObject(building);   // 世界坐标包围盒
     const sign = createSignboard(emoji, t(`sign.${key}`));
-    sign.position.set(building.position.x, box.max.y + 0.62, building.position.z);
+    // 名牌挂在 this.group 上，而建筑不一定也是 group 的直接子节点——
+    // 药庐就嵌在 herbRoot 里，它的 position 是相对药圃的局部坐标 (8.5,0,0)，
+    // 直接拿来用名牌会飞到农田东边的半空中。统一取世界坐标再转回 group 的坐标系
+    const wp = new THREE.Vector3();
+    building.getWorldPosition(wp);
+    wp.y = box.max.y + 0.62;
+    this.group.worldToLocal(wp);
+    sign.position.copy(wp);
     sign.userData[key] = true;
     sign.userData.signBaseY = sign.position.y; // 让它轻轻上下浮
     this.group.add(sign);
