@@ -81,6 +81,7 @@ function pickTile(e) {
      ...game.pondMeshes, ...game.bankMeshes, ...game.treasuryMeshes,
      ...game.kitchenMeshes, ...game.gourmetMeshes, ...game.towerMeshes, ...game.harborMeshes, ...game.trainerMeshes, ...game.hybridLabMeshes, ...game.petHouseMeshes,
      ...game.greenhouseMeshes, ...game.achievementMeshes, ...game.sorterMeshes,
+     ...game.herbPlotMeshes, ...game.herbHutMeshes,
      ...game.aquariumMeshes, ...game.blackMarketMeshes, ...game.observatoryMeshes, ...game.warehouseMeshes, ...game.breweryMeshes, ...game.foodShopMeshes, ...game.ranchMeshes, ...game.butcherMeshes, ...game.receptionMeshes, ...game.signMeshes], false);
   return hits.length ? hits[0].object : null;
 }
@@ -326,6 +327,22 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // 牧场围栏/招牌：点开面板
   if (hit.userData.ranch) {
     ui.openRanch();
+    return;
+  }
+
+  // 药圃：熟了直接收，空畦就种下当前选中的药材，没开垦的先开垦
+  if (hit.userData.herbIndex !== undefined) {
+    const k = hit.userData.herbIndex;
+    if (game.herbLocked[k]) game.unlockHerbPlot(k);
+    else if (game.herbPlots[k]?.stage === 3) game.harvestHerb(k);
+    else if (!game.herbPlots[k]) game.plantHerb(k);
+    else ui.openHerbHut();          // 还长着呢，点开药庐看看进度
+    return;
+  }
+
+  // 药庐：碾药和抓药都在这儿
+  if (hit.userData.herbHut) {
+    ui.openHerbHut();
     return;
   }
 

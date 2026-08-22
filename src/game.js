@@ -36,6 +36,8 @@ import {
   HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, HARBOR_SPOTS,
   REVIEW_DIMS, REVIEW_TIPS, gradeOf,
   TRAINER, TRAINER_POS, TRAINER_LINES, trainerLineBy, trainerRatio, trainerTimeAt,
+  HERBS, herbById, herbName, HERB_POS, HERB_GRID, HERB_UNLOCK, HERB_YIELD,
+  MORTAR, HERB_ORDER, herbOrderPrice,
 } from './config.js';
 import {
   createToyBox, createTileMesh, createPlantMesh, createDecorMesh, tilePos,
@@ -53,6 +55,7 @@ import {
   createPetHouse, createPetInterior, createPetMesh, createPetDecorMesh,
   createAnimalMesh, createRanchPen, createRanchGround, ranchPos, createButcher, createVisitor,
   createGreenhouse, createGreenhouseInterior, createFlowerMesh, createFlowerBud, GREENHOUSE_SPOTS,
+  createHerbPlotMesh, herbPlotPos, createHerbMesh, createHerbHut,
   createAchievementBuilding, createAchievementInterior, createTrophyMesh, ACHIEVEMENT_SPOTS,
   createSorter, createMetalBar, createSignboard, createSprayMark,
   createAquarium, createAquariumInterior, createAquariumTank, createSeafoodMesh, AQUARIUM_SPOTS,
@@ -153,6 +156,36 @@ export class Game {
     scene.add(createLadder());
     scene.add(createLift());
 
+    // 这三个数组必须在装配药圃之前就建好——构造函数里场景装配跑在状态初始化前面
+    this.herbMeshes = [];
+    this.herbPlotMeshes = [];
+    this.herbHutMeshes = [];
+
+    // 药圃：岛西北 5×5 的畦，旁边一间药庐
+    const herbRoot = new THREE.Group();
+    herbRoot.position.set(HERB_POS.x, 0, HERB_POS.z);
+    for (let j = 0; j < HERB_GRID; j++) {
+      for (let i = 0; i < HERB_GRID; i++) {
+        const plot = createHerbPlotMesh();
+        const { x, y, z } = herbPlotPos(i, j);
+        plot.position.set(x, y - 0.17, z);
+        const hIdx = j * HERB_GRID + i;
+        plot.userData.herbIndex = hIdx;
+        // 标记打到每个叶子 mesh 上：拾取用的是扁平数组，不往下递归
+        plot.traverse(o => { if (o.isMesh) { o.userData.herbIndex = hIdx; this.herbPlotMeshes.push(o); } });
+        herbRoot.add(plot);
+        this.herbMeshes.push(plot);
+      }
+    }
+    const hut = createHerbHut();
+    hut.position.set(8.5, 0, 0);
+    hut.userData.herbHut = true;
+    hut.traverse(o => { if (o.isMesh) { o.userData.herbHut = true; this.herbHutMeshes.push(o); } });
+    herbRoot.add(hut);
+    this.herbHut = hut;   // 名牌等 signMeshes 建好之后再挂
+    this.herbRoot = herbRoot;
+    scene.add(herbRoot);
+
     this.tiles = [];
     for (let level = 0; level < LEVELS; level++) {
     for (let j = 0; j < GRID; j++) {
@@ -221,6 +254,15 @@ export class Game {
 
     // 黑房子银行：右前方空地
     this.bank = 0; // 存款
+
+    /* —— 中药材：药圃 / 生药 / 药粉 / 碾槽 / 当前方子 —— */
+    this.herbPlots = Array.from({ length: HERB_GRID * HERB_GRID }, () => null);
+    this.herbLocked = Array.from({ length: HERB_GRID * HERB_GRID }, (_, k) => k > 0); // 头一畦白送
+    this.herbBag = {};      // 生药：只能进碾槽，卖不掉
+    this.powder = {};       // 药粉：抓药用
+    this.mortar = Array.from({ length: MORTAR.slots }, () => null);
+    this.herbOrder = null;  // 开张才有客人，平时是 null
+    this.selectedHerb = HERBS[0].id;
     const bank = createBank();
     bank.position.set(14.5, -0.51, 2.5);
     bank.rotation.y = -1;
@@ -529,6 +571,7 @@ export class Game {
     this.signMeshes = [];
     // 名字走 i18n，换语言重载后名牌跟着变
     this.addSign(ws, '🏭', 'workshop');
+    this.addSign(this.herbHut, '🌿', 'herbHut');
     this.addSign(mall, '🛒', 'mall');
     this.addSign(this.houseMesh, '🏠', 'house');
     this.addSign(this.pond, '🎣', 'pond');
@@ -3777,6 +3820,176 @@ export class Game {
     this.save();
   }
 
+  /* ---------- 中药材 ---------- */
+
+  // 开一畦。头一畦是白送的，其余按 HERB_UNLOCK 收
+  unlockHerbPlot(idx) {
+    if (!this.herbLocked[idx]) return;
+    if (!this.spend(HERB_UNLOCK)) return;
+    this.herbLocked[idx] = false;
+    this.onToast(`🌿 开了一畦药圃，还剩 ${this.herbLocked.filter(Boolean).length} 畦没开`);
+    sfx.play('unlock');
+    this.onState(); this.save();
+  }
+
+  plantHerb(idx, herbId = this.selectedHerb) {
+    if (this.herbLocked[idx]) { this.unlockHerbPlot(idx); return; }
+    if (this.herbPlots[idx]) { this.onToast('这畦里已经种着药了'); sfx.play('deny'); return; }
+    const h = herbById(herbId);
+    if (!h) return;
+    if (!this.spend(h.cost)) return;
+    this.herbPlots[idx] = { id: herbId, progress: 0, stage: -1 };
+    this.refreshHerbMesh(idx);
+    this.onToast(`🌿 种下${h.emoji}${herbName(h)} -${h.cost}💰`);
+    sfx.play('plant');
+    this.onState(); this.save();
+  }
+
+  // 收生药。生药进 herbBag，不进背包——它卖不掉，只能拿去碾
+  harvestHerb(idx) {
+    const pl = this.herbPlots[idx];
+    if (!pl) return;
+    if (pl.stage < 3) { this.onToast('还没长成，再等等'); sfx.play('deny'); return; }
+    this.herbBag[pl.id] = (this.herbBag[pl.id] ?? 0) + HERB_YIELD;
+    const h = herbById(pl.id);
+    this.herbPlots[idx] = null;
+    this.refreshHerbMesh(idx);
+    this.onToast(`🌿 收了 ${HERB_YIELD} 株${h.emoji}${herbName(h)}（生药要碾成粉才用得上）`);
+    sfx.play('harvest');
+    this.onState(); this.save();
+  }
+
+  harvestAllHerbs() {
+    let n = 0;
+    this.herbPlots.forEach((pl, idx) => {
+      if (!pl || pl.stage < 3) return;
+      this.herbBag[pl.id] = (this.herbBag[pl.id] ?? 0) + HERB_YIELD;
+      this.herbPlots[idx] = null;
+      this.refreshHerbMesh(idx);
+      n += HERB_YIELD;
+    });
+    if (!n) { this.onToast('药圃里没有长成的药材'); sfx.play('deny'); return; }
+    this.onToast(`🌿 收了 ${n} 株生药`);
+    sfx.play('harvest');
+    this.onState(); this.save();
+  }
+
+  // 生药下碾槽
+  grindHerb(herbId) {
+    if ((this.herbBag[herbId] ?? 0) <= 0) { this.onToast('没有这味生药'); sfx.play('deny'); return; }
+    const k = this.mortar.findIndex(m => !m);
+    if (k < 0) { this.onToast('碾槽都占着呢'); sfx.play('deny'); return; }
+    this.herbBag[herbId] -= 1;
+    if (this.herbBag[herbId] <= 0) delete this.herbBag[herbId];
+    this.mortar[k] = { id: herbId, readyAt: this.time + MORTAR.time };
+    const h = herbById(herbId);
+    this.onToast(`⚗️ ${h.emoji}${herbName(h)}下碾，${Math.round(MORTAR.time / 60)} 分钟后成粉`);
+    sfx.play('tap');
+    this.onState(); this.save();
+  }
+
+  collectPowder(k) {
+    const m = this.mortar[k];
+    if (!m || this.time < m.readyAt) return;
+    this.powder[m.id] = (this.powder[m.id] ?? 0) + 1;
+    const h = herbById(m.id);
+    this.mortar[k] = null;
+    this.onToast(`⚗️ ${h.emoji}${herbName(h)}粉 ×1 收好了`);
+    sfx.play('coin');
+    this.onState(); this.save();
+  }
+
+  // 开张：随机来一位客人，报几味药和分量。不开张就没人来，不占挂机时间
+  openHerbShop() {
+    if (this.herbOrder) { this.onToast('柜台上还有一张方子没抓完'); sfx.play('deny'); return; }
+    const pool = [...HERBS];
+    const kinds = HERB_ORDER.minKinds
+      + Math.floor(Math.random() * (HERB_ORDER.maxKinds - HERB_ORDER.minKinds + 1));
+    const items = [];
+    for (let n = 0; n < kinds && pool.length; n++) {
+      const h = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      const qty = HERB_ORDER.minQty
+        + Math.floor(Math.random() * (HERB_ORDER.maxQty - HERB_ORDER.minQty + 1));
+      items.push({ id: h.id, qty });
+    }
+    this.herbOrder = { items, reward: herbOrderPrice(items), picked: {} };
+    this.onToast(`🧧 来客人了：${items.length} 味药，抓对了给 ${this.herbOrder.reward.toLocaleString()}💰`);
+    sfx.play('unlock');
+    this.onState(); this.save();
+  }
+
+  // 往柜台上放/撤一味药粉。放的时候就从药粉袋里扣，撤回来再还
+  pickHerb(herbId, delta = 1) {
+    const o = this.herbOrder;
+    if (!o) return;
+    const cur = o.picked[herbId] ?? 0;
+    if (delta > 0) {
+      if ((this.powder[herbId] ?? 0) < delta) { this.onToast('这味药粉不够了'); sfx.play('deny'); return; }
+      this.powder[herbId] -= delta;
+      if (this.powder[herbId] <= 0) delete this.powder[herbId];
+      o.picked[herbId] = cur + delta;
+    } else {
+      const back = Math.min(cur, -delta);
+      if (!back) return;
+      o.picked[herbId] = cur - back;
+      if (!o.picked[herbId]) delete o.picked[herbId];
+      this.powder[herbId] = (this.powder[herbId] ?? 0) + back;
+    }
+    sfx.play('tap');
+    this.onState(); this.save();
+  }
+
+  // 交方子。多一份少一份都算错，整单作废、药材照扣——
+  // 这是游戏里唯一一处真会亏东西的操作，所以结算前把对错算清楚再动手
+  submitHerbOrder() {
+    const o = this.herbOrder;
+    if (!o) return;
+    const want = new Map(o.items.map(it => [it.id, it.qty]));
+    const got = new Map(Object.entries(o.picked).filter(([, n]) => n > 0));
+    let ok = want.size === got.size;
+    if (ok) for (const [id, qty] of want) if ((got.get(id) ?? 0) !== qty) { ok = false; break; }
+    if (ok) {
+      this.coins += o.reward;
+      this.onToast(`🧧 抓对了！+${o.reward.toLocaleString()}💰`);
+      sfx.play('coin');
+      this.bumpTask('herb', 1);
+    } else {
+      // 作废：柜台上那些药粉不退了
+      this.onToast(`❌ 方子抓错了，整单作废，搭进去的药材也回不来了`);
+      sfx.play('deny');
+    }
+    this.herbOrder = null;
+    this.onState(); this.save();
+  }
+
+  refreshHerbMesh(idx) {
+    const plot = this.herbMeshes[idx];
+    if (!plot) return;
+    const old = plot.children.find(c => c.userData.herbPlant);
+    if (old) { plot.remove(old); disposeTree(old); }
+    const pl = this.herbPlots[idx];
+    if (!pl) return;
+    const m = createHerbMesh(pl.id, Math.max(0, pl.stage));
+    m.position.y = 0.17;
+    m.userData.herbPlant = true;
+    plot.add(m);
+  }
+
+  // 每帧推进药材生长。药圃露天但不用浇水——
+  // 否则得把整套湿润判定复制一遍，而药材本来就该是条更省心的支线。
+  // 只跟昼夜走，大旱不影响它
+  tickHerbs(dt, growMult) {
+    this.herbPlots.forEach((pl, idx) => {
+      if (!pl) return;
+      const h = herbById(pl.id);
+      if (!h) return;
+      pl.progress = Math.min(h.growTime, pl.progress + dt * growMult);
+      const st = pl.progress >= h.growTime ? 3
+        : pl.progress > h.growTime * 0.6 ? 2
+          : pl.progress > h.growTime * 0.25 ? 1 : 0;
+      if (st !== pl.stage) { pl.stage = st; this.refreshHerbMesh(idx); }
+    });
+  }
   unlockTile(idx) {
     const t = this.tiles[idx];
     if (!t.locked) return;
@@ -4046,6 +4259,7 @@ export class Game {
     this._achTimer = (this._achTimer ?? 0) + dt;
     if (this._achTimer >= 1) { this._achTimer = 0; this.checkAchievements(); }
 
+    this.tickHerbs(dt, night ? NIGHT_SLOW : 1);   // 药材只受昼夜影响
     const growMult = (night ? NIGHT_SLOW : 1) * (this.drought ? DROUGHT.growSlow : 1);
     for (const t of this.tiles) {
       const wet = this.isWet(t);
@@ -4159,6 +4373,13 @@ export class Game {
       poisonLeft: Math.max(0, this.poisonUntil - this.time),
       deadLeft: Math.max(0, this.deadUntil - this.time),
       bank: this.bank,
+      herbPlots: this.herbPlots.map(pl => (pl ? { id: pl.id, progress: pl.progress } : null)),
+      herbLocked: this.herbLocked,
+      herbBag: this.herbBag,
+      powder: this.powder,
+      mortar: this.mortar.map(m => (m ? { id: m.id, remain: Math.max(0, m.readyAt - this.time) } : null)),
+      herbOrder: this.herbOrder,
+      selectedHerb: this.selectedHerb,
       // 新字段。老的 codex 不写了，但也不删——它会由下面 _rawSave 的展开原样留着，
       // 万一要回滚到图鉴大楼那版代码，42 格进度还在
       treasury: this.treasury,
@@ -4275,6 +4496,30 @@ export class Game {
     }
     // 银行离线也每天日结
     this.bank = data.bank ?? 0;
+
+    // —— 中药材 —— 老存档没有这些字段，全部回落到初始状态
+    this.herbLocked = Array.from({ length: HERB_GRID * HERB_GRID },
+      (_, k) => data.herbLocked?.[k] ?? (k > 0));
+    this.herbBag = { ...(data.herbBag ?? {}) };
+    this.powder = { ...(data.powder ?? {}) };
+    this.selectedHerb = herbById(data.selectedHerb) ? data.selectedHerb : HERBS[0].id;
+    this.herbOrder = data.herbOrder ?? null;
+    (data.herbPlots ?? []).forEach((pl, idx) => {
+      if (!pl || idx >= this.herbPlots.length) return;
+      const h = herbById(pl.id);
+      if (!h) return;   // 表里删过的药材，直接当那畦空着
+      // 离线期间照常长（药材不用浇水，所以整段离线时间都算数）
+      this.herbPlots[idx] = {
+        id: pl.id, stage: -1,
+        progress: Math.min(h.growTime, (pl.progress ?? 0) + elapsed),
+      };
+      this.refreshHerbMesh(idx);
+    });
+    (data.mortar ?? []).forEach((m, k) => {
+      if (!m || k >= this.mortar.length) return;
+      if (!herbById(m.id)) return;
+      this.mortar[k] = { id: m.id, readyAt: this.time + Math.max(0, (m.remain ?? 0) - elapsed) };
+    });
     for (let d = 0; d < offlineDays && this.bank > 0; d++) {
       this.bank = Math.max(0, this.bank + this.bankDelta());
     }

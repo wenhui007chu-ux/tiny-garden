@@ -191,18 +191,18 @@ body {
   background: #e0364a; color: #fff; border-radius: 999px;
   min-width: 20px; height: 20px; line-height: 20px; font-size: 12px; padding: 0 4px;
 }
-#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer, #tasks, #reception {
+#bag, #ws, #disp, #mall, #items, #house, #fish, #bank, #codex, #kitchen, #wiki, #hybrid, #pet, #greenhouse, #ach, #sorter, #aqua, #black, #obs, #ware, #brew, #shop2, #ranch, #butcher, #visitor, #gourmet, #tower, #harbor, #review, #trainer, #tasks, #reception, #herb {
   position: fixed; top: 0; right: 0; height: 100%; width: 330px; z-index: 20;
   background: #fffaf0; border-left: 4px solid #e8c68f;
   display: flex; flex-direction: column;
   box-shadow: -6px 0 20px #0002;
 }
-#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head, #tasks-head, #reception-head {
+#bag-head, #ws-head, #disp-head, #mall-head, #items-head, #house-head, #fish-head, #bank-head, #codex-head, #kitchen-head, #wiki-head, #hybrid-head, #pet-head, #greenhouse-head, #ach-head, #sorter-head, #aqua-head, #black-head, #obs-head, #ware-head, #brew-head, #shop2-head, #ranch-head, #butcher-head, #visitor-head, #gourmet-head, #tower-head, #harbor-head, #review-head, #trainer-head, #tasks-head, #reception-head, #herb-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px; border-bottom: 2px solid #f0dfc0; color: #6b4a24; font-size: 17px;
 }
-#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close, #tasks-close, #reception-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
-#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body, #tasks-body, #reception-body { padding: 12px; overflow-y: auto; flex: 1; }
+#bag-close, #ws-close, #disp-close, #mall-close, #items-close, #house-close, #fish-close, #bank-close, #codex-close, #kitchen-close, #wiki-close, #hybrid-close, #pet-close, #greenhouse-close, #ach-close, #sorter-close, #aqua-close, #black-close, #obs-close, #ware-close, #brew-close, #shop2-close, #ranch-close, #butcher-close, #visitor-close, #gourmet-close, #tower-close, #harbor-close, #review-close, #trainer-close, #tasks-close, #reception-close, #herb-close { border: none; background: none; font-size: 18px; cursor: pointer; color: #b0906a; }
+#bag-body, #ws-body, #disp-body, #mall-body, #items-body, #house-body, #fish-body, #bank-body, #codex-body, #kitchen-body, #wiki-body, #hybrid-body, #pet-body, #greenhouse-body, #ach-body, #sorter-body, #aqua-body, #black-body, #obs-body, #ware-body, #brew-body, #shop2-body, #ranch-body, #butcher-body, #visitor-body, #gourmet-body, #tower-body, #harbor-body, #review-body, #trainer-body, #tasks-body, #reception-body, #herb-body { padding: 12px; overflow-y: auto; flex: 1; }
 
 /* 高级料理的配方有 5~6 样原料，一行塞不下，让它自己换行 */
 #gourmet-body .recipe { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -1262,3 +1262,13 @@ body {
   font-weight: 700; font-size: 13px; white-space: nowrap;
 }
 .task-row button:disabled { border-color: #ccc; background: #f2f2f2; color: #aaa; cursor: default; }
+
+/* ---------- 药庐 ---------- */
+/* head/close/body 复用上面那串通用面板规则，这里只补页签 */
+#herb-head > b { white-space: nowrap; }
+#herb-tabs { display: flex; gap: 6px; flex: 1; }
+.herb-tab {
+  border: 2px solid #b9c98a; background: #fff; border-radius: 10px;
+  padding: 6px 12px; cursor: pointer; font-size: 14px; color: #5a7a3a; font-weight: 600;
+}
+.herb-tab.active { background: #e2f0cc; border-color: #7aa84a; }

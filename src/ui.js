@@ -1,4 +1,4 @@
-import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, dishName, ingredientKey, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, unlockCost, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishName, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
+import { seedName, seafoodName, flowerName, pondName, SEEDS, SOILS, WATER_LEVELS, DECORS, seedById, QUALITIES, WORKSHOP, keyInfo, QUICK_WATER_COST, ITEMS, itemById, FURNITURE, INTERIOR_POS, FISHING, TREASURY_POS, TREASURY_CATS, TREASURY_TOTAL, treasurySlotInfo, TASK_TIERS, taskTypeById, RECEPTION_POS, RECEPTION_WAIT, RECEPTION_DECORS, receptionDecorName, receptionLevelName, DISHES, dishPrice, dishName, ingredientKey, HERBS, herbById, herbName, HERB_UNLOCK, MORTAR, HERB_GRID, ROD, CASTNET, GOLD_CHANCE, SILVER_CHANCE, MUTANT_CHANCE, DISH_MULT, BANK, DROUGHT, RAIN, PEST, POISON, DAMAGE, unlockCost, EGG, NIGHT_SLOW, DAY_CYCLE, FURNITURE_MAX_LEVEL, HOUSE_SKINS, HOUSE_SKIN_COST, ADV_DISHES, advDishById, advDishName, advDishPrice, advIngKey, ADV_COOK_TIME, TOWER_MAX_LEVEL, TOWER_FINISHES, TOWER_FLOORS_MAX, towerPlan, towerCost, HARBOR, harborKey, harborIsPrefix, HARBOR_DECORS, harborDecorById, harborDecorName, HARBOR_MAX_PLACED, REVIEW_TIPS, TRAINER, TRAINER_LINES, trainerTimeAt, TRAINER_STAFF, staffName } from './config.js';
 import { POND_DECORS, POND_RARITY, POND_MAX_PLACED, pondDecorById, HYBRIDS, hybridById, HYBRID_POS, HYBRID_TIME, HYBRID_SLOTS, PETS, petById, PET_DECORS, PET_POS, dishById, COOK_TIME, COOK_SLOTS, FLOWERS, flowerById, GREENHOUSE_POS, GREENHOUSE_SLOTS, BOUQUET_SIZE, BOUQUET_MULT } from './config.js';
 import { ACHIEVEMENTS, ACHIEVEMENT_POS, ACHIEVEMENT_TIERS } from './config.js';
 import { ANIMALS, animalById, animalName, RANCH_GRID, RANCH_POS } from './config.js';
@@ -28,6 +28,7 @@ export class UI {
     this.mallTab = 'items';   // 商场大楼里包揽了原来商店的全部页签
     this.codexTab = 'crop'; // 典藏大楼：七个展厅的 id，或 gallery（贵宾区个人展台）
     this.achTab = 'all';      // 成就殿堂：all 全部 / done 已达成 / todo 未达成
+    this.herbTab = 'field';   // 药庐三页：field 药圃 / grind 碾药 / order 抓药
     this.sellMode = false;    // 一键售卖的勾选状态
     this.sellExcluded = new Set(); // 被玩家点掉、不卖的那些 key
 
@@ -84,6 +85,11 @@ export class UI {
     $('#codex-close').addEventListener('click', () => this.exitCodex());
     $('#ach-close').addEventListener('click', () => this.exitAchievement());
     $('#sorter-close').addEventListener('click', () => $('#sorter').classList.add('hidden'));
+    $('#herb-close').addEventListener('click', () => $('#herb').classList.add('hidden'));
+    document.querySelectorAll('.herb-tab').forEach(b => b.addEventListener('click', () => {
+      this.herbTab = b.dataset.htab;
+      this.renderHerb();
+    }));
     $('#aqua-close').addEventListener('click', () => this.exitAquarium());
     $('#obs-close').addEventListener('click', () => $('#obs').classList.add('hidden'));
     $('#tasks-close').addEventListener('click', () => $('#tasks').classList.add('hidden'));
@@ -370,7 +376,7 @@ export class UI {
   /* ---------- 面板统一开关 ---------- */
 
   closePanels() {
-    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#tasks', '#reception', '#quick-menu']
+    ['#bag', '#ws', '#mall', '#items', '#fish', '#bank', '#kitchen', '#gourmet', '#tower', '#harbor', '#review', '#trainer', '#wiki', '#hybrid', '#pet', '#greenhouse', '#sorter', '#black', '#obs', '#ware', '#brew', '#shop2', '#ranch', '#butcher', '#visitor', '#tasks', '#reception', '#herb', '#quick-menu']
       .forEach(sel => $(sel).classList.add('hidden'));
     this.exitHouse(); // 打开别的面板时顺便走出房间
     this.exitCodex();
@@ -1136,6 +1142,161 @@ export class UI {
     this.renderSorter();
   }
 
+  /* ---------- 药庐 ---------- */
+
+  openHerbHut() {
+    this.closePanels();
+    $('#herb').classList.remove('hidden');
+    this.renderHerb();
+  }
+
+  renderHerb() {
+    const body = $('#herb-body');
+    const g = this.game;
+    body.innerHTML = '';
+    document.querySelectorAll('.herb-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.htab === this.herbTab));
+
+    if (this.herbTab === 'field') return this.renderHerbField(body, g);
+    if (this.herbTab === 'grind') return this.renderHerbGrind(body, g);
+    return this.renderHerbOrder(body, g);
+  }
+
+  // 药圃页：挑一味药当「当前种植」，再去药田点畦种下
+  renderHerbField(body, g) {
+    const open = g.herbLocked.filter(x => !x).length;
+    const ripe = g.herbPlots.filter(pl => pl && pl.stage === 3).length;
+    body.insertAdjacentHTML('beforeend',
+      `<div id="kitchen-progress">${tp('herb.fieldHead', { open, total: HERB_GRID * HERB_GRID, ripe, cost: HERB_UNLOCK })}</div>`);
+
+    const btn = document.createElement('button');
+    btn.id = 'kitchen-filter';
+    btn.textContent = t('herb.harvestAll');
+    btn.addEventListener('click', () => { g.harvestAllHerbs(); this.renderHerb(); });
+    body.appendChild(btn);
+
+    HERBS.forEach(h => {
+      const el = document.createElement('div');
+      el.className = 'dish-row' + (g.selectedHerb === h.id ? ' ready' : '');
+      const raw = g.herbBag[h.id] ?? 0, pow = g.powder[h.id] ?? 0;
+      el.innerHTML = `<div class="icon">${h.emoji}</div>
+        <div class="info"><b>${herbName(h)}</b> <span class="price">${tp('herb.powderPrice', { n: h.sell.toLocaleString() })}</span>
+        <div class="recipe"><span class="ing ok">${tp('herb.seedCost', { n: h.cost.toLocaleString() })}</span>
+        <span class="ing ${raw ? 'ok' : 'no'}">${tp('herb.raw', { n: raw })}</span>
+        <span class="ing ${pow ? 'ok' : 'no'}">${tp('herb.powder', { n: pow })}</span></div></div>`;
+      const pick = document.createElement('button');
+      pick.textContent = g.selectedHerb === h.id ? t('herb.picked') : t('herb.pick');
+      pick.addEventListener('click', () => { g.selectedHerb = h.id; g.save(); this.renderHerb(); });
+      el.appendChild(pick);
+      body.appendChild(el);
+    });
+  }
+
+  // 碾药页：生药下碾槽，碾好了收成药粉
+  renderHerbGrind(body, g) {
+    body.insertAdjacentHTML('beforeend',
+      `<div id="kitchen-progress">${tp('herb.grindHead', { n: MORTAR.slots, min: Math.round(MORTAR.time / 60) })}</div>`);
+
+    g.mortar.forEach((m, k) => {
+      const el = document.createElement('div');
+      el.className = 'ws-slot';
+      if (!m) {
+        el.innerHTML = `<div class="icon">⚗️</div><div class="info"><b>${tp('herb.mortarN', { n: k + 1 })}</b><p>${t('kit.empty')}</p></div>`;
+      } else {
+        const h = herbById(m.id);
+        const remain = Math.max(0, m.readyAt - g.time);
+        if (remain > 0) {
+          const pct = Math.round((1 - remain / MORTAR.time) * 100);
+          el.innerHTML = `<div class="icon">${h.emoji}</div>
+            <div class="info"><b>${tp('herb.grinding', { name: herbName(h) })}</b><p>${tp('kit.remain', { n: Math.ceil(remain) })}</p>
+            <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+        } else {
+          el.classList.add('done');
+          el.innerHTML = `<div class="icon">${h.emoji}</div>
+            <div class="info"><b>${tp('herb.ground', { name: herbName(h) })}</b><p>${tp('herb.powderPrice', { n: h.sell.toLocaleString() })}</p></div>`;
+          const b = document.createElement('button');
+          b.className = 'collect';
+          b.textContent = t('kit.collect');
+          b.addEventListener('click', () => { g.collectPowder(k); this.renderHerb(); });
+          el.appendChild(b);
+        }
+      }
+      body.appendChild(el);
+    });
+
+    const raws = HERBS.filter(h => (g.herbBag[h.id] ?? 0) > 0);
+    if (!raws.length) {
+      body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('herb.noRaw')}</div>`);
+      return;
+    }
+    raws.forEach(h => {
+      const el = document.createElement('div');
+      el.className = 'dish-row ready';
+      el.innerHTML = `<div class="icon">${h.emoji}</div>
+        <div class="info"><b>${herbName(h)}</b> <span class="price">${tp('herb.raw', { n: g.herbBag[h.id] })}</span></div>`;
+      const b = document.createElement('button');
+      b.textContent = t('herb.grind');
+      b.disabled = g.mortar.every(m => m);
+      b.addEventListener('click', () => { g.grindHerb(h.id); this.renderHerb(); });
+      el.appendChild(b);
+      body.appendChild(el);
+    });
+  }
+
+  // 抓药页：开张 → 照方子加减药粉 → 交方子
+  renderHerbOrder(body, g) {
+    const o = g.herbOrder;
+    if (!o) {
+      body.insertAdjacentHTML('beforeend', `<div class="bag-empty">${t('herb.closed')}</div>`);
+      const b = document.createElement('button');
+      b.id = 'kitchen-filter';
+      b.textContent = t('herb.open');
+      b.addEventListener('click', () => { g.openHerbShop(); this.renderHerb(); });
+      body.appendChild(b);
+      return;
+    }
+    body.insertAdjacentHTML('beforeend',
+      `<div id="kitchen-progress">${tp('herb.orderHead', { n: o.items.length, reward: o.reward.toLocaleString() })}</div>`);
+
+    let allRight = true;
+    o.items.forEach(it => {
+      const h = herbById(it.id);
+      const got = o.picked[it.id] ?? 0;
+      const okNow = got === it.qty;
+      if (!okNow) allRight = false;
+      const el = document.createElement('div');
+      el.className = 'dish-row' + (okNow ? ' ready' : '');
+      el.innerHTML = `<div class="icon">${h.emoji}</div>
+        <div class="info"><b>${tp('herb.want', { name: herbName(h), qty: it.qty })}</b>
+        <div class="recipe"><span class="ing ${okNow ? 'ok' : 'no'}">${tp('herb.onCounter', { got, qty: it.qty })}</span>
+        <span class="ing ok">${tp('herb.powder', { n: g.powder[it.id] ?? 0 })}</span></div></div>`;
+      const minus = document.createElement('button');
+      minus.textContent = '−';
+      minus.disabled = got <= 0;
+      minus.addEventListener('click', () => { g.pickHerb(it.id, -1); this.renderHerb(); });
+      const plus = document.createElement('button');
+      plus.textContent = '+';
+      plus.disabled = (g.powder[it.id] ?? 0) <= 0;
+      plus.addEventListener('click', () => { g.pickHerb(it.id, 1); this.renderHerb(); });
+      el.appendChild(minus); el.appendChild(plus);
+      body.appendChild(el);
+    });
+
+    // 客人没点名的药也能放上去——放了就是抓错，这是这个玩法的坑
+    const extras = Object.keys(o.picked).filter(id => !o.items.some(it => it.id === id) && o.picked[id] > 0);
+    if (extras.length) {
+      allRight = false;
+      body.insertAdjacentHTML('beforeend',
+        `<div class="bag-empty">${tp('herb.extra', { list: extras.map(id => herbName(herbById(id))).join('、') })}</div>`);
+    }
+
+    const sub = document.createElement('button');
+    sub.id = 'kitchen-filter';
+    sub.className = allRight ? 'on' : '';
+    sub.textContent = allRight ? t('herb.submitOk') : t('herb.submit');
+    sub.addEventListener('click', () => { g.submitHerbOrder(); this.renderHerb(); });
+    body.appendChild(sub);
+  }
   renderSorter() {
     const g = this.game;
     const body = $('#sorter-body');

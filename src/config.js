@@ -116,6 +116,67 @@ export const SEEDS = [
 // 收集类成就一律认全部 38 种作物。原先只认 14 种「基础」作物、
 // 另外 8 种特殊种子被排除在外；典藏馆上线后不再区分。
 
+/* ===================== 中药材：种 → 碾 → 照方抓药 =====================
+ * 和粮食作物分开的一条支线，摆在岛西北的空地上，不占那 108 格菜地。
+ * 三条规矩定了它的手感：
+ *   1. 生药不能卖。收上来只能进药庐碾成药粉，逼着走完加工链
+ *      （挂机产不出药粉，这条线只能手动跑）
+ *   2. 客人要主动「开张」才来，不开张不占挂机时间
+ *   3. 配错整单作废，药材照扣——这是游戏里第一个真会亏钱的玩法
+ * 定价落在粮食和牲口中间：药粉单价 3 万~50 万（作物顶格 26.8 万、
+ * 独角兽 384 万），一单配下来大致 5 万~120 万。
+ */
+export const HERB_POS = { x: -26, z: 16 };  // 岛西北空地：离繁荣塔 24.5、离岛边 23.5
+export const HERB_GRID = 5;                 // 5×5 = 25 畦，正好一味药一畦
+export const HERB_TILE = 1.6;               // 畦比菜地格大，药材植株摆得开
+export const HERB_UNLOCK = 8000;            // 每畦开垦价
+export const HERB_YIELD = 2;                // 一畦收 2 株生药
+
+// form 决定植株长什么样（根茎/花叶/果实/菌菇/草叶五种形态），color 是主色。
+// sell 是「碾好的药粉」单价，生药本身不标价——它压根不能卖
+export const HERBS = [
+  { id: 'licorice',    name: '甘草',        emoji: '🌿',  form: 'grass',   cost:   9000, sell:  30000, growTime:   200, color: 0xd8c88a },
+  { id: 'mint',        name: '薄荷',        emoji: '🍃',  form: 'flower',  cost:  10500, sell:  35000, growTime:   308, color: 0x7ac88a },
+  { id: 'chrysanth',   name: '菊花',        emoji: '🌼',  form: 'flower',  cost:  12000, sell:  40000, growTime:   417, color: 0xf2e07a },
+  { id: 'tangerine',   name: '陈皮',        emoji: '🍊',  form: 'fruit',   cost:  13500, sell:  45000, growTime:   525, color: 0xe89a4a },
+  { id: 'hawthorn',    name: '山楂',        emoji: '🔴',  form: 'fruit',   cost:  15000, sell:  50000, growTime:   633, color: 0xd9534f },
+  { id: 'honeysuck',   name: '金银花',       emoji: '💛',  form: 'flower',  cost:  16500, sell:  55000, growTime:  742, color: 0xf0e0a0 },
+  { id: 'jujube',      name: '大枣',        emoji: '🟤',  form: 'fruit',   cost:  18000, sell:  60000, growTime:  850, color: 0x9e4a3a },
+  { id: 'wolfberry',   name: '枸杞',        emoji: '🟠',  form: 'fruit',   cost:  21000, sell:  70000, growTime:  958, color: 0xe0603a },
+  { id: 'platycodon',  name: '桔梗',        emoji: '🫐',  form: 'root',    cost:  24000, sell:  80000, growTime: 1067, color: 0xb0a8d8 },
+  { id: 'peony',       name: '白芍',        emoji: '🤍',  form: 'root',    cost:  27000, sell:  90000, growTime: 1175, color: 0xf0e8e0 },
+  { id: 'bupleurum',   name: '柴胡',        emoji: '🌾',  form: 'root',    cost:  30000, sell: 100000, growTime: 1283, color: 0xc8b878 },
+  { id: 'chuanxiong',  name: '川芎',        emoji: '🟫',  form: 'root',    cost:  33000, sell: 110000, growTime: 1392, color: 0xa88a5a },
+  { id: 'poria',       name: '茯苓',        emoji: '⚪',   form: 'fungus',  cost:  36000, sell: 120000, growTime: 1500, color: 0xe8e0d0 },
+  { id: 'salvia',      name: '丹参',        emoji: '❤️',  form: 'root',    cost:  39000, sell: 130000, growTime: 1608, color: 0xa83a3a },
+  { id: 'astragalus',  name: '黄芪',        emoji: '💛',  form: 'root',    cost:  45000, sell: 150000, growTime: 1717, color: 0xe0c86a },
+  { id: 'angelica',    name: '当归',        emoji: '🟨',  form: 'root',    cost:  51000, sell: 170000, growTime: 1825, color: 0xd8b06a },
+  { id: 'eucommia',    name: '杜仲',        emoji: '🟩',  form: 'root',    cost:  57000, sell: 190000, growTime: 1933, color: 0x7a8a5a },
+  { id: 'fleeceflow',  name: '何首乌',       emoji: '⚫',   form: 'root',    cost:  63000, sell: 210000, growTime: 2042, color: 0x4a3a2a },
+  { id: 'dendrobium',  name: '石斛',        emoji: '💚',  form: 'grass',   cost:  72000, sell: 240000, growTime: 2150, color: 0x5ac88a },
+  { id: 'notoginseng', name: '三七',        emoji: '🟧',  form: 'root',    cost:  81000, sell: 270000, growTime: 2258, color: 0xc87a4a },
+  { id: 'gastrodia',   name: '天麻',        emoji: '🟡',  form: 'root',    cost:  90000, sell: 300000, growTime: 2367, color: 0xe8d8a0 },
+  { id: 'ganoderma',   name: '灵芝',        emoji: '🍄',  form: 'fungus',  cost: 102000, sell: 340000, growTime: 2475, color: 0x8a3a2a },
+  { id: 'saffron',     name: '藏红花',       emoji: '🧡',  form: 'flower',  cost: 114000, sell: 380000, growTime: 2583, color: 0xe0603a },
+  { id: 'cordyceps',   name: '冬虫夏草',      emoji: '🐛',  form: 'fungus',  cost: 132000, sell: 440000, growTime: 2692, color: 0xc8a86a },
+  { id: 'ginseng',     name: '人参',        emoji: '🫚',  form: 'root',    cost: 150000, sell: 500000, growTime: 2800, color: 0xe8d8b0 },
+];
+export const herbById = (id) => HERBS.find(h => h.id === id);
+export const herbName = (h) => (h ? tf(`herb.${h.id}`, h.name) : '');
+
+// 药庐：碾药的石碾子。生药 1 株 → 药粉 1 份
+export const MORTAR = { slots: 5, time: 180 };
+
+// 客人的方子：开张才生成。kinds 味药，每味 qty 份
+export const HERB_ORDER = {
+  minKinds: 2, maxKinds: 5,   // 一张方子几味药
+  minQty: 1, maxQty: 5,       // 每味几份
+  mult: 2.5,                  // 报酬 = 各味药粉现价 × 份数，求和后 ×2.5
+};
+// 一张方子值多少：照单价乘份数求和再乘倍率
+export const herbOrderPrice = (items) =>
+  Math.max(1, Math.floor(items.reduce((a, it) => a + (herbById(it.id)?.sell ?? 0) * it.qty, 0) * HERB_ORDER.mult));
+
 export const SOILS = [
   { name: '普通土', speed: 1,    yield: 1, cost: 0,   color: 0x9a7355 },
   { name: '肥沃土', speed: 1.4,  yield: 1, cost: 50,  color: 0x7a5033 },

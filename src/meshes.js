@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GRID, LEVELS, TILE, UPPER_Y, UPPER_Z, LAWN_R, houseSkinColor, SEAFOOD,
+  HERB_GRID, HERB_TILE, herbById,
   RANCH_GRID, RANCH_TILE, TOWER_FINISHES, RECEPTION_HALL } from './config.js';
 
 const mat = (color, opts = {}) =>
@@ -4060,6 +4061,148 @@ const builders = {
     return g;
   },
 };
+
+/* ================= 中药材：药畦 / 药庐 / 五种植株 ================= */
+
+// 药畦：比菜地格大一圈，深色药土配深木框，一眼和菜地分得开
+export function createHerbPlotMesh() {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(HERB_TILE * 0.94, 0.16, HERB_TILE * 0.94), mat(0x6a5240), 0, 0.08, 0));
+  const frameMat = mat(0x7a5a3a);
+  const half = HERB_TILE * 0.47;
+  [[0, -half], [0, half]].forEach(([x, z]) => g.add(mesh(
+    new THREE.BoxGeometry(HERB_TILE * 0.98, 0.1, 0.08), frameMat, x, 0.17, z)));
+  [[-half, 0], [half, 0]].forEach(([x, z]) => g.add(mesh(
+    new THREE.BoxGeometry(0.08, 0.1, HERB_TILE * 0.98), frameMat, x, 0.17, z)));
+  return g;
+}
+
+export function herbPlotPos(i, j) {
+  const half = (HERB_GRID - 1) / 2;
+  return { x: (i - half) * HERB_TILE, y: 0.17, z: (j - half) * HERB_TILE };
+}
+
+// 药材植株。25 味共用五种形态，靠 color 区分——
+// 每味单独建模要 25 个函数，形态 + 配色两个参数就够认了，
+// 而且新增药材只要往表里加一行，不用再写模型
+export function createHerbMesh(herbId, stage) {
+  const h = herbById(herbId);
+  const g = new THREE.Group();
+  if (!h) return g;
+  const c = h.color;
+  if (stage === 0) {   // 破土的芽
+    g.add(mesh(new THREE.ConeGeometry(0.06, 0.2, 5), mat(0x6a9e4a), 0, 0.1, 0));
+    return g;
+  }
+  const s = stage === 2 ? 0.62 : 1;
+  const leafMat = mat(0x4a7a3a);
+  // 除菌类外都先铺一圈基叶
+  if (h.form !== 'fungus') {
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      const leaf = mesh(new THREE.ConeGeometry(0.07 * s, 0.32 * s, 4), leafMat,
+        Math.cos(a) * 0.09 * s, 0.15 * s, Math.sin(a) * 0.09 * s);
+      leaf.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+      g.add(leaf);
+    }
+  }
+  if (stage === 1) return g;   // 一档只有叶子，看不出是哪味药
+
+  const M = mat(c);
+  if (h.form === 'root') {
+    // 根茎：主根拱出土面，两条须根岔开
+    const root = mesh(new THREE.CylinderGeometry(0.05 * s, 0.09 * s, 0.3 * s, 6), M, 0, 0.2 * s, 0);
+    root.rotation.z = 0.2;
+    g.add(root);
+    [-1, 1].forEach(d => {
+      const f = mesh(new THREE.CylinderGeometry(0.02 * s, 0.035 * s, 0.18 * s, 5), M,
+        d * 0.07 * s, 0.1 * s, 0.03 * s);
+      f.rotation.z = d * 0.9;
+      g.add(f);
+    });
+    g.add(mesh(new THREE.SphereGeometry(0.055 * s, 6, 5), M, 0, 0.36 * s, 0));
+  } else if (h.form === 'flower') {
+    // 花叶：细茎顶一簇小花
+    g.add(mesh(new THREE.CylinderGeometry(0.018 * s, 0.024 * s, 0.34 * s, 5), mat(0x5a8a4a), 0, 0.28 * s, 0));
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      g.add(mesh(new THREE.SphereGeometry(0.045 * s, 6, 5), M,
+        Math.cos(a) * 0.075 * s, 0.46 * s + (k % 2) * 0.04 * s, Math.sin(a) * 0.075 * s));
+    }
+    g.add(mesh(new THREE.SphereGeometry(0.05 * s, 6, 5), mat(0xf5efd8), 0, 0.5 * s, 0));
+  } else if (h.form === 'fruit') {
+    // 果实：矮灌木挂一串小果
+    g.add(mesh(new THREE.CylinderGeometry(0.03 * s, 0.045 * s, 0.26 * s, 5), mat(0x6a4a3a), 0, 0.23 * s, 0));
+    [[0.09, 0.34], [-0.08, 0.3], [0.02, 0.44]].forEach(([dx, y]) =>
+      g.add(mesh(new THREE.SphereGeometry(0.052 * s, 6, 5), M, dx * s, y * s, (dx * 0.6) * s)));
+  } else if (h.form === 'fungus') {
+    // 菌菇：短柄撑一顶伞盖，旁边再冒一朵小的
+    g.add(mesh(new THREE.CylinderGeometry(0.045 * s, 0.06 * s, 0.16 * s, 6), mat(0xe0d8c0), 0, 0.1 * s, 0));
+    const cap = mesh(new THREE.SphereGeometry(0.13 * s, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), M, 0, 0.18 * s, 0);
+    cap.scale.y = 0.6;
+    g.add(cap);
+    g.add(mesh(new THREE.CylinderGeometry(0.025 * s, 0.032 * s, 0.09 * s, 5), mat(0xe0d8c0), 0.13 * s, 0.05 * s, 0.05 * s));
+    const cap2 = mesh(new THREE.SphereGeometry(0.07 * s, 7, 5, 0, Math.PI * 2, 0, Math.PI / 2), M, 0.13 * s, 0.1 * s, 0.05 * s);
+    cap2.scale.y = 0.6;
+    g.add(cap2);
+  } else {
+    // 草叶：一丛细长叶子，颜色偏药材本色
+    for (let k = 0; k < 7; k++) {
+      const a = (k / 7) * Math.PI * 2;
+      const blade = mesh(new THREE.ConeGeometry(0.026 * s, 0.46 * s, 3), M,
+        Math.cos(a) * 0.05 * s, 0.24 * s, Math.sin(a) * 0.05 * s);
+      blade.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+      g.add(blade);
+    }
+  }
+  if (stage === 3) g.userData.bob = true;   // 熟了轻轻弹，提示可收
+  return g;
+}
+
+// 药庐：碾槽 + 药柜 + 幌子。碾药和抓药都在这儿
+export function createHerbHut() {
+  const g = new THREE.Group();
+  const wood = mat(0x8a6a4a), dark = mat(0x6a4a30);
+
+  // 台基与地板
+  g.add(mesh(new THREE.BoxGeometry(6.4, 0.3, 5), mat(0xb08a5a), 0, 0.15, 0));
+  // 后墙与两侧墙（正面敞开，看得见里头）
+  g.add(mesh(new THREE.BoxGeometry(6.4, 3, 0.25), mat(0xd8c09a), 0, 1.8, -2.4));
+  [-1, 1].forEach(d => g.add(mesh(new THREE.BoxGeometry(0.25, 3, 5), mat(0xd8c09a), d * 3.1, 1.8, 0)));
+  // 药柜：后墙一整面小抽屉，中药铺的招牌形象
+  for (let r = 0; r < 4; r++) {
+    for (let col = 0; col < 7; col++) {
+      g.add(mesh(new THREE.BoxGeometry(0.62, 0.42, 0.12), r % 2 ? mat(0x9a7a52) : mat(0x8a6a45),
+        (col - 3) * 0.72, 0.75 + r * 0.5, -2.25));
+      g.add(mesh(new THREE.SphereGeometry(0.045, 6, 5), mat(0xe0b64a), (col - 3) * 0.72, 0.75 + r * 0.5, -2.16));
+    }
+  }
+  // 碾槽：一只船形石槽 + 立着的碾轮
+  const trough = mesh(new THREE.CylinderGeometry(0.55, 0.5, 0.34, 10, 1, false, 0, Math.PI), mat(0x9a958c), -1.6, 0.47, 1.1);
+  trough.rotation.set(Math.PI, 0, 0);
+  g.add(trough);
+  const wheel = mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.1, 12), mat(0x7a756c), -1.6, 0.62, 1.1);
+  wheel.rotation.z = Math.PI / 2;
+  g.add(wheel);
+  g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 5), wood, -1.6, 0.62, 1.1));
+  // 抓药的柜台
+  g.add(mesh(new THREE.BoxGeometry(2.6, 0.75, 0.7), wood, 1.5, 0.68, 1.2));
+  g.add(mesh(new THREE.BoxGeometry(2.8, 0.1, 0.85), dark, 1.5, 1.08, 1.2));
+  // 柜台上的戥子（小秤）
+  g.add(mesh(new THREE.BoxGeometry(0.5, 0.05, 0.14), dark, 1.5, 1.16, 1.2));
+  g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 8), mat(0xd9b071), 1.28, 1.2, 1.2));
+  // 屋顶：两坡青瓦
+  [-1, 1].forEach(d => {
+    const r = mesh(new THREE.BoxGeometry(3.6, 0.18, 5.6), mat(0x6a7a80), d * 1.5, 3.75, 0);
+    r.rotation.z = -d * 0.42;
+    g.add(r);
+  });
+  g.add(mesh(new THREE.BoxGeometry(0.3, 0.22, 5.8), mat(0x55646a), 0, 4.4, 0));
+  // 门口幌子
+  g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), dark, 3.4, 1.6, 2.1));
+  g.add(mesh(new THREE.BoxGeometry(0.5, 0.9, 0.06), mat(0xc23b2f), 3.4, 2.5, 2.1));
+  return g;
+}
 
 export function createPlantMesh(seedId, stage) {
   const g = builders[seedId](stage);
