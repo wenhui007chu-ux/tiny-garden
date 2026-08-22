@@ -4090,14 +4090,31 @@ export function createHerbMesh(herbId, stage) {
   const g = new THREE.Group();
   if (!h) return g;
   const c = h.color;
-  if (stage === 0) {   // 破土的芽
-    g.add(mesh(new THREE.ConeGeometry(0.06, 0.2, 5), mat(0x6a9e4a), 0, 0.1, 0));
+  const fungus = h.form === 'fungus';
+  if (stage === 0) {   // 破土的芽。菌类冒的不是绿芽，给一颗贴地的白菌丝头
+    if (fungus) {
+      const knob = mesh(new THREE.SphereGeometry(0.055, 6, 5), mat(0xe8e0d0), 0, 0.045, 0);
+      knob.scale.y = 0.7;
+      g.add(knob);
+    } else {
+      g.add(mesh(new THREE.ConeGeometry(0.06, 0.2, 5), mat(0x6a9e4a), 0, 0.1, 0));
+    }
     return g;
   }
   const s = stage === 2 ? 0.62 : 1;
   const leafMat = mat(0x4a7a3a);
-  // 除菌类外都先铺一圈基叶
-  if (h.form !== 'fungus') {
+  // 菌类不长叶，改冒几粒菌苞；其余形态铺一圈基叶。
+  // 这两条分支都必须往 g 里放点东西——下面 stage===1 就直接 return 了，
+  // 谁空着谁那一档就整株隐形（菌类原来正是这么丢的）
+  if (fungus) {
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + 0.4;
+      const bud = mesh(new THREE.SphereGeometry(0.045 * s, 6, 5), mat(c),
+        Math.cos(a) * 0.06 * s, 0.05 * s, Math.sin(a) * 0.06 * s);
+      bud.scale.y = 0.75;
+      g.add(bud);
+    }
+  } else {
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * Math.PI * 2;
       const leaf = mesh(new THREE.ConeGeometry(0.07 * s, 0.32 * s, 4), leafMat,
@@ -4106,7 +4123,7 @@ export function createHerbMesh(herbId, stage) {
       g.add(leaf);
     }
   }
-  if (stage === 1) return g;   // 一档只有叶子，看不出是哪味药
+  if (stage === 1) return g;   // 一档只见叶子/菌苞，看不出是哪味药
 
   const M = mat(c);
   if (h.form === 'root') {
