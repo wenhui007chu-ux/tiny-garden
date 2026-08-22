@@ -146,7 +146,7 @@ export class UI {
     });
     setInterval(() => this.updateHealth(), 250);
     // 工具栏保存布局按钮
-    $('#save-layout-btn').addEventListener('click', () => this.game.saveLayout());
+    $('#save-layout-btn').addEventListener('click', () => this.openQuickMenu('saveKind'));
     // 设置菜单：音乐开关 + 提示开关
     this.tipsOn = localStorage.getItem('farm-tips-on') !== '0';
     $('#settings-btn').addEventListener('click', () => {
@@ -209,7 +209,7 @@ export class UI {
         return;
       }
       if (this.inside()) return; // 屋里/馆里不干农活
-      if (k === 'r') this.openQuickMenu('layouts'); // R 直接打开布局列表
+      if (k === 'r') this.openQuickMenu('sowKind'); // R 直接打开布局列表（先选类别）
       if (k === 'w') this.game.waterAll();
       if (k === 'h') this.game.harvestAll();
       if (k === 's') this.openSellMode();
@@ -3872,7 +3872,7 @@ export class UI {
         menu.classList.add('hidden');
       });
       addBtn(t('quick.plant'), () => {
-        this.openQuickMenu('layouts');
+        this.openQuickMenu('sowKind');
       });
       addBtn(tp('quick.water', { cost: QUICK_WATER_COST }), () => {
         g.waterAll();
@@ -3891,25 +3891,59 @@ export class UI {
       return;
     }
 
+    // 保存 / 播种前先挑类别。三种盘面各存各的，混在一起选不出来
+    if (view === 'saveKind' || view === 'sowKind') {
+      const saving = view === 'saveKind';
+      const kinds = [
+        ['crop', '🌱', t('layout.crop'), g.tiles.filter(x => x.plant).length, g.tiles.length],
+        ['ranch', '🐄', t('layout.ranch'), g.ranchPens.filter(Boolean).length, g.ranchPens.length],
+        ['herb', '🌿', t('layout.herb'), g.herbPlots.filter(Boolean).length, g.herbPlots.length],
+      ];
+      kinds.forEach(([k, icon, label, filled, total]) => {
+        const saved = g.savedLayouts.filter(e => (e.kind ?? 'crop') === k).length;
+        const note = saving
+          ? tp('layout.nowOn', { filled, total })
+          : tp('layout.savedN', { n: saved });
+        addBtn(`${icon} ${label} <small>${note}</small>`, () => {
+          if (saving) {
+            g.saveLayout(k);
+            menu.classList.add('hidden');
+          } else {
+            this.layoutKind = k;
+            this.openQuickMenu('layouts');
+          }
+        });
+      });
+      addBtn(t('ui.back'), () => this.openQuickMenu('main'));
+      return;
+    }
     // 布局列表
-    if (!g.savedLayouts.length) {
+    // 只列当前类别的布局。kind 缺省是 crop（老存档留下的）
+    const kind = this.layoutKind ?? 'crop';
+    const list = g.savedLayouts.map((e, i) => ({ e, i })).filter(x => (x.e.kind ?? 'crop') === kind);
+    if (!list.length) {
       const p = document.createElement('div');
       p.style.cssText = 'padding:8px 12px;color:#a1834f;font-size:13px;line-height:1.8;text-align:center;';
       p.innerHTML = t('quick.noLayout');
       menu.appendChild(p);
     }
-    g.savedLayouts.forEach((entry, i) => {
-      // 布局摘要：作物数量 + 总成本
+    list.forEach(({ e: entry, i }) => {
+      // 布局摘要：数量 + 总成本。三类各查各的表
       const counts = {};
       let cost = 0;
+      const defOf = id => (kind === 'ranch' ? animalById(id) : kind === 'herb' ? herbById(id) : seedById(id));
+      const nameOf = d => (kind === 'ranch' ? animalName(d) : kind === 'herb' ? herbName(d) : seedName(d));
       entry.layout.forEach(id => {
         if (!id) return;
+        const d = defOf(id);
+        if (!d) return;
         counts[id] = (counts[id] ?? 0) + 1;
-        cost += seedById(id).cost;
+        cost += d.cost;
       });
-      const summary = Object.entries(counts).map(([id, n]) => `${seedById(id).emoji}×${n}`).join(' ');
+      const summary = Object.entries(counts).map(([id, n]) => `${defOf(id)?.emoji ?? ''}×${n}`).join(' ');
       const b = addBtn(
-        `🌱 ${entry.name} <small>${summary} · ${tp('quick.layoutCost', { cost })}</small>`,
+        `${kind === 'ranch' ? '🐄' : kind === 'herb' ? '🌿' : '🌱'} ${entry.name}`
+        + ` <small>${summary} · ${tp('quick.layoutCost', { cost: cost.toLocaleString() })}</small>`,
         () => { g.sowLayout(i); menu.classList.add('hidden'); });
       const del = document.createElement('span');
       del.textContent = '✕';
@@ -3918,7 +3952,7 @@ export class UI {
       b.style.position = 'relative';
       b.appendChild(del);
     });
-    addBtn(t('ui.back'), () => this.openQuickMenu('main'));
+    addBtn(t('ui.back'), () => this.openQuickMenu('sowKind'));
   }
 
   /* ---------- 挂机 ---------- */

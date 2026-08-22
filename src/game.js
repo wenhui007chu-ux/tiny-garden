@@ -1012,13 +1012,28 @@ export class Game {
     this.save();
   }
 
-  saveLayout() {
-    const layout = this.tiles.map(t => t.plant?.seedId ?? null);
-    if (!layout.some(Boolean)) { this.onToast('地里空空的，先种点东西再保存'); return false; }
+  // 三种盘面各存各的：农作物看 tiles、牧场看 ranchPens、药材看 herbPlots。
+  // 存下来的都是「第几格放什么 id」，播种时再按 id 去买
+  layoutSnapshot(kind) {
+    if (kind === 'ranch') return this.ranchPens.map(p => p?.id ?? null);
+    if (kind === 'herb') return this.herbPlots.map(pl => pl?.id ?? null);
+    return this.tiles.map(t => t.plant?.seedId ?? null);
+  }
+
+  saveLayout(kind = 'crop') {
+    const layout = this.layoutSnapshot(kind);
+    if (!layout.some(Boolean)) {
+      this.onToast(kind === 'ranch' ? '牧场空着，先养点动物再保存'
+        : kind === 'herb' ? '药圃空着，先种点药材再保存'
+          : '地里空空的，先种点东西再保存');
+      return false;
+    }
     if (this.savedLayouts.length >= 8) { this.onToast('最多保存 8 个布局，先删掉一个吧'); return false; }
     this.layoutSeq += 1;
-    this.savedLayouts.push({ name: `布局${this.layoutSeq}`, layout });
-    this.onToast(`💾 已保存为「布局${this.layoutSeq}」`);
+    const tag = kind === 'ranch' ? '牧场' : kind === 'herb' ? '药圃' : '农田';
+    const name = `${tag}${this.layoutSeq}`;
+    this.savedLayouts.push({ name, kind, layout });
+    this.onToast(`💾 已保存为「${name}」`);
     this.onState();
     this.save();
     return true;
@@ -1034,6 +1049,14 @@ export class Game {
   }
 
   sowLayout(i) {
+    const e = this.savedLayouts[i];
+    if (!e) return;
+    if (e.kind === 'ranch') return this.sowRanchLayout(i);
+    if (e.kind === 'herb') return this.sowHerbLayout(i);
+    return this.sowCropLayout(i);
+  }
+
+  sowCropLayout(i) {
     const entry = this.savedLayouts[i];
     if (!entry) return;
     let planted = 0, cost = 0, lackMoney = false;
@@ -1053,6 +1076,53 @@ export class Game {
     this.bumpTask('plant', planted);
     if (!planted) this.onToast(lackMoney ? '金币不够，一块都种不起 😢' : '布局里的地都种着呢');
     else this.onToast(`🌱 按「${entry.name}」播种了 ${planted} 块地，花费 ${cost}💰${lackMoney ? '（金币不够没种完）' : ''}`);
+    this.save();
+  }
+
+  // 牧场：空栏位按布局补齐。动物比种子贵几个数量级，
+  // 所以逐只判断买不买得起，钱不够就停在那儿，不会把栏位买成半拉子
+  sowRanchLayout(i) {
+    const entry = this.savedLayouts[i];
+    if (!entry) return;
+    let bought = 0, cost = 0, lackMoney = false;
+    entry.layout.forEach((animalId, k) => {
+      if (!animalId || k >= this.ranchPens.length) return;
+      if (this.ranchPens[k]) return;              // 栏里有货，跳过
+      const an = animalById(animalId);
+      if (!an) return;
+      if (this.coins < an.cost) { lackMoney = true; return; }
+      if (!this.spend(an.cost)) { lackMoney = true; return; }
+      this.ranchPens[k] = { id: animalId, readyAt: this.time + an.grow };
+      this.refreshRanchPen(k);
+      cost += an.cost;
+      bought += 1;
+    });
+    this.onState();
+    if (!bought) this.onToast(lackMoney ? '金币不够，一只都买不起 😢' : '布局里的栏位都占着呢');
+    else this.onToast(`🐄 按「${entry.name}」补了 ${bought} 只，花费 ${cost.toLocaleString()}💰${lackMoney ? '（金币不够没补完）' : ''}`);
+    this.save();
+  }
+
+  // 药圃：只往开过垦、又空着的畦里种
+  sowHerbLayout(i) {
+    const entry = this.savedLayouts[i];
+    if (!entry) return;
+    let planted = 0, cost = 0, lackMoney = false;
+    entry.layout.forEach((herbId, k) => {
+      if (!herbId || k >= this.herbPlots.length) return;
+      if (this.herbLocked[k] || this.herbPlots[k]) return;
+      const h = herbById(herbId);
+      if (!h) return;
+      if (this.coins < h.cost) { lackMoney = true; return; }
+      if (!this.spend(h.cost)) { lackMoney = true; return; }
+      this.herbPlots[k] = { id: herbId, progress: 0, stage: -1 };
+      this.refreshHerbMesh(k);
+      cost += h.cost;
+      planted += 1;
+    });
+    this.onState();
+    if (!planted) this.onToast(lackMoney ? '金币不够，一畦都种不起 😢' : '布局里的畦都种着呢');
+    else this.onToast(`🌿 按「${entry.name}」种了 ${planted} 畦，花费 ${cost.toLocaleString()}💰${lackMoney ? '（金币不够没种完）' : ''}`);
     this.save();
   }
 
@@ -4463,6 +4533,8 @@ export class Game {
     // 旧存档只有 lastLayout 的话，迁移成第一个已保存布局
     this.savedLayouts = data.savedLayouts
       ?? (data.lastLayout?.some(Boolean) ? [{ name: '上次布局', layout: data.lastLayout }] : []);
+    // 老存档的布局没有 kind，一律当农作物——那时候只存得了农田
+    this.savedLayouts.forEach(e => { if (e && !e.kind) e.kind = 'crop'; });
     this.layoutSeq = data.layoutSeq ?? this.savedLayouts.length;
     this.paused = data.paused ?? false;
     // 中毒/死亡倒计时：离线时间照常流逝
